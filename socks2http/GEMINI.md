@@ -19,6 +19,7 @@
 - **CONNECT 隧道**: 基于 `http.Hijacker` 劫持底层 TCP 连接，返回 `200 Connection Established` 后在两个 Goroutine 间双向 `io.Copy`，并对支持半关闭的连接调用 `CloseWrite`。
 - **HTTP 转发**: 基于 `http.Transport`（配置上游 `DialContext`）进行 `RoundTrip`，进出均调用 `removeHopHeaders` 清理逐跳头。
 - **认证逻辑**: 通过 `crypto/subtle.ConstantTimeCompare` 校验客户端 `Proxy-Authorization` 标头。
+- **Access Log**: 仿 Nginx Combined 格式输出访问日志，通过 `responseObserver` 劫持 `WriteHeader`/`Write` 记录 HTTP 响应状态码及传输字节数，针对 CONNECT 隧道记录双向拷贝字节数与隧道状态。
 
 ## 运行配置
 
@@ -26,6 +27,7 @@
 - **编译**: `go build -o socks2http .`
 - **主要参数**:
   - `-listen`: 本地监听地址（默认 `127.0.0.1:8888`）
-  - `-socks`: 上游 SOCKS5 地址（默认 `127.0.0.1:13659`）
+  - `-socks`: 上游 SOCKS5 地址（默认 `127.0.0.1:1080`）
   - `-socks-user` / `-socks-pass`: 上游 SOCKS5 认证凭据
   - `-auth`: HTTP 代理 Basic 认证（`user:pass` 格式）
+  - `-access-log`: 访问日志输出目标（`stdout`、`stderr`、`off` 或文件路径，默认 `stdout`）

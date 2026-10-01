@@ -12,6 +12,7 @@
 - **标准 HTTP 转发**：符合 RFC 7230 规范的普通 HTTP 请求转发，支持绝对 URI 校验，自动过滤 Hop-by-Hop 逐跳请求头与响应头。
 - **上游 SOCKS5 认证**：支持无缝连接上游 SOCKS5 代理，并可选提供用户名/密码鉴权（`proxy.Auth`）。
 - **HTTP 代理认证保护**：可选开启代理自身的 Basic 认证（`Proxy-Authorization: Basic ...`），内部采用恒定时间比对（`crypto/subtle`）防范时序攻击。
+- **Nginx 风格 Access Log**：支持输出标准 Nginx Combined 格式的访问日志（`$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"`），支持输出到 stdout、stderr、文件或禁用。
 - **轻量无冗余依赖**：基于 Go 标准库和官方子仓库 `golang.org/x/net/proxy` 构建，内置连接池与 Context 超时控制，资源占用极低。
 
 ## 工作原理
@@ -75,7 +76,8 @@ graph LR
 cd socks2http
 
 # 编译可执行文件
-go build -o socks2http .
+make build
+# 或: go build -o socks2http .
 ```
 
 ## 快速上手
@@ -106,13 +108,14 @@ go build -o socks2http .
 
 ## 命令行参数
 
-| 参数项        | 默认值            | 说明                                                   |
-| :------------ | :---------------- | :----------------------------------------------------- |
-| `-listen`     | `127.0.0.1:8888`  | HTTP 代理服务的监听地址及端口                          |
-| `-socks`      | `127.0.0.1:13659` | 上游 SOCKS5 代理服务地址                               |
-| `-socks-user` | `""`              | 上游 SOCKS5 认证用户名（可选）                         |
-| `-socks-pass` | `""`              | 上游 SOCKS5 认证密码（可选）                           |
-| `-auth`       | `""`              | HTTP 代理自身的 Basic 认证，格式为 `user:pass`（可选） |
+| 参数项        | 默认值           | 说明                                                       |
+| :------------ | :--------------- | :--------------------------------------------------------- |
+| `-listen`     | `127.0.0.1:8888` | HTTP 代理服务的监听地址及端口                              |
+| `-socks`      | `127.0.0.1:1080` | 上游 SOCKS5 代理服务地址                                   |
+| `-socks-user` | `""`             | 上游 SOCKS5 认证用户名（可选）                             |
+| `-socks-pass` | `""`             | 上游 SOCKS5 认证密码（可选）                               |
+| `-auth`       | `""`             | HTTP 代理自身的 Basic 认证，格式为 `user:pass`（可选）     |
+| `-access-log` | `stdout`         | 访问日志输出目标：`stdout`、`stderr`、`off` 或指定文件路径 |
 
 ## 客户端配置与使用示例
 

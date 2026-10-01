@@ -1,20 +1,23 @@
-// socks2http: 将上游 SOCKS5 代理转换为 HTTP 代理（支持 CONNECT 隧道 / 普通 HTTP 请求）
+// socks2http: converts upstream SOCKS5 proxy to HTTP proxy (supports CONNECT tunnel and standard HTTP requests)
 //
-// 用法:
+// Usage:
 //
 //	go run . -listen 127.0.0.1:8080 -socks 127.0.0.1:1080
 //	go run . -listen :8080 -socks 10.0.0.1:1080 -socks-user u -socks-pass p -auth user:pass
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +25,7 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-// 逐跳头，转发时需要移除
+// Hop-by-hop headers to be removed when forwarding requests and responses
 var hopHeaders = []string{
 	"Connection",
 	"Proxy-Connection",
@@ -35,13 +38,152 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
+// accessLogger writes Nginx combined-format access logs using standard library log.Logger
+type accessLogger struct {
+	logger *log.Logger
+	closer io.Closer
+}
+
+func newAccessLogger(target string) (*accessLogger, error) {
+	target = strings.TrimSpace(target)
+	switch strings.ToLower(target) {
+	case "", "off", "none", "false":
+		return nil, nil
+	case "stdout":
+		return &accessLogger{logger: log.New(os.Stdout, "", 0)}, nil
+	case "stderr":
+		return &accessLogger{logger: log.New(os.Stderr, "", 0)}, nil
+	default:
+		f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return nil, err
+		}
+		return &accessLogger{logger: log.New(f, "", 0), closer: f}, nil
+	}
+}
+
+func (l *accessLogger) Close() error {
+	if l == nil || l.closer == nil {
+		return nil
+	}
+	return l.closer.Close()
+}
+
+func (l *accessLogger) Log(r *http.Request, status int, bytesSent int64) {
+	if l == nil || l.logger == nil {
+		return
+	}
+
+	clientIP := getClientIP(r)
+	authUser := getAuthUser(r)
+	timeLocal := time.Now().Format("02/Jan/2006:15:04:05 -0700")
+
+	reqURI := r.RequestURI
+	if reqURI == "" {
+		if r.URL != nil {
+			reqURI = r.URL.RequestURI()
+			if reqURI == "" {
+				reqURI = r.URL.String()
+			}
+		}
+		if reqURI == "" {
+			reqURI = r.Host
+		}
+	}
+	proto := r.Proto
+	if proto == "" {
+		proto = "HTTP/1.1"
+	}
+	requestLine := fmt.Sprintf("%s %s %s", r.Method, reqURI, proto)
+
+	referer := r.Referer()
+	if referer == "" {
+		referer = "-"
+	}
+
+	userAgent := r.UserAgent()
+	if userAgent == "" {
+		userAgent = "-"
+	}
+
+	// Format matching Nginx combined log format:
+	// $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
+	l.logger.Printf("%s - %s [%s] %q %d %d %q %q",
+		clientIP, authUser, timeLocal, requestLine, status, bytesSent, referer, userAgent)
+}
+
+func getClientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func getAuthUser(r *http.Request) string {
+	auth := r.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		auth = r.Header.Get("Authorization")
+	}
+	if strings.HasPrefix(strings.ToLower(auth), "basic ") {
+		payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(auth[6:]))
+		if err == nil {
+			if u, _, ok := strings.Cut(string(payload), ":"); ok && u != "" {
+				return u
+			}
+		}
+	}
+	return "-"
+}
+
+// responseObserver captures HTTP status code and body bytes sent
+type responseObserver struct {
+	http.ResponseWriter
+	status    int
+	bytesSent int64
+}
+
+func (ro *responseObserver) WriteHeader(code int) {
+	if ro.status == 0 {
+		ro.status = code
+		ro.ResponseWriter.WriteHeader(code)
+	}
+}
+
+func (ro *responseObserver) Write(b []byte) (int, error) {
+	if ro.status == 0 {
+		ro.status = http.StatusOK
+	}
+	n, err := ro.ResponseWriter.Write(b)
+	ro.bytesSent += int64(n)
+	return n, err
+}
+
+func (ro *responseObserver) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := ro.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
+}
+
+func (ro *responseObserver) Flush() {
+	if f, ok := ro.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (ro *responseObserver) Unwrap() http.ResponseWriter {
+	return ro.ResponseWriter
+}
+
 type server struct {
 	dialer    proxy.ContextDialer
 	transport *http.Transport
-	authToken string // 期望的 "Basic xxx"，为空表示不开启认证
+	authToken string // Expected "Basic xxx", empty means no auth required
+	logger    *accessLogger
 }
 
-// ctxDialerAdapter 用于上游 Dialer 不支持 DialContext 时的兜底
+// ctxDialerAdapter provides fallback context support if upstream dialer lacks DialContext
 type ctxDialerAdapter struct{ proxy.Dialer }
 
 func (a ctxDialerAdapter) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -67,7 +209,7 @@ func (a ctxDialerAdapter) DialContext(ctx context.Context, network, addr string)
 	}
 }
 
-func newServer(socksAddr, socksUser, socksPass, httpAuth string) (*server, error) {
+func newServer(socksAddr, socksUser, socksPass, httpAuth string, logger *accessLogger) (*server, error) {
 	var auth *proxy.Auth
 	if socksUser != "" {
 		auth = &proxy.Auth{User: socksUser, Password: socksPass}
@@ -84,13 +226,14 @@ func newServer(socksAddr, socksUser, socksPass, httpAuth string) (*server, error
 	s := &server{
 		dialer: cd,
 		transport: &http.Transport{
-			Proxy:                 nil, // 不再走环境变量代理
+			Proxy:                 nil, // Do not use environment proxy
 			DialContext:           cd.DialContext,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: time.Second,
 		},
+		logger: logger,
 	}
 	if httpAuth != "" {
 		s.authToken = "Basic " + base64.StdEncoding.EncodeToString([]byte(httpAuth))
@@ -107,19 +250,30 @@ func (s *server) checkAuth(r *http.Request) bool {
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ro := &responseObserver{ResponseWriter: w}
+	defer func() {
+		status := ro.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		if s.logger != nil {
+			s.logger.Log(r, status, ro.bytesSent)
+		}
+	}()
+
 	if !s.checkAuth(r) {
-		w.Header().Set("Proxy-Authenticate", `Basic realm="socks2http"`)
-		http.Error(w, "Proxy Authentication Required", http.StatusProxyAuthRequired)
+		ro.Header().Set("Proxy-Authenticate", `Basic realm="socks2http"`)
+		http.Error(ro, "Proxy Authentication Required", http.StatusProxyAuthRequired)
 		return
 	}
 	if r.Method == http.MethodConnect {
-		s.handleConnect(w, r)
+		s.handleConnect(ro, r)
 		return
 	}
-	s.handleHTTP(w, r)
+	s.handleHTTP(ro, r)
 }
 
-// handleConnect 处理 HTTPS 等 CONNECT 隧道
+// handleConnect handles HTTPS and arbitrary TCP streams via HTTP CONNECT tunneling
 func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if _, _, err := net.SplitHostPort(host); err != nil {
@@ -144,28 +298,43 @@ func (s *server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	client, bufrw, err := hj.Hijack()
 	if err != nil {
 		log.Printf("CONNECT %s: hijack failed: %v", host, err)
+		if ro, ok := w.(*responseObserver); ok {
+			ro.status = http.StatusInternalServerError
+		}
 		return
 	}
 	defer client.Close()
 
 	if _, err := client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+		if ro, ok := w.(*responseObserver); ok {
+			ro.status = http.StatusOK
+		}
 		return
 	}
+	if ro, ok := w.(*responseObserver); ok {
+		ro.status = http.StatusOK
+	}
 
+	var bytesSent int64
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		// 使用 bufrw.Reader，避免丢失 Hijack 前已缓冲的数据
+		// Use bufrw.Reader to avoid losing data buffered prior to hijack
 		io.Copy(remote, bufrw.Reader)
 		closeWrite(remote)
 	}()
 	go func() {
 		defer wg.Done()
-		io.Copy(client, remote)
+		n, _ := io.Copy(client, remote)
+		bytesSent = n
 		closeWrite(client)
 	}()
 	wg.Wait()
+
+	if ro, ok := w.(*responseObserver); ok {
+		ro.bytesSent = bytesSent
+	}
 }
 
 func closeWrite(c net.Conn) {
@@ -176,7 +345,7 @@ func closeWrite(c net.Conn) {
 	}
 }
 
-// handleHTTP 处理普通 HTTP 代理请求（请求行为绝对 URI）
+// handleHTTP handles plain HTTP proxy requests (requires absolute URI)
 func (s *server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	if !r.URL.IsAbs() || r.URL.Host == "" {
 		http.Error(w, "This is a proxy server. Absolute URI required.", http.StatusBadRequest)
@@ -206,7 +375,7 @@ func (s *server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func removeHopHeaders(h http.Header) {
-	// 先移除 Connection 头里列出的自定义逐跳头
+	// Remove custom hop-by-hop headers specified in the Connection header first
 	for _, v := range h.Values("Connection") {
 		for _, name := range strings.Split(v, ",") {
 			if name = strings.TrimSpace(name); name != "" {
@@ -221,13 +390,22 @@ func removeHopHeaders(h http.Header) {
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8888", "HTTP 代理监听地址")
-	socksAddr := flag.String("socks", "127.0.0.1:13659", "上游 SOCKS5 代理地址")
+	socksAddr := flag.String("socks", "127.0.0.1:1080", "上游 SOCKS5 代理地址")
 	socksUser := flag.String("socks-user", "", "上游 SOCKS5 用户名（可选）")
 	socksPass := flag.String("socks-pass", "", "上游 SOCKS5 密码（可选）")
 	httpAuth := flag.String("auth", "", "HTTP 代理 Basic 认证，格式 user:pass（可选）")
+	accessLog := flag.String("access-log", "stdout", "Access log 输出目标：stdout、stderr、off 或文件路径")
 	flag.Parse()
 
-	s, err := newServer(*socksAddr, *socksUser, *socksPass, *httpAuth)
+	logger, err := newAccessLogger(*accessLog)
+	if err != nil {
+		log.Fatalf("access log init: %v", err)
+	}
+	if logger != nil {
+		defer logger.Close()
+	}
+
+	s, err := newServer(*socksAddr, *socksUser, *socksPass, *httpAuth, logger)
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}

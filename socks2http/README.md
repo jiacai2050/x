@@ -12,6 +12,7 @@ A lightweight, high-performance SOCKS5-to-HTTP proxy server written in Go.
 - **Standard HTTP Proxying**: RFC 7230 compliant plain HTTP request forwarding with absolute URI validation and automatic hop-by-hop headers removal.
 - **Upstream SOCKS5 Support**: Seamless upstream SOCKS5 integration, including optional username/password authentication (`proxy.Auth`).
 - **HTTP Proxy Authentication**: Optional Basic Authentication protection (`Proxy-Authorization: Basic ...`) evaluated using constant-time comparison (`crypto/subtle`) against timing attacks.
+- **Nginx-style Access Log**: Outputs access logs formatted in standard Nginx Combined format (`$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"`), supporting stdout, stderr, off, or custom log file destinations.
 - **Lightweight & Efficient**: Built on the Go standard library and `golang.org/x/net/proxy` with context-aware timeouts, connection pooling, and minimal resource usage.
 
 ## How It Works
@@ -75,7 +76,8 @@ graph LR
 cd socks2http
 
 # Build the executable
-go build -o socks2http .
+make build
+# or: go build -o socks2http .
 ```
 
 ## Quick Start
@@ -106,13 +108,14 @@ Protect your HTTP proxy endpoint with Basic Authentication:
 
 ## Command Line Options
 
-| Flag          | Default           | Description                                                      |
-| :------------ | :---------------- | :--------------------------------------------------------------- |
-| `-listen`     | `127.0.0.1:8888`  | Address and port for the HTTP proxy server to listen on          |
-| `-socks`      | `127.0.0.1:13659` | Upstream SOCKS5 proxy server address                             |
-| `-socks-user` | `""`              | Username for upstream SOCKS5 authentication (optional)           |
-| `-socks-pass` | `""`              | Password for upstream SOCKS5 authentication (optional)           |
-| `-auth`       | `""`              | HTTP Proxy Basic authentication in `user:pass` format (optional) |
+| Flag          | Default          | Description                                                      |
+| :------------ | :--------------- | :--------------------------------------------------------------- |
+| `-listen`     | `127.0.0.1:8888` | Address and port for the HTTP proxy server to listen on          |
+| `-socks`      | `127.0.0.1:1080` | Upstream SOCKS5 proxy server address                             |
+| `-socks-user` | `""`             | Username for upstream SOCKS5 authentication (optional)           |
+| `-socks-pass` | `""`             | Password for upstream SOCKS5 authentication (optional)           |
+| `-auth`       | `""`             | HTTP Proxy Basic authentication in `user:pass` format (optional) |
+| `-access-log` | `stdout`         | Access log destination: `stdout`, `stderr`, `off`, or file path  |
 
 ## Client Configuration & Examples
 
