@@ -11,6 +11,7 @@ The repository is organized into subdirectories, each representing a standalone 
 | **Browser Extensions** | `gooreplacer`, `link-preview`, `text-saver` |
 | **CLI Tools (Python)** | `shellgpt`, `video-compress`, `zigcc` |
 | **System/Low-level** | `zigos` (OS kernel), `rust-ffi` (FFI demos), `zms` (Zig mirror server) |
+| **Proxy & Networking (Go)** | `openai-gateway`, `socks2http` |
 | **Serverless** | `serverless-webdav` (Cloudflare Workers) |
 | **Shared Scripts** | `common/` (Shared extension build/CSS assets) |
 

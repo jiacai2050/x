@@ -12,6 +12,7 @@ https://jiacai2050.github.io/my-works/
 - [[file:zigos/][zigos]] :: A Chinese tutorial on writing an OS in Zig.
 * Go
 - [[file:openai-gateway/][openai-gateway]] :: A tiny (~40 lines) Go reverse proxy for the OpenAI API that injects your API key server-side, so clients never need to hold credentials.
+- [[file:socks2http/][socks2http]] :: A lightweight Go proxy server that converts upstream SOCKS5 proxies to standard HTTP/HTTPS proxies.
 
 * Rust
 - [[file:rust-ffi/][rust-ffi]] :: Demo project show how to interop C with Rust.
