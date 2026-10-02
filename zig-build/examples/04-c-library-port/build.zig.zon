@@ -1,0 +1,10 @@
+.{
+    .name = .c_library_port,
+    .version = "0.1.0",
+    .fingerprint = 0x917660bf1f1cec0f,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "upstream",
+    },
+}

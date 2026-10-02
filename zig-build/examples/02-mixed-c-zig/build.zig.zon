@@ -1,0 +1,12 @@
+.{
+    .name = .mixed_c_zig,
+    .version = "0.1.0",
+    .fingerprint = 0xff17835525b2af07,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "c_include",
+        "c_src",
+        "src",
+    },
+}

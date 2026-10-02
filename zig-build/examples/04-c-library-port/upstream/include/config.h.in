@@ -1,0 +1,7 @@
+#ifndef MYCLIB_CONFIG_H
+#define MYCLIB_CONFIG_H
+
+#define MYCLIB_VERSION "@MYCLIB_VERSION@"
+#cmakedefine HAVE_FAST_MATH
+
+#endif // MYCLIB_CONFIG_H

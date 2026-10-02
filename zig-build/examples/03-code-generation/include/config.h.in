@@ -1,0 +1,9 @@
+#ifndef APP_CONFIG_H
+#define APP_CONFIG_H
+
+#cmakedefine HAVE_FEATURE_A
+#cmakedefine HAVE_FEATURE_B
+#define APP_NAME "@APP_NAME@"
+#define APP_PORT @APP_PORT@
+
+#endif // APP_CONFIG_H

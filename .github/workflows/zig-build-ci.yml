@@ -1,0 +1,54 @@
+name: zig-build ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: zig-build
+    shell: bash
+
+jobs:
+  test-and-build:
+    name: Build Book & Test Examples (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux x86_64
+          - os: macos-latest
+            name: macOS Apple Silicon
+          - os: windows-latest
+            name: Windows x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Show Zig version
+        run: zig version
+
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: 'latest'
+
+      - name: Install Make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress
+
+      - name: Build Book & Run Examples
+        run: make test

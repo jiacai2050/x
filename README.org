@@ -11,6 +11,9 @@ https://jiacai2050.github.io/x/
 - [[file:zms/][zms]] :: A pure Zig solution to set up a mirror server for fetching Zig tarballs on demand and caching them on the local disk.
 - [[file:zigos/][zigos]] :: A Chinese tutorial on writing an OS in Zig.
 
+* Tutorials
+- [[file:zig-build/][zig-build]] :: A comprehensive guide to Zig's build system, covering its core concepts, APIs, internals, and practical examples based on Zig 0.16.0.
+
 * Go
 - [[file:openai-gateway/][openai-gateway]] :: A tiny (~40 lines) Go reverse proxy for the OpenAI API that injects your API key server-side, so clients never need to hold credentials.
 - [[file:socks2http/][socks2http]] :: A lightweight Go proxy server that converts upstream SOCKS5 proxies to standard HTTP/HTTPS proxies.

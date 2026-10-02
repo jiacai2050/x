@@ -1,0 +1,10 @@
+.{
+    .name = .custom_step,
+    .version = "0.1.0",
+    .fingerprint = 0x42cf36c11ab4416e,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

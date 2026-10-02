@@ -1,0 +1,11 @@
+.{
+    .name = .code_generation,
+    .version = "0.1.0",
+    .fingerprint = 0xfb8891ddabcd2e4e,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "include",
+        "src",
+    },
+}

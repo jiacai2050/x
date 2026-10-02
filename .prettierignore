@@ -5,6 +5,7 @@ target
 public
 zigos/resources
 zigos/layouts/shortcodes/include.html
+zig-build
 env
 venv
 shellgpt/contents.json

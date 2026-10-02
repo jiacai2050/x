@@ -1,0 +1,38 @@
+[book]
+authors = ["jiacai2050"]
+description = "Zig 构建系统权威指南：来龙去脉、核心概念、API 实战与底层运行机制"
+language = "zh-CN"
+src = "src"
+title = "Zig 构建系统权威指南"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/jiacai2050/x"
+git-repository-icon = "fab-github"
+default-theme = "light"
+preferred-dark-theme = "navy"
+no-section-label = false
+site-url = "/x/zig-build/"
+additional-js = ["static/mermaid.min.js", "static/mermaid-init.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+copy-js = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.print]
+enable = true
+page-break = true

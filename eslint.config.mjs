@@ -7,6 +7,7 @@ export default defineConfig([
     'zigos',
     'draft-pilot/src/shared/Readability.min.js',
     'serverless-webdav/.wrangler',
+    'zig-build',
   ]),
 
   {

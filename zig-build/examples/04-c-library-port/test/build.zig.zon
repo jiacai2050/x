@@ -1,0 +1,15 @@
+.{
+    .name = .c_library_port_test,
+    .version = "0.1.0",
+    .fingerprint = 0x14cdc9684e573a83,
+    .dependencies = .{
+        .myclib = .{
+            .path = "..",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
