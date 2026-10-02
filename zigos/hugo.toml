@@ -3,13 +3,13 @@ defaultContentLanguage = 'zh-cn'
 title = 'Writing an OS in Zig'
 enableGitInfo = true
 copyright = """ © 2025
-  | <a href="https://github.com/jiacai2050/my-works/tree/main/zigos">Source Code</a>
+  | <a href="https://github.com/jiacai2050/x/tree/main/zigos">Source Code</a>
   | <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">BY-NC-ND 4.0</a>
   | <a href="/index.xml">RSS</a>
 """
 
 [params]
-github_repo = 'https://github.com/jiacai2050/my-works'
+github_repo = 'https://github.com/jiacai2050/x'
 github_subdir = 'zigos'
 offlineSearch = true
 

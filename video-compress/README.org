@@ -1,7 +1,7 @@
 
 * Video-compress
 [[https://pypi.org/project/video-compress][https://img.shields.io/pypi/v/video-compress.svg]]
-[[https://github.com/jiacai2050/video-compress/actions/workflows/ci.yml][https://github.com/jiacai2050/my-works/actions/workflows/vc-ci.yml/badge.svg]]
+[[https://github.com/jiacai2050/video-compress/actions/workflows/ci.yml][https://github.com/jiacai2050/x/actions/workflows/vc-ci.yml/badge.svg]]
 
 Compress video by 90% without losing much quality, similar to what [[https://en.wikipedia.org/wiki/Silicon_Valley_(TV_series)][Pied Piper]] achieves.
 

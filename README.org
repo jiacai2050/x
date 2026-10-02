@@ -1,22 +1,24 @@
-#+TITLE: MyWorks
+#+TITLE: X
 #+DATE: 2025-04-16T10:11:50+0800
-#+LASTMOD: 2026-05-23T20:42:59+0800
+#+LASTMOD: 2026-10-02T22:17:25+0800
 #+AUTHOR: Jiacai Liu
 
-A monorepo of my public projects — tools, libraries, and experiments I've built and released over time.
+X represents infinite possibilities and embodies the diversity of the projects.
 
-https://jiacai2050.github.io/my-works/
+https://jiacai2050.github.io/x/
 
 * Zig
 - [[file:zms/][zms]] :: A pure Zig solution to set up a mirror server for fetching Zig tarballs on demand and caching them on the local disk.
 - [[file:zigos/][zigos]] :: A Chinese tutorial on writing an OS in Zig.
+
 * Go
 - [[file:openai-gateway/][openai-gateway]] :: A tiny (~40 lines) Go reverse proxy for the OpenAI API that injects your API key server-side, so clients never need to hold credentials.
 - [[file:socks2http/][socks2http]] :: A lightweight Go proxy server that converts upstream SOCKS5 proxies to standard HTTP/HTTPS proxies.
 
 * Rust
 - [[file:rust-ffi/][rust-ffi]] :: Demo project show how to interop C with Rust.
-* JS
+
+* JavaScript
 - [[file:link-preview/][Link preview]] :: Browser extension to preview link metadata (title and description) on hover, saving you time to open many tabs just to preview the link!
 - [[file:text-saver/][Text saver]] :: Browser extension to save texts anytime, anywhere.
 - [[file:gooreplacer/][Gooreplacer]] :: Browser extension to modify, block URLs & Headers

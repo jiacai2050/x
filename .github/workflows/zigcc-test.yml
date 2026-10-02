@@ -87,7 +87,7 @@ jobs:
             ~/.cargo
           key: rust-${{ runner.os }}
       - name: Install ZigCC
-        uses: jiacai2050/my-works@main
+        uses: jiacai2050/x@main
         with:
           zig-version: master
       - name: Install Rust

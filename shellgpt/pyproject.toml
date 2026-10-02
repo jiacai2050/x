@@ -33,8 +33,8 @@ test = []
 # tui = ["textual"]
 
 [project.urls]
-Repository = "https://github.com/jiacai2050/my-works/tree/main/shellgpt"
-Issues = "https://github.com/jiacai2050/my-works/issues"
+Repository = "https://github.com/jiacai2050/x/tree/main/shellgpt"
+Issues = "https://github.com/jiacai2050/x/issues"
 
 [project.scripts]
 sg = "shellgpt:main"

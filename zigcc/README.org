@@ -32,7 +32,7 @@ This will install three executables:
 Adding a step to your workflow like this:
 #+begin_src yaml
       - name: Install zigcc
-        uses: jiacai2050/my-works@main
+        uses: jiacai2050/x@main
         with:
           zig-version: master
 #+end_src

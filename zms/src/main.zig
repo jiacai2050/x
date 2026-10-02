@@ -128,7 +128,7 @@ fn serveRequest(ctx: *Context, request: *std.http.Server.Request) !void {
         return try request.respond(
             \\ <h1>Zig tarballs mirror</h1>
             \\ <p>This site acts as a mirror of ziglang.org/download</p>
-            \\ <p><a href="https://github.com/jiacai2050/my-works/tree/main/zms">Source code</a></p>
+            \\ <p><a href="https://github.com/jiacai2050/x/tree/main/zms">Source code</a></p>
         , .{
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/html; charset=utf-8" },

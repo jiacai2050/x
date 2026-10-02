@@ -3,8 +3,8 @@
 [English](README.md)
 
 [![](https://img.shields.io/pypi/v/shgpt)](https://pypi.org/project/shgpt/)
-[![](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-ci.yml/badge.svg)](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-ci.yml)
-[![](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-release.yml/badge.svg)](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-release.yml)
+[![](https://github.com/jiacai2050/x/actions/workflows/shellgpt-ci.yml/badge.svg)](https://github.com/jiacai2050/x/actions/workflows/shellgpt-ci.yml)
+[![](https://github.com/jiacai2050/x/actions/workflows/shellgpt-release.yml/badge.svg)](https://github.com/jiacai2050/x/actions/workflows/shellgpt-release.yml)
 
 在终端直接与大语言模型（LLM）对话。它可以是你的 Shell 命令生成器、故事演说家、Linux 终端专家等。
 

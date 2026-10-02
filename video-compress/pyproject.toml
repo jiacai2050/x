@@ -31,8 +31,8 @@ classifiers = [
 dev = [ "hatch" ]
 
 [project.urls]
-Repository = "https://github.com/jiacai2050/my-works/tree/main/video-compress"
-Issues = "https://github.com/jiacai2050/my-works/issues"
+Repository = "https://github.com/jiacai2050/x/tree/main/video-compress"
+Issues = "https://github.com/jiacai2050/x/issues"
 
 [project.scripts]
 vc = "vc:main"

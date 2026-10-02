@@ -3,8 +3,8 @@
 [中文](README_zh.md)
 
 [![](https://img.shields.io/pypi/v/shgpt)](https://pypi.org/project/shgpt/)
-[![](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-ci.yml/badge.svg)](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-ci.yml)
-[![](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-release.yml/badge.svg)](https://github.com/jiacai2050/my-works/actions/workflows/shellgpt-release.yml)
+[![](https://github.com/jiacai2050/x/actions/workflows/shellgpt-ci.yml/badge.svg)](https://github.com/jiacai2050/x/actions/workflows/shellgpt-ci.yml)
+[![](https://github.com/jiacai2050/x/actions/workflows/shellgpt-release.yml/badge.svg)](https://github.com/jiacai2050/x/actions/workflows/shellgpt-release.yml)
 
 Chat with LLM in your terminal, be it shell generator, story teller, linux-terminal, etc.
 

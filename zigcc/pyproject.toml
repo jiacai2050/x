@@ -31,8 +31,8 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/jiacai2050/my-works/tree/main/zigcc"
-Issues = "https://github.com/jiacai2050/my-works/issues"
+Repository = "https://github.com/jiacai2050/x/tree/main/zigcc"
+Issues = "https://github.com/jiacai2050/x/issues"
 
 [project.scripts]
 zigcc = "zigcc:main"
