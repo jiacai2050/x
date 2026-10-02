@@ -1,6 +1,7 @@
 # Zig 构建系统指南
 
-> 基于 Zig 0.16.0 API 与编译器源码分析
+> - 基于 Zig 0.16 源码分析
+> - 在线浏览：<https://jiacai2050.github.io/x/zig-build/>
 
 ---
 

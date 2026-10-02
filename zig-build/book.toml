@@ -10,13 +10,15 @@ build-dir = "book"
 create-missing = false
 
 [output.html]
-git-repository-url = "https://github.com/jiacai2050/x"
+git-repository-url = "https://github.com/jiacai2050/x/tree/main/zig-build"
 git-repository-icon = "fab-github"
+edit-url-template = "https://github.com/jiacai2050/x/blob/main/zig-build/{path}"
 default-theme = "light"
 preferred-dark-theme = "navy"
 no-section-label = false
 site-url = "/x/zig-build/"
 additional-js = ["static/mermaid.min.js", "static/mermaid-init.js"]
+additional-css = ["static/custom.css"]
 
 [output.html.search]
 enable = true

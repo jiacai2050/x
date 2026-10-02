@@ -1,0 +1,204 @@
+/* Mermaid diagram container */
+.mermaid {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    margin: 28px 0;
+    overflow-x: auto;
+    padding: 16px 12px;
+    background: transparent;
+    cursor: zoom-in;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.mermaid:hover {
+    background-color: rgba(127, 127, 127, 0.06);
+}
+
+/* Subtle zoom hint badge on hover */
+.mermaid::after {
+    content: "🔍 点击放大";
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: rgba(22, 27, 34, 0.85);
+    color: #e6edf3;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(-2px);
+    z-index: 5;
+}
+
+.mermaid:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 
+ * Native Dark Mode Styles (navy, coal, ayu)
+ * No white cards, no white boxes - full dark integration
+ */
+
+/* Force light, high-contrast text on all nodes and cluster headers in dark mode */
+html.navy .mermaid .node .nodeLabel,
+html.navy .mermaid .node text,
+html.navy .mermaid .node foreignObject div,
+html.navy .mermaid .cluster-label text,
+html.navy .mermaid .cluster-label span,
+html.coal .mermaid .node .nodeLabel,
+html.coal .mermaid .node text,
+html.coal .mermaid .node foreignObject div,
+html.coal .mermaid .cluster-label text,
+html.coal .mermaid .cluster-label span,
+html.ayu .mermaid .node .nodeLabel,
+html.ayu .mermaid .node text,
+html.ayu .mermaid .node foreignObject div,
+html.ayu .mermaid .cluster-label text,
+html.ayu .mermaid .cluster-label span {
+    color: #e6edf3 !important;
+    fill: #e6edf3 !important;
+    font-weight: 500;
+}
+
+/* Fallback: ensure no white/light box fills remain in dark mode */
+html.navy .mermaid rect[style*="#f8f9fa" i],
+html.coal .mermaid rect[style*="#f8f9fa" i],
+html.ayu .mermaid rect[style*="#f8f9fa" i],
+html.navy .mermaid polygon[style*="#f8f9fa" i],
+html.coal .mermaid polygon[style*="#f8f9fa" i],
+html.ayu .mermaid polygon[style*="#f8f9fa" i] {
+    fill: #1c2128 !important;
+    stroke: #8b949e !important;
+}
+
+/* Connection line labels: dark pill badge with light text */
+html.navy .mermaid .edgeLabel,
+html.coal .mermaid .edgeLabel,
+html.ayu .mermaid .edgeLabel {
+    background-color: rgba(22, 25, 35, 0.9) !important;
+    color: #e6edf3 !important;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.9em;
+}
+
+/* High-contrast connecting lines and arrow markers */
+html.navy .mermaid .flowchart-link,
+html.coal .mermaid .flowchart-link,
+html.ayu .mermaid .flowchart-link {
+    stroke: #8b949e !important;
+}
+
+html.navy .mermaid marker path,
+html.coal .mermaid marker path,
+html.ayu .mermaid marker path {
+    fill: #8b949e !important;
+    stroke: #8b949e !important;
+}
+
+/* 
+ * Fullscreen Interactive Zoom & Pan Mode for Diagrams
+ */
+.mermaid.mermaid-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 999999 !important;
+    background-color: rgba(10, 12, 16, 0.92) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: grab !important;
+    overflow: hidden !important;
+}
+
+.mermaid.mermaid-fullscreen::after {
+    display: none !important;
+}
+
+.mermaid.mermaid-fullscreen.dragging {
+    cursor: grabbing !important;
+}
+
+.mermaid.mermaid-fullscreen svg {
+    max-width: 90vw !important;
+    max-height: 86vh !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    transform-origin: center center !important;
+    filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.6)) !important;
+    user-select: none !important;
+    pointer-events: auto !important;
+}
+
+/* Toolbar in fullscreen mode */
+.mermaid-fs-toolbar {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 1000000;
+    background: rgba(22, 27, 34, 0.92);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.mermaid-fs-btn {
+    background: transparent;
+    color: #e6edf3;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mermaid-fs-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+.mermaid-fs-close:hover {
+    background-color: rgba(248, 81, 73, 0.3);
+    color: #f85149;
+}
+
+.mermaid-fs-hint {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(22, 27, 34, 0.85);
+    color: #8b949e;
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: none;
+    z-index: 1000000;
+}
