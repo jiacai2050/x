@@ -27,14 +27,14 @@ graph LR
     S_Opts --> G_Args
     G_Args --> E_Proc
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style Step_State fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Serializer fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Spawn_Proc fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style S_Mod fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Opts fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style G_Args fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style E_Proc fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style Step_State stroke:#ff9900,stroke-width:2px;
+    style Serializer stroke:#0066cc,stroke-width:2px;
+    style Spawn_Proc stroke:#009900,stroke-width:2px;
+    style S_Mod stroke:#ff9900,stroke-width:2px;
+    style S_Opts stroke:#ff9900,stroke-width:2px;
+    style G_Args stroke:#0066cc,stroke-width:2px;
+    style E_Proc stroke:#009900,stroke-width:2px;
 ```
 
 ---

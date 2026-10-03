@@ -18,11 +18,11 @@ graph TD
         M_Pub["注册到 b.modules 导出表中<br/>允许下游第三方包通过<br/>dep.module('name') 获取并导入"]
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Create fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Add fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style M_Priv fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style M_Pub fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Create stroke:#ff9900,stroke-width:2px;
+    style S_Add stroke:#0066cc,stroke-width:2px;
+    style M_Priv stroke:#ff9900,stroke-width:2px;
+    style M_Pub stroke:#0066cc,stroke-width:2px;
 ```
 
 ### 1.1 `b.createModule`

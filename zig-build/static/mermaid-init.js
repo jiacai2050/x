@@ -1,65 +1,157 @@
-// Mermaid dynamic rendering for mdBook with on-demand CDN loading, dark mode adaptation & fullscreen zoom
+// Mermaid runtime initialization for mdBook with on-demand CDN loading & self-contained fullscreen zoom
 (function () {
     let isRendering = false;
-    let isScriptLoading = false;
-    const scriptCallbacks = [];
-
-    // Mapping from light pastel colors to deep dark mode colors
-    const DARK_COLOR_MAP = {
-        // Pastel fills -> Deep dark fills
-        "#f8f9fa": "#1c2128",
-        "#f9f9f9": "#1c2128",
-        "#f0f0f0": "#1c2128",
-        "#ffffff": "#1c2128",
-        "#fff": "#1c2128",
-        "#cce5ff": "#13233a",
-        "#e6f3ff": "#101c2e",
-        "#dae8fc": "#13233a",
-        "#fff0e6": "#261a12",
-        "#ffebcc": "#261a12",
-        "#ffe6cc": "#261a12",
-        "#e6ffe6": "#122416",
-        "#ccffcc": "#122416",
-        "#d1e7dd": "#122416",
-        "#d5e8d4": "#122416",
-        "#fff3cd": "#262010",
-        "#fff2cc": "#262010",
-        "#f8d7da": "#2d1417",
-        "#f8cecc": "#2d1417",
-        "#faa": "#2d1417",
-        "#ffa": "#262010",
-        "#ccc": "#30363d",
-
-        // Borders / strokes -> High-contrast strokes for dark background
-        "#0066cc": "#58a6ff",
-        "#009900": "#3fb950",
-        "#198754": "#3fb950",
-        "#495057": "#8b949e",
-        "#dc3545": "#f85149"
-    };
 
     function isDarkTheme() {
         const cl = document.documentElement.classList;
         return cl.contains("navy") || cl.contains("coal") || cl.contains("ayu");
     }
 
-    function transformToDarkTheme(source) {
-        return source.replace(/#([0-9a-fA-F]{3,6})\b/g, (match) => {
-            const lower = match.toLowerCase();
-            return DARK_COLOR_MAP[lower] || match;
-        });
+    // Inject self-contained styles for the interactive zoom & lightbox viewer (no external CSS needed)
+    function injectViewerStyles() {
+        if (document.getElementById("mermaid-viewer-styles")) return;
+        const style = document.createElement("style");
+        style.id = "mermaid-viewer-styles";
+        style.textContent = `
+            .mermaid {
+                position: relative;
+                display: flex;
+                justify-content: center;
+                margin: 24px 0;
+                overflow-x: auto;
+                cursor: zoom-in;
+                border-radius: 8px;
+                transition: background-color 0.2s ease;
+            }
+            .mermaid:hover {
+                background-color: rgba(127, 127, 127, 0.06);
+            }
+            .mermaid::after {
+                content: "🔍 点击放大";
+                position: absolute;
+                top: 8px;
+                right: 12px;
+                background: rgba(22, 27, 34, 0.85);
+                color: #e6edf3;
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 4px;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s ease, transform 0.2s ease;
+                transform: translateY(-2px);
+                z-index: 5;
+            }
+            .mermaid:hover::after {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .mermaid svg {
+                max-width: 100%;
+                height: auto;
+            }
+            .mermaid.mermaid-fullscreen {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: 100vw !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                z-index: 999999 !important;
+                background-color: rgba(10, 12, 16, 0.92) !important;
+                backdrop-filter: blur(8px) !important;
+                -webkit-backdrop-filter: blur(8px) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: grab !important;
+                overflow: hidden !important;
+            }
+            .mermaid.mermaid-fullscreen::after {
+                display: none !important;
+            }
+            .mermaid.mermaid-fullscreen.dragging {
+                cursor: grabbing !important;
+            }
+            .mermaid.mermaid-fullscreen svg {
+                max-width: 90vw !important;
+                max-height: 86vh !important;
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: contain !important;
+                transform-origin: center center !important;
+                filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.6)) !important;
+                user-select: none !important;
+            }
+            .mermaid-fs-toolbar {
+                position: fixed;
+                top: 16px;
+                right: 20px;
+                display: flex;
+                gap: 8px;
+                z-index: 1000000;
+                background: rgba(22, 27, 34, 0.92);
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            }
+            .mermaid-fs-btn {
+                background: transparent;
+                color: #e6edf3;
+                border: none;
+                cursor: pointer;
+                padding: 6px;
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background-color 0.15s ease, color 0.15s ease;
+            }
+            .mermaid-fs-btn:hover {
+                background-color: rgba(255, 255, 255, 0.15);
+                color: #ffffff;
+            }
+            .mermaid-fs-close:hover {
+                background-color: rgba(248, 81, 73, 0.3);
+                color: #f85149;
+            }
+            .mermaid-fs-hint {
+                position: fixed;
+                bottom: 16px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(22, 27, 34, 0.85);
+                color: #8b949e;
+                font-size: 13px;
+                padding: 6px 16px;
+                border-radius: 20px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                pointer-events: none;
+                z-index: 1000000;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
-    // Convert code blocks to mermaid containers and preserve original diagram source
-    function prepareContainers(blocks) {
-        blocks.forEach((block) => {
-            const pre = block.parentElement;
+    // Convert mdBook code blocks (<pre><code class="language-mermaid">) to Mermaid containers (<div class="mermaid">)
+    function prepareContainers() {
+        const blocks = document.querySelectorAll("pre code.language-mermaid, pre code.language-flowchart");
+        if (blocks.length === 0) return false;
+
+        blocks.forEach((codeBlock) => {
+            const pre = codeBlock.parentElement;
             if (!pre) return;
             const container = document.createElement("div");
             container.className = "mermaid";
-            container.dataset.mermaidSrc = block.textContent;
+            container.dataset.mermaidSrc = codeBlock.textContent;
+            container.textContent = codeBlock.textContent;
             pre.parentNode.replaceChild(container, pre);
         });
+        return true;
     }
 
     // Load mermaid script dynamically on demand from CDN
@@ -69,27 +161,10 @@
             return;
         }
 
-        scriptCallbacks.push(callback);
-        if (isScriptLoading) return;
-        isScriptLoading = true;
-
         const script = document.createElement("script");
         script.src = "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js";
-        script.onload = () => {
-            isScriptLoading = false;
-            while (scriptCallbacks.length > 0) {
-                const cb = scriptCallbacks.shift();
-                try {
-                    cb();
-                } catch (e) {
-                    console.error("Error in mermaid script callback:", e);
-                }
-            }
-        };
-        script.onerror = (err) => {
-            isScriptLoading = false;
-            console.error("Failed to load Mermaid from CDN:", err);
-        };
+        script.onload = () => callback();
+        script.onerror = (err) => console.error("Failed to load Mermaid from CDN:", err);
         document.head.appendChild(script);
     }
 
@@ -103,32 +178,26 @@
 
             const isDark = isDarkTheme();
 
-            // Set up each container with appropriate light or dark diagram code
+            // Restore original diagram code for clean re-rendering on theme switch
             containers.forEach((container) => {
                 if (container.dataset.mermaidSrc) {
                     container.removeAttribute("data-processed");
-                    const rawCode = container.dataset.mermaidSrc;
-                    container.textContent = isDark ? transformToDarkTheme(rawCode) : rawCode;
+                    container.textContent = container.dataset.mermaidSrc;
                 }
             });
 
-            // Initialize Mermaid with matching theme
+            // Initialize Mermaid with native theme matching mdBook
             mermaid.initialize({
                 startOnLoad: false,
-                theme: isDark ? "dark" : "default",
                 securityLevel: "loose",
-                flowchart: {
-                    htmlLabels: true,
-                    curve: "basis"
-                }
+                theme: isDark ? "dark" : "default"
             });
 
-            // Run rendering
+            // Render all mermaid containers
             await mermaid.run({
                 nodes: document.querySelectorAll(".mermaid")
             });
 
-            // Re-bind zoom events
             bindZoomEvents();
         } catch (err) {
             console.error("Mermaid rendering error:", err);
@@ -137,14 +206,16 @@
         }
     }
 
-    // Watch mdBook theme switches dynamically
+    // Watch mdBook theme switches dynamically without page reload
     function setupThemeObserver() {
         let currentDarkState = isDarkTheme();
         const observer = new MutationObserver(() => {
             const newDarkState = isDarkTheme();
             if (newDarkState !== currentDarkState) {
                 currentDarkState = newDarkState;
-                renderMermaid();
+                if (typeof mermaid !== "undefined") {
+                    renderMermaid();
+                }
             }
         });
 
@@ -154,7 +225,7 @@
         });
     }
 
-    // In-place Fullscreen Zoom Manager (No cloning, no lost SVGs, zero duplicate IDs)
+    // In-place Fullscreen Zoom Manager
     let activeContainer = null;
     let activeSvg = null;
     let placeholder = null;
@@ -182,21 +253,12 @@
     function closeFullscreen() {
         if (!activeContainer || !activeSvg) return;
 
-        // Restore active SVG
         activeSvg.style.transform = "";
 
-        // Remove toolbar & hint
-        if (toolbarEl && toolbarEl.parentNode) {
-            toolbarEl.parentNode.removeChild(toolbarEl);
-        }
-        if (hintEl && hintEl.parentNode) {
-            hintEl.parentNode.removeChild(hintEl);
-        }
+        if (toolbarEl && toolbarEl.parentNode) toolbarEl.parentNode.removeChild(toolbarEl);
+        if (hintEl && hintEl.parentNode) hintEl.parentNode.removeChild(hintEl);
+        if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
 
-        // Remove placeholder and restore container
-        if (placeholder && placeholder.parentNode) {
-            placeholder.parentNode.removeChild(placeholder);
-        }
         activeContainer.classList.remove("mermaid-fullscreen", "dragging");
         document.body.style.overflow = "";
 
@@ -213,18 +275,15 @@
         activeContainer = container;
         activeSvg = svg;
 
-        // Create a layout placeholder so the page content doesn't jump
         const rect = container.getBoundingClientRect();
         placeholder = document.createElement("div");
         placeholder.style.height = `${rect.height}px`;
         placeholder.style.margin = getComputedStyle(container).margin;
         container.parentNode.insertBefore(placeholder, container);
 
-        // Promote container to fullscreen
         container.classList.add("mermaid-fullscreen");
         document.body.style.overflow = "hidden";
 
-        // Create toolbar
         toolbarEl = document.createElement("div");
         toolbarEl.className = "mermaid-fs-toolbar";
         toolbarEl.innerHTML = `
@@ -243,13 +302,11 @@
         `;
         document.body.appendChild(toolbarEl);
 
-        // Create hint
         hintEl = document.createElement("div");
         hintEl.className = "mermaid-fs-hint";
         hintEl.textContent = "滚轮缩放 · 拖拽平移 · 双击重置 · ESC 或点击背景关闭";
         document.body.appendChild(hintEl);
 
-        // Attach toolbar button events
         toolbarEl.querySelector("#fs-btn-in").addEventListener("click", (e) => {
             e.stopPropagation();
             zoomLevel = Math.min(zoomLevel * 1.25, 6.0);
@@ -269,20 +326,14 @@
             closeFullscreen();
         });
 
-        // Initialize scale
         resetSvgTransform();
     }
 
-    // Global listeners for zoom & pan
     function setupGlobalInteractionListeners() {
-        // Close on ESC
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && activeContainer) {
-                closeFullscreen();
-            }
+            if (e.key === "Escape" && activeContainer) closeFullscreen();
         });
 
-        // Wheel zoom when in fullscreen
         window.addEventListener("wheel", (e) => {
             if (!activeContainer) return;
             e.preventDefault();
@@ -291,18 +342,13 @@
             updateSvgTransform();
         }, { passive: false });
 
-        // Drag to pan
         window.addEventListener("mousedown", (e) => {
             if (!activeContainer) return;
-            // Ignore toolbar clicks
             if (e.target.closest(".mermaid-fs-toolbar")) return;
-
-            // If user clicked directly on the fullscreen backdrop (outside SVG content)
             if (e.target === activeContainer) {
                 closeFullscreen();
                 return;
             }
-
             isDragging = true;
             activeContainer.classList.add("dragging");
             startX = e.clientX - panX;
@@ -322,7 +368,6 @@
             activeContainer.classList.remove("dragging");
         });
 
-        // Double click resets zoom
         window.addEventListener("dblclick", (e) => {
             if (!activeContainer) return;
             if (e.target.closest(".mermaid-fs-toolbar")) return;
@@ -335,26 +380,23 @@
             if (container.dataset.zoomBound) return;
             container.dataset.zoomBound = "true";
             container.addEventListener("click", (e) => {
-                if (activeContainer) return; // Already fullscreen
-                // Don't trigger if user clicked an explicit link
+                if (activeContainer) return;
                 if (e.target.closest("a")) return;
                 const svg = container.querySelector("svg");
-                if (svg) {
-                    openFullscreen(container, svg);
-                }
+                if (svg) openFullscreen(container, svg);
             });
         });
     }
 
     function init() {
-        const blocks = document.querySelectorAll("pre code.language-mermaid, pre code.language-flowchart");
-        if (blocks.length === 0) return;
+        const hasBlocks = prepareContainers();
+        if (!hasBlocks) return;
 
-        prepareContainers(blocks);
+        injectViewerStyles();
         loadMermaidScript(() => {
             renderMermaid();
+            setupThemeObserver();
         });
-        setupThemeObserver();
         setupGlobalInteractionListeners();
     }
 

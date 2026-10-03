@@ -51,16 +51,16 @@ graph TD
     M_Env --> M_Src
     M_Env --> M_Dep
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Artifact fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Module fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style A_Static fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style A_Shared fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style A_Test fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style A_Exe fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style M_Env fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style M_Src fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style M_Dep fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Artifact stroke:#ff9900,stroke-width:2px;
+    style S_Module stroke:#0066cc,stroke-width:2px;
+    style A_Static stroke:#ff9900,stroke-width:2px;
+    style A_Shared stroke:#ff9900,stroke-width:2px;
+    style A_Test stroke:#ff9900,stroke-width:2px;
+    style A_Exe stroke:#ff9900,stroke-width:2px;
+    style M_Env stroke:#0066cc,stroke-width:2px;
+    style M_Src stroke:#0066cc,stroke-width:2px;
+    style M_Dep stroke:#0066cc,stroke-width:2px;
 ```
 
 ### 职责分工：

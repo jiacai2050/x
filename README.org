@@ -1,6 +1,6 @@
 #+TITLE: X
 #+DATE: 2025-04-16T10:11:50+0800
-#+LASTMOD: 2026-10-02T22:17:25+0800
+#+LASTMOD: 2026-10-03T23:48:00+0800
 #+AUTHOR: Jiacai Liu
 
 X represents infinite possibilities and embodies the diversity of the projects.
@@ -13,6 +13,7 @@ https://jiacai2050.github.io/x/
 
 * Tutorials
 - [[file:zig-build/][zig-build]] :: A comprehensive guide to Zig's build system, covering its core concepts, APIs, internals, and practical examples based on Zig 0.16.0.
+- [[file:zig-compiler/][zig-compiler]] :: A deep dive into the design and implementation of the Zig 0.17.0 compiler, covering DOD, zero-pointer AST, dual-layer IR, Comptime, native backends, and incremental linking.
 
 * Go
 - [[file:openai-gateway/][openai-gateway]] :: A tiny (~40 lines) Go reverse proxy for the OpenAI API that injects your API key server-side, so clients never need to hold credentials.

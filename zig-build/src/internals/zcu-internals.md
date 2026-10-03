@@ -33,24 +33,24 @@ graph TD
         Link_Z --> Bin_Z["最终可执行文件"]
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_C fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Zig fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style C1 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style C2 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style C3 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style O1 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style O2 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style O3 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Link_C fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Bin_C fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Z1 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Z2 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Z3 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style ZCU fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Obj_Zig fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style Link_Z fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Bin_Z fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_C stroke:#ff9900,stroke-width:2px;
+    style S_Zig stroke:#0066cc,stroke-width:2px;
+    style C1 stroke:#495057,stroke-width:2px;
+    style C2 stroke:#495057,stroke-width:2px;
+    style C3 stroke:#495057,stroke-width:2px;
+    style O1 stroke:#495057,stroke-width:2px;
+    style O2 stroke:#495057,stroke-width:2px;
+    style O3 stroke:#495057,stroke-width:2px;
+    style Link_C stroke:#0066cc,stroke-width:2px;
+    style Bin_C stroke:#009900,stroke-width:2px;
+    style Z1 stroke:#495057,stroke-width:2px;
+    style Z2 stroke:#495057,stroke-width:2px;
+    style Z3 stroke:#495057,stroke-width:2px;
+    style ZCU stroke:#0066cc,stroke-width:2px;
+    style Obj_Zig stroke:#ffc107,stroke-width:2px;
+    style Link_Z stroke:#0066cc,stroke-width:2px;
+    style Bin_Z stroke:#009900,stroke-width:2px;
 ```
 
 ### 为什么 Zig 采用类似 Unity Build 的 ZCU 模型？
@@ -88,18 +88,18 @@ graph LR
         BE_LLVM --> Obj
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Front fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Sema fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style S_Back fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Src fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style AST fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style ZIR fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Comptime fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style AIR fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style BE_Native fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style BE_LLVM fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Obj fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Front stroke:#ff9900,stroke-width:2px;
+    style S_Sema stroke:#ffc107,stroke-width:2px;
+    style S_Back stroke:#009900,stroke-width:2px;
+    style Src stroke:#495057,stroke-width:2px;
+    style AST stroke:#495057,stroke-width:2px;
+    style ZIR stroke:#ff9900,stroke-width:2px;
+    style Comptime stroke:#ffc107,stroke-width:2px;
+    style AIR stroke:#ffc107,stroke-width:2px;
+    style BE_Native stroke:#0066cc,stroke-width:2px;
+    style BE_LLVM stroke:#0066cc,stroke-width:2px;
+    style Obj stroke:#009900,stroke-width:2px;
 ```
 
 1. **AST（抽象语法树）**：

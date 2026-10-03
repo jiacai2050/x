@@ -50,13 +50,13 @@ graph LR
         W_File -- "写入" --> F_Out
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Pipeline fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style F_Bin fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style W_Tar fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style W_Gz fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style W_File fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style F_Out fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Pipeline stroke:#0066cc,stroke-width:2px;
+    style F_Bin stroke:#ff9900,stroke-width:2px;
+    style W_Tar stroke:#0066cc,stroke-width:2px;
+    style W_Gz stroke:#009900,stroke-width:2px;
+    style W_File stroke:#0066cc,stroke-width:2px;
+    style F_Out stroke:#ffc107,stroke-width:2px;
 ```
 
 ### 完整实现代码
@@ -188,12 +188,12 @@ graph LR
         TopPack -- "dependOn" --> Pack
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_DAG fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style Exe fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Install fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Pack fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style TopPack fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_DAG stroke:#0066cc,stroke-width:2px;
+    style Exe stroke:#0066cc,stroke-width:2px;
+    style Install stroke:#009900,stroke-width:2px;
+    style Pack stroke:#009900,stroke-width:2px;
+    style TopPack stroke:#ffc107,stroke-width:2px;
 ```
 
 ---

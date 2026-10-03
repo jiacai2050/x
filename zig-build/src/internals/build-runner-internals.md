@@ -42,21 +42,21 @@ graph TD
     R_Bin --> P_Spawn
     P_Args --> E_Build
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_CLI fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_CompileRunner fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style S_Spawn fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style S_Exec fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style C_Cmd fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style C_Route fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style R_Entry fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style R_User fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style R_Bin fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style P_Spawn fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style P_Args fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style E_Build fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style E_Topo fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style E_Pool fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_CLI stroke:#ff9900,stroke-width:2px;
+    style S_CompileRunner stroke:#0066cc,stroke-width:2px;
+    style S_Spawn stroke:#ffc107,stroke-width:2px;
+    style S_Exec stroke:#009900,stroke-width:2px;
+    style C_Cmd stroke:#495057,stroke-width:2px;
+    style C_Route stroke:#ff9900,stroke-width:2px;
+    style R_Entry stroke:#0066cc,stroke-width:2px;
+    style R_User stroke:#0066cc,stroke-width:2px;
+    style R_Bin stroke:#0066cc,stroke-width:2px;
+    style P_Spawn stroke:#ffc107,stroke-width:2px;
+    style P_Args stroke:#ffc107,stroke-width:2px;
+    style E_Build stroke:#009900,stroke-width:2px;
+    style E_Topo stroke:#009900,stroke-width:2px;
+    style E_Pool stroke:#009900,stroke-width:2px;
 ```
 
 ---

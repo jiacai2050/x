@@ -36,18 +36,18 @@ graph TD
 
     Phase1 -- "构建图定型，移交调度器" --> Phase2
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style Phase1 fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Phase2 fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style B_Code fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style B_Option fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style B_Graph fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style B_Edge fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style E_Topo fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style E_Pool fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style E_Cache fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style E_Skip fill:#d1e7dd,stroke:#198754,stroke-width:2px;
-    style E_Worker fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
+    classDef default stroke:#495057;
+    style Phase1 stroke:#ff9900,stroke-width:2px;
+    style Phase2 stroke:#009900,stroke-width:2px;
+    style B_Code stroke:#495057,stroke-width:2px;
+    style B_Option stroke:#495057,stroke-width:2px;
+    style B_Graph stroke:#0066cc,stroke-width:2px;
+    style B_Edge stroke:#0066cc,stroke-width:2px;
+    style E_Topo stroke:#0066cc,stroke-width:2px;
+    style E_Pool stroke:#009900,stroke-width:2px;
+    style E_Cache stroke:#ffc107,stroke-width:2px;
+    style E_Skip stroke:#198754,stroke-width:2px;
+    style E_Worker stroke:#0066cc,stroke-width:2px;
 ```
 
 ---

@@ -69,11 +69,11 @@ graph LR
     Dep --> M_Art
     Dep --> M_Path
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style Dep fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style M_Mod fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style M_Art fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style M_Path fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    classDef default stroke:#495057;
+    style Dep stroke:#ff9900,stroke-width:2px;
+    style M_Mod stroke:#009900,stroke-width:2px;
+    style M_Art stroke:#0066cc,stroke-width:2px;
+    style M_Path stroke:#ffc107,stroke-width:2px;
 ```
 
 ### 3.1 获取模块：`dep.module`

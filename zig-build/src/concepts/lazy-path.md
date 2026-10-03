@@ -84,12 +84,12 @@ graph LR
     LP_Out -- "module.addIncludePath(LP_Out)" --> M_Target
     M_Target -. "底层自动调用<br/>dependOn(S_Gen)" .-> S_Gen
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style Generator fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Consumer fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Gen fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style LP_Out fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style M_Target fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
+    classDef default stroke:#495057;
+    style Generator stroke:#009900,stroke-width:2px;
+    style Consumer stroke:#0066cc,stroke-width:2px;
+    style S_Gen stroke:#009900,stroke-width:2px;
+    style LP_Out stroke:#ffc107,stroke-width:2px;
+    style M_Target stroke:#0066cc,stroke-width:2px;
 ```
 
 在 `LazyPath.addStepDependencies` 中：

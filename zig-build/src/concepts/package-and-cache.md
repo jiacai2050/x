@@ -152,19 +152,19 @@ graph TD
     L_O -- "硬链接/快速复制" --> Out_Lib
     L_O -- "硬链接/快速复制" --> Out_Inc
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Global fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Local fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Out fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style G_Pkg fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style G_Libc fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style G_Z fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style L_H fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style L_O fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style L_Tmp fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Out_Bin fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Out_Lib fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Out_Inc fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Global stroke:#ff9900,stroke-width:2px;
+    style S_Local stroke:#0066cc,stroke-width:2px;
+    style S_Out stroke:#009900,stroke-width:2px;
+    style G_Pkg stroke:#ff9900,stroke-width:2px;
+    style G_Libc stroke:#ff9900,stroke-width:2px;
+    style G_Z stroke:#ff9900,stroke-width:2px;
+    style L_H stroke:#ffc107,stroke-width:2px;
+    style L_O stroke:#0066cc,stroke-width:2px;
+    style L_Tmp stroke:#495057,stroke-width:2px;
+    style Out_Bin stroke:#009900,stroke-width:2px;
+    style Out_Lib stroke:#009900,stroke-width:2px;
+    style Out_Inc stroke:#009900,stroke-width:2px;
 ```
 
 ### 1. 全局缓存（Global Cache）
@@ -236,24 +236,24 @@ graph TD
         Atomic --> Out
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Inputs fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Cache fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Exec fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style S_Install fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Inputs stroke:#0066cc,stroke-width:2px;
+    style S_Cache stroke:#ff9900,stroke-width:2px;
+    style S_Exec stroke:#495057,stroke-width:2px;
+    style S_Install stroke:#009900,stroke-width:2px;
 
-    style Cfg fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Src fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Hash1 fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style M_Check fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Fast_Stat fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style Sha_Check fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style Hit fill:#d1e7dd,stroke:#198754,stroke-width:2px;
-    style Miss fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
-    style Tmp fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Atomic fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style M_Write fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Out fill:#d1e7dd,stroke:#198754,stroke-width:2px;
+    style Cfg stroke:#495057,stroke-width:2px;
+    style Src stroke:#495057,stroke-width:2px;
+    style Hash1 stroke:#0066cc,stroke-width:2px;
+    style M_Check stroke:#ff9900,stroke-width:2px;
+    style Fast_Stat stroke:#ffc107,stroke-width:2px;
+    style Sha_Check stroke:#ffc107,stroke-width:2px;
+    style Hit stroke:#198754,stroke-width:2px;
+    style Miss stroke:#dc3545,stroke-width:2px;
+    style Tmp stroke:#495057,stroke-width:2px;
+    style Atomic stroke:#0066cc,stroke-width:2px;
+    style M_Write stroke:#009900,stroke-width:2px;
+    style Out stroke:#198754,stroke-width:2px;
 ```
 
 ### 判定流程详解

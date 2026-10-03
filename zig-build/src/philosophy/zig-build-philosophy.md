@@ -26,15 +26,15 @@ graph TD
         Z_API -- "驱动编译与代码生成" --> Z_Src
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Trad fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Zig fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style T_DSL fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style T_Shell fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
-    style T_Src fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Z_Build fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Z_API fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_Src fill:#f8f9fa,stroke:#495057,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Trad stroke:#ff9900,stroke-width:2px;
+    style S_Zig stroke:#0066cc,stroke-width:2px;
+    style T_DSL stroke:#ff9900,stroke-width:2px;
+    style T_Shell stroke:#dc3545,stroke-width:2px;
+    style T_Src stroke:#495057,stroke-width:2px;
+    style Z_Build stroke:#009900,stroke-width:2px;
+    style Z_API stroke:#0066cc,stroke-width:2px;
+    style Z_Src stroke:#495057,stroke-width:2px;
 ```
 
 Zig 的策略是直接使用普通 Zig 源码编写构建脚本（`build.zig`）：
@@ -78,18 +78,18 @@ graph TD
     Z_LLD -- "输出目标二进制" --> T3
     Z_LLD -- "输出目标二进制" --> T4
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_ZigDist fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Targets fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Z_Frontend fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_Clang fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_LLD fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_Libc fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Z_Engine fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style T1 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style T2 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style T3 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style T4 fill:#f8f9fa,stroke:#495057,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_ZigDist stroke:#0066cc,stroke-width:2px;
+    style S_Targets stroke:#ff9900,stroke-width:2px;
+    style Z_Frontend stroke:#0066cc,stroke-width:2px;
+    style Z_Clang stroke:#0066cc,stroke-width:2px;
+    style Z_LLD stroke:#0066cc,stroke-width:2px;
+    style Z_Libc stroke:#009900,stroke-width:2px;
+    style Z_Engine stroke:#ffc107,stroke-width:2px;
+    style T1 stroke:#495057,stroke-width:2px;
+    style T2 stroke:#495057,stroke-width:2px;
+    style T3 stroke:#495057,stroke-width:2px;
+    style T4 stroke:#495057,stroke-width:2px;
 ```
 
 这种集成带来的特点包括：

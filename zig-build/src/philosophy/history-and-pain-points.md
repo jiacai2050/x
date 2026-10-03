@@ -27,14 +27,14 @@ graph LR
     G2_Auto -- "跨平台抽象" --> G2_CMake
     G2_CMake -- "调度性能优化" --> G3_Ninja
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Gen1 fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Gen2 fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Gen3 fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style G1_Make fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style G2_Auto fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style G2_CMake fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style G3_Ninja fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Gen1 stroke:#ff9900,stroke-width:2px;
+    style S_Gen2 stroke:#0066cc,stroke-width:2px;
+    style S_Gen3 stroke:#009900,stroke-width:2px;
+    style G1_Make stroke:#ff9900,stroke-width:2px;
+    style G2_Auto stroke:#0066cc,stroke-width:2px;
+    style G2_CMake stroke:#0066cc,stroke-width:2px;
+    style G3_Ninja stroke:#009900,stroke-width:2px;
 ```
 
 ### 1.1 Make 与时间戳判定
@@ -75,15 +75,15 @@ graph TD
         G_Cgo --> G_Ext
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Rust fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Go fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style R_Cargo fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style R_Script fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style R_Ext fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style G_Go fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style G_Cgo fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style G_Ext fill:#f8f9fa,stroke:#495057,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Rust stroke:#ff9900,stroke-width:2px;
+    style S_Go stroke:#0066cc,stroke-width:2px;
+    style R_Cargo stroke:#ff9900,stroke-width:2px;
+    style R_Script stroke:#0066cc,stroke-width:2px;
+    style R_Ext stroke:#495057,stroke-width:2px;
+    style G_Go stroke:#0066cc,stroke-width:2px;
+    style G_Cgo stroke:#ffc107,stroke-width:2px;
+    style G_Ext stroke:#495057,stroke-width:2px;
 ```
 
 然而涉及 C/C++ 依赖时，仍存在工具链边界：

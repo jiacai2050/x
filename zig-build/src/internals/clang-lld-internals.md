@@ -39,20 +39,20 @@ graph TD
     Z_LLDLib --> O_Link
     O_Link --> O_Bin
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_ZigMain fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style S_Proc fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Out fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Z_Cmd fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_Comp fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_FFI fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style Z_ClangLib fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_LLDLib fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style P_ZigClang fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style O_C fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style O_Zig fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style O_Link fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style O_Bin fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_ZigMain stroke:#0066cc,stroke-width:2px;
+    style S_Proc stroke:#ff9900,stroke-width:2px;
+    style S_Out stroke:#009900,stroke-width:2px;
+    style Z_Cmd stroke:#0066cc,stroke-width:2px;
+    style Z_Comp stroke:#0066cc,stroke-width:2px;
+    style Z_FFI stroke:#ffc107,stroke-width:2px;
+    style Z_ClangLib stroke:#0066cc,stroke-width:2px;
+    style Z_LLDLib stroke:#0066cc,stroke-width:2px;
+    style P_ZigClang stroke:#ff9900,stroke-width:2px;
+    style O_C stroke:#495057,stroke-width:2px;
+    style O_Zig stroke:#495057,stroke-width:2px;
+    style O_Link stroke:#009900,stroke-width:2px;
+    style O_Bin stroke:#009900,stroke-width:2px;
 ```
 
 ---

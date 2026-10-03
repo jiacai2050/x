@@ -27,12 +27,12 @@ graph TD
         C_Exp["4. 头文件树与产物规范导出<br/>(供下游纯 Zig / C 顺畅消费)"]
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Challenge fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style C_Cfg fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style C_Src fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style C_Tls fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style C_Exp fill:#e6ffe6,stroke:#009900,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Challenge stroke:#ff9900,stroke-width:2px;
+    style C_Cfg stroke:#0066cc,stroke-width:2px;
+    style C_Src stroke:#0066cc,stroke-width:2px;
+    style C_Tls stroke:#0066cc,stroke-width:2px;
+    style C_Exp stroke:#009900,stroke-width:2px;
 ```
 
 ---

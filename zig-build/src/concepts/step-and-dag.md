@@ -103,20 +103,20 @@ graph TD
     S_RunTest -- "dependOn" --> S_CompTest
     S_CompTest -- "dependOn" --> S_Cfg
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Top fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Install fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style S_Compile fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style S_Prebuild fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style S_Run fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style TL_Install fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style TL_Test fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Art fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style S_CompExe fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style S_CompTest fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style S_Cfg fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style S_Gen fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style S_RunTest fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Top stroke:#ff9900,stroke-width:2px;
+    style S_Install stroke:#495057,stroke-width:2px;
+    style S_Compile stroke:#0066cc,stroke-width:2px;
+    style S_Prebuild stroke:#009900,stroke-width:2px;
+    style S_Run stroke:#ffc107,stroke-width:2px;
+    style TL_Install stroke:#ff9900,stroke-width:2px;
+    style TL_Test stroke:#ff9900,stroke-width:2px;
+    style S_Art stroke:#495057,stroke-width:2px;
+    style S_CompExe stroke:#0066cc,stroke-width:2px;
+    style S_CompTest stroke:#0066cc,stroke-width:2px;
+    style S_Cfg stroke:#009900,stroke-width:2px;
+    style S_Gen stroke:#009900,stroke-width:2px;
+    style S_RunTest stroke:#ffc107,stroke-width:2px;
 ```
 
 ### 建立依赖：`dependOn`

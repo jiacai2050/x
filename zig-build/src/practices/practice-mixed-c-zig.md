@@ -48,15 +48,15 @@ graph TD
         A_Mod --> A_Main
     end
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style S_Hand fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style S_Auto fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style H_C fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style H_Zig fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style A_H fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style A_TC fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style A_Mod fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style A_Main fill:#f8f9fa,stroke:#495057,stroke-width:2px;
+    classDef default stroke:#495057;
+    style S_Hand stroke:#ff9900,stroke-width:2px;
+    style S_Auto stroke:#0066cc,stroke-width:2px;
+    style H_C stroke:#ff9900,stroke-width:2px;
+    style H_Zig stroke:#ffc107,stroke-width:2px;
+    style A_H stroke:#ff9900,stroke-width:2px;
+    style A_TC stroke:#0066cc,stroke-width:2px;
+    style A_Mod stroke:#009900,stroke-width:2px;
+    style A_Main stroke:#495057,stroke-width:2px;
 ```
 
 ---

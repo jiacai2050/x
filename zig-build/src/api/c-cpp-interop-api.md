@@ -26,13 +26,13 @@ graph LR
     Mod --> Exe
     Exe --> Code
 
-    classDef default fill:#f8f9fa,stroke:#495057;
-    style H_File fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style TC_Step fill:#cce5ff,stroke:#0066cc,stroke-width:2px;
-    style Z_AST fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
-    style Mod fill:#e6ffe6,stroke:#009900,stroke-width:2px;
-    style Exe fill:#f8f9fa,stroke:#495057,stroke-width:2px;
-    style Code fill:#f8f9fa,stroke:#495057,stroke-width:2px;
+    classDef default stroke:#495057;
+    style H_File stroke:#ff9900,stroke-width:2px;
+    style TC_Step stroke:#0066cc,stroke-width:2px;
+    style Z_AST stroke:#ffc107,stroke-width:2px;
+    style Mod stroke:#009900,stroke-width:2px;
+    style Exe stroke:#495057,stroke-width:2px;
+    style Code stroke:#495057,stroke-width:2px;
 ```
 
 ### 使用范式：

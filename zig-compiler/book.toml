@@ -1,0 +1,39 @@
+[book]
+authors = ["jiacai2050"]
+description = "基于 Zig 0.17.0 源码的系统级编译器设计与实现深度剖析。涵盖数据导向设计 (DOD)、零指针紧凑 AST、双层中间表示 (ZIR/AIR)、Comptime 语义分析、多后端代码生成及自研原生增量链接器等核心架构。"
+language = "zh-CN"
+src = "src"
+title = "Zig 编译器源码分析"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/jiacai2050/x/tree/main/zig-compiler"
+git-repository-icon = "fab-github"
+edit-url-template = "https://github.com/jiacai2050/x/blob/main/zig-compiler/{path}"
+default-theme = "light"
+preferred-dark-theme = "navy"
+no-section-label = true
+site-url = "/x/zig-compiler/"
+additional-js = ["static/mermaid-init.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 1
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+copy-js = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.print]
+enable = true
+page-break = true

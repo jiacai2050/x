@@ -34,10 +34,14 @@ jobs:
       - name: Build zig-build
         run: cd zig-build && mdbook build
 
+      - name: Build zig-compiler
+        run: cd zig-compiler && mdbook build
+
       - name: Build all
         run: |
           mkdir public
           cp -r zig-build/book/ public/zig-build
+          cp -r zig-compiler/book/ public/zig-compiler
           cp -r docs/* public/
 
       - name: Upload artifact
