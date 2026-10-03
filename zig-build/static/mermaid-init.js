@@ -1,6 +1,8 @@
-// Mermaid dynamic rendering for mdBook with native dark mode, theme observation & in-place fullscreen zoom
+// Mermaid dynamic rendering for mdBook with on-demand CDN loading, dark mode adaptation & fullscreen zoom
 (function () {
     let isRendering = false;
+    let isScriptLoading = false;
+    const scriptCallbacks = [];
 
     // Mapping from light pastel colors to deep dark mode colors
     const DARK_COLOR_MAP = {
@@ -49,15 +51,46 @@
     }
 
     // Convert code blocks to mermaid containers and preserve original diagram source
-    function prepareContainers() {
-        const blocks = document.querySelectorAll("pre code.language-mermaid, pre code.language-flowchart");
+    function prepareContainers(blocks) {
         blocks.forEach((block) => {
             const pre = block.parentElement;
+            if (!pre) return;
             const container = document.createElement("div");
             container.className = "mermaid";
             container.dataset.mermaidSrc = block.textContent;
             pre.parentNode.replaceChild(container, pre);
         });
+    }
+
+    // Load mermaid script dynamically on demand from CDN
+    function loadMermaidScript(callback) {
+        if (window.mermaid) {
+            callback();
+            return;
+        }
+
+        scriptCallbacks.push(callback);
+        if (isScriptLoading) return;
+        isScriptLoading = true;
+
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js";
+        script.onload = () => {
+            isScriptLoading = false;
+            while (scriptCallbacks.length > 0) {
+                const cb = scriptCallbacks.shift();
+                try {
+                    cb();
+                } catch (e) {
+                    console.error("Error in mermaid script callback:", e);
+                }
+            }
+        };
+        script.onerror = (err) => {
+            isScriptLoading = false;
+            console.error("Failed to load Mermaid from CDN:", err);
+        };
+        document.head.appendChild(script);
     }
 
     async function renderMermaid() {
@@ -314,8 +347,13 @@
     }
 
     function init() {
-        prepareContainers();
-        renderMermaid();
+        const blocks = document.querySelectorAll("pre code.language-mermaid, pre code.language-flowchart");
+        if (blocks.length === 0) return;
+
+        prepareContainers(blocks);
+        loadMermaidScript(() => {
+            renderMermaid();
+        });
         setupThemeObserver();
         setupGlobalInteractionListeners();
     }

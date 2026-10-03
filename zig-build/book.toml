@@ -17,7 +17,7 @@ default-theme = "light"
 preferred-dark-theme = "navy"
 no-section-label = false
 site-url = "/x/zig-build/"
-additional-js = ["static/mermaid.min.js", "static/mermaid-init.js"]
+additional-js = ["static/mermaid-init.js"]
 additional-css = ["static/custom.css"]
 
 [output.html.search]
