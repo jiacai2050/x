@@ -1,9 +1,9 @@
 [book]
 authors = ["jiacai2050"]
-description = "Zig 构建系统权威指南：来龙去脉、核心概念、API 实战与底层运行机制"
+description = "Zig 构建系统指南：来龙去脉、核心概念、API 实战与底层运行机制"
 language = "zh-CN"
 src = "src"
-title = "Zig 构建系统权威指南"
+title = "Zig 构建系统指南"
 
 [build]
 build-dir = "book"

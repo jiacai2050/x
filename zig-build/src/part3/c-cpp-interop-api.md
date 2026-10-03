@@ -2,6 +2,9 @@
 
 Zig 在语言层面支持 C ABI，并在构建系统中提供了头文件转译和包含路径传播机制。
 
+> 💡 **配套可运行示例**
+> 关于 C/C++ 源码混合编译与 `addTranslateC` 的完整工程实现，可参考 GitHub 示例：[`examples/02-mixed-c-zig`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/02-mixed-c-zig)，以及后续实战章节 [实战二：Zig 与 C/C++ 混合编程工程结构](../part5/practice-mixed-c-zig.md)。
+
 ---
 
 ## 1. 显式头文件转译：`b.addTranslateC`

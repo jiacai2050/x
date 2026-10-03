@@ -2,6 +2,14 @@
 
 移植 C/C++ 库或构建复杂工程时，通常需要处理平台相关的配置文件（如 CMake 生成的 `config.h`），或者在构建期动态生成版本信息文件。Zig 标准库提供了对应的支持。
 
+> 💡 **配套可运行示例**
+> 本章中关于 `addConfigHeader`（CMake 模板渲染）和 `addWriteFiles`（动态源码生成）的完整可运行代码位于 GitHub：[`examples/03-code-generation`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation)。
+> 你可以进入该目录验证构建期代码生成：
+> ```bash
+> cd examples/03-code-generation
+> zig build run
+> ```
+
 ---
 
 ## 1. 配置头文件生成：`b.addConfigHeader`

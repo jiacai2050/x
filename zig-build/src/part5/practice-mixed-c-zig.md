@@ -2,6 +2,14 @@
 
 在实际开发中，常常需要在现有 C/C++ 代码库的基础上集成 Zig，或者使用 Zig 逐步替换旧模块。
 
+> 💡 **配套可运行示例**
+> 本章对应的完整独立工程代码位于 GitHub：[`examples/02-mixed-c-zig`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/02-mixed-c-zig)。
+> 你可以进入该目录并通过以下命令体验 Zig 与 C 混合编译及头文件自动转译：
+> ```bash
+> cd examples/02-mixed-c-zig
+> zig build run
+> ```
+
 ---
 
 ## 1. 混合工程标准目录

@@ -2,6 +2,9 @@
 
 在 Zig 构建系统中，生成最终二进制产物（可执行文件、静态库/动态库、测试程序）的任务由 `Step.Compile` 负责。
 
+> 💡 **配套可运行示例**
+> 关于标准应用程序产物与单元测试构建的完整代码工程，可参考 GitHub 示例：[`examples/01-zig-app`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app)，以及后续实战章节 [实战一：标准 Zig CLI 应用与单元测试](../part5/practice-zig-app.md)。
+
 ---
 
 ## 1. 构建可执行程序：`b.addExecutable`

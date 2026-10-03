@@ -21,7 +21,7 @@ test-examples:
 	@echo "===> Testing 04-c-library-port"
 	cd examples/04-c-library-port && $(ZIG) build test
 	@echo "===> Testing 05-custom-step"
-	cd examples/05-custom-step && $(ZIG) build validate && $(ZIG) build run
+	cd examples/05-custom-step && $(ZIG) build pack && $(ZIG) build run
 	@echo "===> All examples passed successfully!"
 
 test: book-build test-examples
