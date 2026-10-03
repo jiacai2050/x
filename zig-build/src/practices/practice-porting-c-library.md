@@ -135,6 +135,23 @@ b.installArtifact(lib);
 
 ---
 
-## 3. 经验总结
+## 3. 移植要点与维护权衡
 
-移植 C 库的关键在于理清源码结构、配置宏生成逻辑以及依赖关系。将 CMakeLists.txt 转写为 `build.zig` 后，可以在不依赖额外构建工具（如 CMake、Make）的前提下，实现统一的跨平台交叉编译与分发。
+### 3.1 平台系统库链接
+
+移植 C 库时，不同操作系统通常需要链接不同的底层系统库：
+- **Windows 系统库**：涉及网络和加密时，通常需要链接 Winsock 与安全子系统：
+  ```zig
+  if (target_is_windows) {
+      lib.linkSystemLibrary("ws2_32");
+      lib.linkSystemLibrary("advapi32");
+      lib.linkSystemLibrary("crypt32");
+  }
+  ```
+- **POSIX 系统库**：在部分 Linux/BSD 环境下可能需要链接 `libpthread` 或 `libdl`。若通过 Zig 交叉编译，这些基础 libc 符号由内嵌环境统一管理。
+
+### 3.2 上游变更的维护成本
+
+用 `build.zig` 替代 CMake 虽然减少了对外部工具链的依赖，但也需要承担后续的同步成本：
+- **缺乏自动化转写工具**：目前没有通用工具能够直接将复杂的 `CMakeLists.txt` 转换为 `build.zig`，源文件整理与宏配置主要依靠人工梳理；
+- **上游版本同步成本**：当上游发布新版本并修改了源文件列表、宏名称或编译选项时，维护者需要比对上游 CMake 的变更并手动同步到 `build.zig`。对于频繁更新的大型项目，需要考虑这部分维护开销。

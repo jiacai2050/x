@@ -88,3 +88,25 @@ test_step.dependOn(&run_unit_tests.step);
   run_unit_tests.expectExitCode(0);
   run_unit_tests.setEnvironmentVariable("LOG_LEVEL", "DEBUG");
   ```
+
+---
+
+## 4. 测试解耦与产物管理局限
+
+### 4.1 跨平台测试执行器配置
+
+`addTest` 与 `addRunArtifact` 的拆分在交叉编译时具有实际用途：
+- **仿真器配置（QEMU Runner）**：在 x86_64 开发机上交叉编译 ARM64 或 RISC-V 测试程序时，可以通过 `run_unit_tests.setExecCmd` 指定仿真器：
+  ```zig
+  if (target.result.cpu.arch != builtin.target.cpu.arch) {
+      run_unit_tests.setExecCmd(&.{ "qemu-aarch64", "-L", "/usr/aarch64-linux-gnu" });
+  }
+  ```
+- **仅编译检查（Check-only in CI）**：在缺少运行环境的 CI 机器上，可以仅调度 `&unit_tests.step`（只编译测试二进制），提前发现目标平台的语法和类型错误。
+
+### 4.2 局限与不足
+
+1. **缺少内置的 `clean` 目标**：
+   Zig 官方未提供 `zig build clean` 命令。当需要释放磁盘空间或清理缓存时，开发者需要通过外部命令手动删除 `.zig-cache` 和 `zig-out`，在跨平台脚本（特别是 Windows 环境）中缺乏统一的内置支持；
+2. **交付目录缺少失效产物清理**：
+   若在 `build.zig` 中重命名或删除了某个产物，重新构建时旧的二进制文件仍会留在 `zig-out/bin/` 目录中，系统不会自动清理当前构建图未声明的残留文件。

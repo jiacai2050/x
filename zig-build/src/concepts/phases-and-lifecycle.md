@@ -103,3 +103,33 @@ pub fn build(b: *std.Build) void {
 | **主要工作** | 声明构建图、解析参数、建立依赖边 | 检查缓存、执行真实编译、产物落盘 |
 | **执行方式** | 单线程主流程 | 多线程任务池并发 |
 | **文件访问** | 读取只读静态源码与已有配置文件 | 在 `.zig-cache` 与 `zig-out` 中读写中间产物 |
+
+---
+
+## 5. 设计特点与常见踩坑
+
+### 5.1 意图声明与并发执行解耦
+
+两阶段设计将构建逻辑明确分为“声明”与“执行”两个步骤：
+- **按需裁剪（Sub-tree Pruning）**：用户指定 `zig build test` 时，调度器仅从 `test` 节点反向遍历依赖边，主程序编译或安装相关的节点不会被执行，避免不必要的编译；
+- **并发调度**：在 `build.zig` 中只需声明依赖关系（通过 `dependOn` 或 `LazyPath`），执行期由调度器自动将就绪节点分派给线程池并行执行，无需手动处理线程同步。
+
+### 5.2 阶段越界问题
+
+编写构建脚本时，需要避免将本应在执行期发生的操作写在配置期：
+
+1. **在配置期读取尚未生成的文件**
+   ```zig
+   // 错误做法：在配置期直接读取生成文件
+   const config_h = b.addConfigHeader(...);
+   const file = try std.fs.cwd().openFile("zig-out/include/config.h", .{}); // 此时文件尚未生成，抛出 FileNotFound
+   ```
+   **说明**：`b.addConfigHeader` 只在内存中创建了 Step 节点。直到配置期结束、执行期调度器调用该 Step 的 `make` 方法时，文件才会真正写入磁盘。
+2. **在配置期同步派生外部进程**
+   ```zig
+   // 不推荐：在 build() 中同步运行系统命令
+   var child = std.process.Child.init(&.{ "git", "rev-parse", "HEAD" }, b.allocator);
+   const output = try child.spawnAndWait();
+   ```
+   **问题**：这会导致执行任何 `zig build` 命令（包括 `zig build --help`）时都必须等待该外部命令执行完成，而且**无法享受增量缓存**。
+   **建议做法**：使用 `b.addSystemCommand(&.{ "git", "rev-parse", "HEAD" })` 将其声明为 `Step.Run` 任务，交由 DAG 调度并参与缓存判定。

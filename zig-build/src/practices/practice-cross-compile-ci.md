@@ -9,17 +9,26 @@ Zig 内置了跨平台工具链与目标平台 libc 符号支持，使交叉编�
 在任何开发机（无论 macOS、Linux 还是 Windows）上，只需给 `zig build` 传递 `-Dtarget` 参数，即可为不同系统架构编译二进制：
 
 ```bash
-# Cross-compile for Windows x86_64
+# 1. 交叉编译至 Windows x86_64
 zig build -Dtarget=x86_64-windows
 
-# Cross-compile for Windows aarch64 (ARM64)
+# 2. 交叉编译至 Windows aarch64 (ARM64)
 zig build -Dtarget=aarch64-windows
 
-# Cross-compile for Linux musl (fully statically linked)
+# 3. 交叉编译至 Linux musl (纯静态链接，适合 Docker 极简容器)
 zig build -Dtarget=x86_64-linux-musl
+
+# 4. 指定 glibc 最低兼容版本 (彻底避免生产环境报 GLIBC_2.XX not found)
+zig build -Dtarget=x86_64-linux-gnu.2.28
 ```
 
-由于 Zig 内部集成了目标平台的 libc 符号与 Clang/LLD，上述命令即使包含 C 源码，通常也无需在宿主机安装 MinGW 或交叉 GCC 工具链。
+### 注意事项与使用要点：
+1. **指定旧版 glibc 提高兼容性**：
+   在 Linux 生产环境中，若开发机 glibc 版本较新，构建出的动态链接二进制部署到旧版系统时容易报 `GLIBC_2.34 not found`。通过在目标三元组中追加版本号（如 `.2.28`），Zig 内置的 libc 符号表会将符号链接到 2.28 版本的导出，从而兼容旧版系统；
+2. **构建期工具的 Host vs Target 分工**：
+   若构建流程包含“先编译本地命令行工具、再用该工具生成代码”的步骤，该工具需要使用当前主机的配置构建（`b.graph.host`），而不是交叉编译的目标平台（`target`），否则在当前机器上运行该工具会报 `Exec format error`；
+3. **异构架构测试执行**：
+   交叉编译主要保证产物在目标架构上完成编译与链接。若要在本地开发机上直接运行不同架构的测试程序（例如在 x86_64 macOS 上执行 Linux aarch64 测试），需要通过 `qemu-user` 等仿真器配合执行。
 
 ---
 

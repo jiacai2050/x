@@ -94,3 +94,20 @@ const translate_c = b.addTranslateC(.{
 使用 `b.addWriteFiles` 和 `b.addConfigHeader` 生成的文件路径均为 `LazyPath`：
 1. **支持增量缓存**：仅当输入模板内容或键值发生变动时，才会在执行期重新生成文件；
 2. **时序安全**：生成物存放在 `.zig-cache/` 的哈希隔离目录下，不污染源码工作区，并能通过数据流自动向消费步骤传递依赖关系。
+
+---
+
+## 4. 内置生成机制与局限
+
+### 4.1 减少外部运行时依赖
+
+在传统 C/C++ 工程中，生成配置文件通常需要宿主机安装 Python 或 CMake。Zig 通过内置组件降低了对外部工具的依赖：
+- **内置模板解析**：`addConfigHeader` 直接解析 `.h.in` 语法并完成宏替换，无需在宿主机安装 CMake；
+- **工作区隔离**：动态生成的文件保存在 `.zig-cache/` 目录下，不会污染源码工作区。
+
+### 4.2 局限与不足
+
+1. **模板语法支持有限**：
+   目前 `addConfigHeader` 主要支持常见的 CMake 宏模式（`#cmakedefine`、`#cmakedefine01`、`@VAR@`）。若第三方 C 库使用 Autotools 风格的 `config.h.in`（依赖 `#undef VAR` 替换等语法），通常需要先手动将其调整为兼容的模板格式；
+2. **生成代码的报错定位问题**：
+   使用 `b.addWriteFiles` 动态生成的 `.zig` 源码若存在语法或类型错误，编译器报错指向的是 `.zig-cache/o/<hash>/` 中的临时文件，无法直接跳转回 `build.zig` 中拼接该代码的具体行号，排查生成代码错误时不够直观。

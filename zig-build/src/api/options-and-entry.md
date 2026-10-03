@@ -80,3 +80,20 @@ pub fn build(b: *std.Build) void {
 1. **`b.step(name, description)`**：在任务图中注册一个顶层节点（`Step.Id.top_level`），可通过 `zig build <name>` 调用；
 2. **`b.default_step`**：当命令行未指定具体目标、仅执行 `zig build` 时触发，默认负责安装所有已声明的产物；
 3. **参数透传**：调用 `run_cmd.addArgs(b.args orelse &.{})` 时，可将命令行 `--` 后面的参数透传给被调用的应用程序。
+
+---
+
+## 4. 目标三元组的精度与选项系统局限
+
+### 4.1 细粒度的 Target 表达能力
+
+Zig 的 `standardTargetOptions` 支持较为细致的目标平台定义：
+- **指定微架构（CPU Features）**：不仅支持架构名，还支持按微架构层级编译（如 `-Dtarget=x86_64_v3-linux-gnu`）或指定指令集开关（如 `+avx512f`、`-sse4.1`）；
+- **指定 glibc 最低兼容版本**：例如传入 `-Dtarget=x86_64-linux-gnu.2.28`，Zig 内置的 libc 符号表会将符号绑定至 2.28 版本的导出，有助于解决高版本开发机编译出的程序在旧版 Linux 服务器上报 `GLIBC_2.34 not found` 的兼容性问题。
+
+### 4.2 局限与不足
+
+1. **扁平的选项命名空间**：
+   通过 `b.option` 定义的参数均在全局作用域中解析。若第三方库也声明了同名参数（例如 `-Denable-tls`），命令行传入的值会同时传给两者，目前尚无原生的选项命名空间隔离机制；
+2. **缺少对复合类型选项的支持**：
+   `b.option` 主要支持基础标量（`bool`、`usize`、`[]const u8`）和简单 `enum`，不支持从命令行直接反序列化数组或嵌套结构体，传递复杂配置时通常需要手动分割字符串。
