@@ -31,6 +31,9 @@ pub const PackReleaseStep = struct {
 
         // 1. Create the destination .tar.gz file
         const cwd = std.Io.Dir.cwd();
+        if (std.fs.path.dirname(self.output_path)) |dir| {
+            cwd.createDirPath(io, dir) catch {};
+        }
         const tar_file = try cwd.createFile(io, self.output_path, .{});
         defer tar_file.close(io);
 
@@ -96,6 +99,8 @@ pub fn build(b: *std.Build) void {
         exe.getEmittedBin(),
         b.getInstallPath(.prefix, "bundle.tar.gz"),
     );
+    // Ensure all artifacts are installed and zig-out prefix exists before packaging
+    pack_step.step.dependOn(b.getInstallStep());
 
     // 3. Register top-level command: "zig build pack"
     const top_pack = b.step("pack", "Package distribution archive into tar.gz using std.tar");

@@ -99,8 +99,11 @@ pub const PackReleaseStep = struct {
 
         std.debug.print("Packaging release archive to {s} using std.tar + gzip...\n", .{self.output_path});
 
-        // 1. 创建目标输出文件
+        // 1. 创建目标输出文件（若输出目录尚未存在则先行创建）
         const cwd = std.Io.Dir.cwd();
+        if (std.fs.path.dirname(self.output_path)) |dir| {
+            cwd.createDirPath(io, dir) catch {};
+        }
         const tar_file = try cwd.createFile(io, self.output_path, .{});
         defer tar_file.close(io);
 
@@ -175,6 +178,8 @@ pub fn build(b: *std.Build) void {
         exe.getEmittedBin(),
         b.getInstallPath(.prefix, "bundle.tar.gz"),
     );
+    // 确保可执行文件已安装到输出目录且安装前缀目录（zig-out）就绪后再执行打包
+    pack_step.step.dependOn(b.getInstallStep());
 
     // 3. 注册顶层命令："zig build pack"
     const top_pack = b.step("pack", "Package distribution archive into tar.gz using std.tar");
@@ -198,6 +203,7 @@ flowchart LR
 
         Install -- "dependOn" --> Exe
         Pack -- "addStepDependencies" --> Exe
+        Pack -- "dependOn" --> Install
         TopPack -- "dependOn" --> Pack
     end
 
@@ -246,10 +252,9 @@ fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!voi
 1. **配置期 vs 执行期严格分离**：
    - `create` 函数在配置期运行，仅负责结构体内存分配与 Step 基本属性初始化；
    - 重负载的磁盘 I/O、流式压缩以及外部进程派生必须推迟到 `make` 执行期。
-2. **通过 `LazyPath` 获取产物与自动维护依赖**：
-   避免硬编码输出路径（如 `"zig-out/bin/xxx"`）或手动 `dependOn(b.getInstallStep())`。应接收 `std.Build.LazyPath`（如 `exe.getEmittedBin()`）：
-   - 在 `create` 配置期调用 `binary_path.addStepDependencies(&self.step)`，构建引擎会自动将产物生成 Step 挂载为前置依赖；
-   - 在 `make` 执行期调用 `binary_path.getPath2(b, &self.step)` 获取真实路径（位于 `zig-cache` 目录中），并通过 `std.fs.path.basename` 自动适配不同操作系统的二进制后缀名（如 Windows 下的 `.exe`）。
+2. **通过 `LazyPath` 获取产物与结合 `dependOn(b.getInstallStep())`**：
+   - **获取产物句柄**：避免硬编码输出路径（如 `"zig-out/bin/xxx"`），应接收 `std.Build.LazyPath`（如 `exe.getEmittedBin()`）。在 `create` 时调用 `binary_path.addStepDependencies(&self.step)` 自动建立底层数据流依赖，在 `make` 中通过 `getPath2` 获取实际路径，并用 `std.fs.path.basename` 自动适配跨平台文件名；
+   - **确保安装产物与目录就绪**：发布打包 Step 通常应调用 `pack_step.step.dependOn(b.getInstallStep())`。因为 `b.installArtifact(exe)` 挂载在默认的 install 步骤上；如果不显式依赖 install，在全新环境构建时不仅 `zig-out` 安装目录可能尚未创建而导致写文件失败（`FileNotFound`），而且 `zig-out/bin/` 目录下也不会生成正式的可执行文件产物。
 3. **输出路径使用 `getInstallPath`**：
    自定义产物的输出目标应使用 `b.getInstallPath(.prefix, "bundle.tar.gz")` 计算，尊重用户在命令行传入的 `--prefix` 参数，而非硬编码 `"zig-out/..."`。
 4. **错误处理与状态汇报**：
