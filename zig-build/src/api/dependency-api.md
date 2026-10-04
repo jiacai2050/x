@@ -60,7 +60,7 @@ if (enable_gui) {
 通过依赖实例句柄（`dep`），主要通过以下三种方法消费上游资源：
 
 ```mermaid
-graph LR
+flowchart LR
     Dep["b.dependency(...) 依赖实例"]
     M_Mod["dep.module('name')<br/>获取导出的 Zig Module"]
     M_Art["dep.artifact('name')<br/>获取编译产物 (静态库/动态库/CLI工具)"]
@@ -120,3 +120,48 @@ module.addIncludePath(headers_path);
    Zig 基于 Git 仓库与归档 URL 进行内容寻址，未设立中心化包仓库。这避免了对单点服务的依赖，但同时也缺少统一的包发现平台与生态指标（如版本索引、安全通告等）；
 3. **缺少一键批量升级命令**：
    目前缺少类似 `cargo update` 的批量更新机制，更新依赖时需要通过 `zig fetch --save` 逐个处理，维护多依赖项目时较为繁琐。
+
+### 4.3 菱形依赖与冲突的应对实践
+
+由于当前 Zig 构建系统不支持类似 Cargo 的自动版本提升或覆盖机制，当在实际项目中遇到菱形依赖或 C 全局符号冲突时，常用的工程应对方案包括：
+
+1. **解耦 C 库编译与链接（控制反转）**：
+   若依赖的两个库都需要使用某 C 静态库（如 SQLite 或 zlib），库作者应在 `build.zig` 中暴露控制开关（如 `embed_c_lib: bool`）：
+   ```zig
+   // 子依赖允许关闭内置 C 库的链接
+   const dep_a = b.dependency("dep_a", .{
+       .target = target,
+       .optimize = optimize,
+       .embed_sqlite = false, // 禁用内部静态链接
+   });
+   const dep_b = b.dependency("dep_b", .{
+       .target = target,
+       .optimize = optimize,
+       .embed_sqlite = false,
+   });
+
+   // 由根项目在顶层统一编译并链接一次 SQLite
+   const sqlite = b.dependency("sqlite", .{ .target = target, .optimize = optimize });
+   exe.root_module.linkLibrary(sqlite.artifact("sqlite"));
+   ```
+
+2. **顶层模块显式注入（Module Injection）**：
+   若依赖 A 和 B 各自使用了库 D，且在接口中需要传递 D 的数据类型。为避免两份同名模块因独立编译导致的类型不兼容（`type mismatch`），根项目可在顶层统一获取 D 模块并注入给双方：
+   ```zig
+   const shared_d = b.dependency("d", .{ .target = target, .optimize = optimize });
+   const d_mod = shared_d.module("d");
+
+   const dep_a = b.dependency("dep_a", .{ .target = target, .optimize = optimize });
+   dep_a.module("a").addImport("d", d_mod); // 将统一的 d 模块注入 dep_a
+   ```
+
+3. **开发期本地路径覆盖（Path Override）**：
+   若子依赖的第三方包存在严重的版本分歧导致无法编译，在等待上游 PR 合并期间，可在根项目通过 Git submodule 或本地 clone 修复后的副本，并在 `build.zig.zon` 中临时使用本地路径覆盖：
+   ```zig
+   .dependencies = .{
+       .dep_a = .{
+           // 临时使用本地修复后的版本进行联调
+           .path = "../patched-dep-a",
+       },
+   },
+   ```

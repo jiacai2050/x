@@ -131,4 +131,42 @@ Zig 构建系统采用基于内容哈希的缓存策略：
 3. **API 演进频繁（Breaking Changes）**：
    在达到 1.0 之前，Zig 构建 API 经历过多轮重构（例如 `FileSource` 改为 `LazyPath`、模块从 `addPackage` 改为 `createModule` + `addImport`、`build.zig.zon` 增加 `fingerprint`）。旧教程与部分社区开源库可能会因编译器版本升级而无法直接编译，需要跟进调整。
 4. **确定性包管理与菱形依赖的取舍**：
-   Zig 未采用基于 SAT 求解器的自动 SemVer 求解，而是基于确定的 URL/Git 地址与内容哈希。这种设计有利于构建结果的可复现，但当依赖树中存在菱形依赖（不同子包依赖同一库的不同补丁版本）时，需要开发者在顶层显式协调，缺少自动合并次版本的机制。
+   在依赖管理中，**菱形依赖（Diamond Dependency）** 指根项目依赖的两个子模块各自引入了同一个下游库的不同版本（或不同哈希）：
+
+   ```mermaid
+   flowchart TD
+       subgraph S_Diamond ["典型菱形依赖 (Diamond Dependency)"]
+           App["根项目 (App)"]
+           PkgB["依赖 B"]
+           PkgC["依赖 C"]
+           PkgD1["依赖 D (v1.1 / Hash 1)"]
+           PkgD2["依赖 D (v1.2 / Hash 2)"]
+
+           App --> PkgB
+           App --> PkgC
+           PkgB --> PkgD1
+           PkgC --> PkgD2
+       end
+
+       style S_Diamond stroke:#495057,stroke-width:2px;
+       style App stroke:#0066cc,stroke-width:2px;
+       style PkgB stroke:#ff9900,stroke-width:2px;
+       style PkgC stroke:#ff9900,stroke-width:2px;
+       style PkgD1 stroke:#dc3545,stroke-width:2px;
+       style PkgD2 stroke:#dc3545,stroke-width:2px;
+   ```
+
+   各大语言与包管理系统对此采取了不同的设计路线与求解算法：
+   - **Rust (Cargo) — 基于 SemVer 的版本区间与约束求解**：
+     Cargo 引入了语义化版本范围规范（如 `^1.1.0`）与基于 [PubGrub](https://github.com/pubgrub-dev/pubgrub) 的依赖求解算法（依赖求解本质上属于布尔可满足性问题，详见 Russ Cox 的经典分析 [*Version SAT*](https://research.swtch.com/version-sat)）。当出现菱形依赖时，Cargo 求解器会自动寻找同时满足所有调用方约束的最高兼容次版本（将 `^1.1` 和 `^1.2` 合流为 `1.2.x`）；当遇到主版本不兼容（如 `1.x` 与 `2.x`）时，Cargo 允许两者并行编译共存（详细机制可参阅 [Cargo: Dependency Resolution](https://doc.rust-lang.org/cargo/reference/resolver.html)）。
+   - **Go (Go Modules) — 最小版本选择 (Minimal Version Selection, MVS)**：
+     Go 摒弃了复杂的 SAT 求解器和版本区间通配符。由 Russ Cox 提出的 [MVS 算法](https://research.swtch.com/vgo-mvs) 规定：面对菱形依赖，直接选择满足所有依赖声明的**最小（最旧）兼容版本**（即声明下限中的最大值，如 `v1.2.0`），而绝不主动拉取远端未经验证的更高版本。这种确定性策略使得依赖解析具有线性复杂度，且构建结果高度可复现（详见 [Go Modules Reference: MVS](https://go.dev/ref/mod#minimal-version-selection)）。
+   - **C/C++ (Conan / vcpkg) — 显式版本覆盖与全局基线**：
+     C/C++ 由于缺乏语言层面的模块符号隔离，菱形依赖极易导致单一定义规则（ODR）违规或 ABI 崩溃。[Conan](https://docs.conan.io/2/reference/config_files/conanfile/layout.html) 要求在根项目使用 `override` 强行将歧义依赖收敛为单一版本；而 [vcpkg](https://learn.microsoft.com/en-us/vcpkg/users/versioning) 则采用基于全局 Git 提交哈希的集中式 Baseline（基线）机制，从源头上抹平同一库的跨版本分歧。
+
+   **Zig 的设计取舍**：
+   Zig 坚持**绝对内容寻址（Content-Addressed Determinism）**：
+   - 每个依赖项在 `build.zig.zon` 中由固定的 URL/Git 地址和内容哈希（Multihash）唯一定位，不支持模糊的版本区间（如 `^1.2.0` 或 `>=1.0`），因此构建引擎**不内置自动 SemVer 求解器与版本提升（Hoisting）机制**；
+   - **纯 Zig 代码**：得益于模块命名空间隔离与按需代码生成，两份不同哈希的纯 Zig 依赖库可以并存编译（代码体积略有膨胀，但在类型不直接互通的前提下能正常工作）；
+   - **C 混合库与静态链接**：若间接依赖导出了**全局 C 符号**（如 SQLite、OpenSSL 等），链接阶段就会因同名符号报 `multiple definition of symbol` 重复定义错误。此时 Zig 不会擅自“猜想”合流版本，而是要求根项目在 `build.zig.zon` 或 `build.zig` 中显式协调依赖，把控制权与确定性完整交付给最终应用的开发者（具体协调实践与代码示例参见[依赖管理 API 中的应对实践](../api/dependency-api.md#43-菱形依赖与冲突的应对实践)）。
+
