@@ -70,7 +70,7 @@ pub const LazyPath = union(enum) {
 `LazyPath` 的主要作用之一是根据数据流自动建立任务依赖关系：
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph Generator ["代码/配置生成阶段"]
         S_Gen["Step.ConfigHeader<br/>(生成 config.h)"]
         LP_Out["LazyPath (.generated)<br/>内部持有 S_Gen 指针"]

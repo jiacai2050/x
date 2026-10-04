@@ -2,9 +2,10 @@ const std = @import("std");
 
 pub const PackReleaseStep = struct {
     step: std.Build.Step,
+    binary_path: std.Build.LazyPath,
     output_path: []const u8,
 
-    pub fn create(b: *std.Build, output_path: []const u8) *PackReleaseStep {
+    pub fn create(b: *std.Build, binary_path: std.Build.LazyPath, output_path: []const u8) *PackReleaseStep {
         const self = b.allocator.create(PackReleaseStep) catch @panic("OOM");
         self.* = .{
             .step = std.Build.Step.init(.{
@@ -13,8 +14,10 @@ pub const PackReleaseStep = struct {
                 .owner = b,
                 .makeFn = make,
             }),
+            .binary_path = binary_path,
             .output_path = output_path,
         };
+        binary_path.addStepDependencies(&self.step);
         return self;
     }
 
@@ -48,14 +51,20 @@ pub const PackReleaseStep = struct {
         var tar_writer: std.tar.Writer = .{ .underlying_writer = &compressor.writer };
 
         // 5. Read the compiled executable and add it into the tar stream
-        const bin_file = try cwd.openFile(io, "zig-out/bin/custom_step_demo", .{});
+        const bin_path = self.binary_path.getPath2(b, &self.step);
+        const bin_file = try cwd.openFile(io, bin_path, .{});
         defer bin_file.close(io);
 
         var read_buffer: [4096]u8 = undefined;
         var bin_reader = std.Io.File.Reader.init(bin_file, io, &read_buffer);
 
+        // Derive executable filename (e.g. "custom_step_demo" or "custom_step_demo.exe")
+        const bin_name = std.fs.path.basename(bin_path);
+        const tar_entry_path = try std.fmt.allocPrint(b.allocator, "bin/{s}", .{bin_name});
+        defer b.allocator.free(tar_entry_path);
+
         // Stream file into tar archive
-        try tar_writer.writeFile("bin/custom_step_demo", &bin_reader, 0);
+        try tar_writer.writeFile(tar_entry_path, &bin_reader, 0);
         try tar_writer.finishPedantically();
 
         // 6. Finish compression and flush buffered data to disk
@@ -82,9 +91,11 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     // 2. Custom pack step: packaging into tar.gz using pure Zig std.tar + std.compress
-    const pack_step = PackReleaseStep.create(b, "zig-out/bundle.tar.gz");
-    // Packaging requires artifacts to be installed first
-    pack_step.step.dependOn(b.getInstallStep());
+    const pack_step = PackReleaseStep.create(
+        b,
+        exe.getEmittedBin(),
+        b.getInstallPath(.prefix, "bundle.tar.gz"),
+    );
 
     // 3. Register top-level command: "zig build pack"
     const top_pack = b.step("pack", "Package distribution archive into tar.gz using std.tar");

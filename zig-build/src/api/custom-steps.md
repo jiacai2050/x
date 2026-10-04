@@ -36,7 +36,7 @@
 ### 流式管道架构
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph S_Pipeline ["标准库流式压缩管道 (Zero External CLI)"]
         F_Bin["待打包可执行文件 (bin_reader)"]
         W_Tar["std.tar.Writer (Tar 块编码)"]
@@ -68,9 +68,10 @@ const std = @import("std");
 
 pub const PackReleaseStep = struct {
     step: std.Build.Step,
+    binary_path: std.Build.LazyPath,
     output_path: []const u8,
 
-    pub fn create(b: *std.Build, output_path: []const u8) *PackReleaseStep {
+    pub fn create(b: *std.Build, binary_path: std.Build.LazyPath, output_path: []const u8) *PackReleaseStep {
         // 1. 使用构建系统的内存分配器分配自定义 Step 实例
         const self = b.allocator.create(PackReleaseStep) catch @panic("OOM");
         self.* = .{
@@ -81,12 +82,15 @@ pub const PackReleaseStep = struct {
                 .owner = b,
                 .makeFn = make,
             }),
+            .binary_path = binary_path,
             .output_path = output_path,
         };
+        // 3. 将产物所在的 Step 自动挂载为当前 Step 的前置依赖
+        binary_path.addStepDependencies(&self.step);
         return self;
     }
 
-    // 3. 执行期逻辑：只有当该 Step 被调度时才会触发
+    // 4. 执行期逻辑：只有当该 Step 被调度时才会触发
     fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!void {
         _ = options;
         const self: *PackReleaseStep = @fieldParentPtr("step", step);
@@ -117,14 +121,21 @@ pub const PackReleaseStep = struct {
         var tar_writer: std.tar.Writer = .{ .underlying_writer = &compressor.writer };
 
         // 5. 打开编译好的目标程序并写入 tar 归档
-        const bin_file = try cwd.openFile(io, "zig-out/bin/custom_step_demo", .{});
+        // 通过 LazyPath.getPath2 获取解析后的实际路径（位于 zig-cache 中），避免硬编码路径
+        const bin_path = self.binary_path.getPath2(b, &self.step);
+        const bin_file = try cwd.openFile(io, bin_path, .{});
         defer bin_file.close(io);
 
         var read_buffer: [4096]u8 = undefined;
         var bin_reader = std.Io.File.Reader.init(bin_file, io, &read_buffer);
 
+        // 提取跨平台可执行文件名（例如 Windows 下会自动带上 .exe）
+        const bin_name = std.fs.path.basename(bin_path);
+        const tar_entry_path = try std.fmt.allocPrint(b.allocator, "bin/{s}", .{bin_name});
+        defer b.allocator.free(tar_entry_path);
+
         // 写入文件条目并写入尾部填充块
-        try tar_writer.writeFile("bin/custom_step_demo", &bin_reader, 0);
+        try tar_writer.writeFile(tar_entry_path, &bin_reader, 0);
         try tar_writer.finishPedantically();
 
         // 6. 结束压缩并刷写磁盘缓冲
@@ -158,13 +169,15 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    // 2. 实例化自定义 Step，并声明依赖
-    const pack_step = PackReleaseStep.create(b, "zig-out/bundle.tar.gz");
-    // 声明依赖：必须等待编译产物安装到 zig-out 目录后，再执行打包
-    pack_step.step.dependOn(b.getInstallStep());
+    // 2. 实例化自定义 Step：使用 exe.getEmittedBin() 获取产物 LazyPath
+    const pack_step = PackReleaseStep.create(
+        b,
+        exe.getEmittedBin(),
+        b.getInstallPath(.prefix, "bundle.tar.gz"),
+    );
 
     // 3. 注册顶层命令："zig build pack"
-    const top_pack = b.step("pack", "Package distribution archive into tar.gz");
+    const top_pack = b.step("pack", "Package distribution archive into tar.gz using std.tar");
     top_pack.dependOn(&pack_step.step);
 
     // 4. 标准的 "zig build run" 支持
@@ -176,7 +189,7 @@ pub fn build(b: *std.Build) void {
 ```
 
 ```mermaid
-graph LR
+flowchart LR
     subgraph S_DAG ["任务依赖图"]
         Exe["exe (Compile)"]
         Install["install (InstallArtifact)"]
@@ -184,14 +197,13 @@ graph LR
         TopPack["pack (Top-level Step)"]
 
         Install -- "dependOn" --> Exe
-        Pack -- "dependOn" --> Install
+        Pack -- "addStepDependencies" --> Exe
         TopPack -- "dependOn" --> Pack
     end
 
-    classDef default stroke:#495057;
-    style S_DAG stroke:#0066cc,stroke-width:2px;
+    style S_DAG stroke:#495057,stroke-width:2px;
     style Exe stroke:#0066cc,stroke-width:2px;
-    style Install stroke:#009900,stroke-width:2px;
+    style Install stroke:#6c757d,stroke-width:2px;
     style Pack stroke:#009900,stroke-width:2px;
     style TopPack stroke:#ffc107,stroke-width:2px;
 ```
@@ -234,7 +246,11 @@ fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) anyerror!voi
 1. **配置期 vs 执行期严格分离**：
    - `create` 函数在配置期运行，仅负责结构体内存分配与 Step 基本属性初始化；
    - 重负载的磁盘 I/O、流式压缩以及外部进程派生必须推迟到 `make` 执行期。
-2. **正确维护依赖关系**：
-   自定义 Step 若消费上游产物（如打包 `zig-out` 中的编译文件），必须显式调用 `step.dependOn(b.getInstallStep())` 或 `step.dependOn(&upstream.step)`，确保调度引擎按照拓扑排序执行。
-3. **错误处理与状态汇报**：
+2. **通过 `LazyPath` 获取产物与自动维护依赖**：
+   避免硬编码输出路径（如 `"zig-out/bin/xxx"`）或手动 `dependOn(b.getInstallStep())`。应接收 `std.Build.LazyPath`（如 `exe.getEmittedBin()`）：
+   - 在 `create` 配置期调用 `binary_path.addStepDependencies(&self.step)`，构建引擎会自动将产物生成 Step 挂载为前置依赖；
+   - 在 `make` 执行期调用 `binary_path.getPath2(b, &self.step)` 获取真实路径（位于 `zig-cache` 目录中），并通过 `std.fs.path.basename` 自动适配不同操作系统的二进制后缀名（如 Windows 下的 `.exe`）。
+3. **输出路径使用 `getInstallPath`**：
+   自定义产物的输出目标应使用 `b.getInstallPath(.prefix, "bundle.tar.gz")` 计算，尊重用户在命令行传入的 `--prefix` 参数，而非硬编码 `"zig-out/..."`。
+4. **错误处理与状态汇报**：
    `make` 函数返回 `anyerror!void`。若执行失败，可直接返回错误（如 `return error.TarFailed;`），或者通过 `step.result_error_bundle` 记录诊断信息，构建引擎会安全捕获并中断构建管线。
