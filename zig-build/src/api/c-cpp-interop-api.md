@@ -38,20 +38,20 @@ graph LR
 ### 使用范式：
 
 ```zig
-// 1. 声明 TranslateC 步骤
+// 1. 声明 TranslateC 头文件转译步骤
 const translate_c = b.addTranslateC(.{
     .root_source_file = b.path("include/my_c_lib.h"),
     .target = target,
     .optimize = optimize,
 });
 
-// 为转译步骤添加头文件搜索路径
+// 为转译步骤添加头文件包含路径
 translate_c.addIncludePath(b.path("include"));
 
-// 2. 将转译结果包装为 Module
+// 2. 将转译结果封装为 Zig 模块
 const c_module = translate_c.createModule();
 
-// 3. 挂载到主程序
+// 3. 将转译后的模块挂载至主程序
 exe.root_module.addImport("c", c_module);
 ```
 
@@ -66,16 +66,16 @@ exe.root_module.addImport("c", c_module);
 
 当将 C 源码打包为静态库供下游使用时，下游通常需要同时引入头文件搜索路径。
 
-Zig 的 `linkLibrary` 具备自动传播头文件包含路径的能力。查看 [lib/std/Build/Module.zig:L658](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Module.zig#L658)：
+Zig 的 `linkLibrary` 具备自动传播头文件包含路径的能力。查看 [lib/std/Build/Module.zig:L537-L553](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L537-L553)：
 
 ```zig
-// lib/std/Build/Module.zig
+// 摘自 lib/std/Build/Module.zig:L537-L553
 fn linkLibraryOrObject(m: *Module, other: *Step.Compile) void {
     const allocator = m.owner.allocator;
     _ = other.getEmittedBin();
 
     m.link_objects.append(allocator, .{ .other_step = other }) catch @panic("OOM");
-    // 将该库导出的头文件目录树自动追加到当前模块的包含路径中
+    // 自动将静态库导出的头文件树追加到当前模块的包含路径中
     m.include_dirs.append(allocator, .{ .other_step = other }) catch @panic("OOM");
 }
 ```
@@ -90,7 +90,7 @@ fn linkLibraryOrObject(m: *Module, other: *Step.Compile) void {
 库提供方在构建静态库时，将静态头文件目录及动态生成的配置头安装到该产物中：
 
 ```zig
-// 上游 build.zig
+// 上游库 build.zig
 const lib = b.addLibrary(.{
     .name = "foo",
     .linkage = .static,
@@ -100,13 +100,13 @@ const lib = b.addLibrary(.{
     }),
 });
 
-// 1. 安装静态公共头文件目录
+// 1. 导出静态公共头文件目录
 lib.installHeadersDirectory(b.path("include"), "", .{});
 
-// 2. 安装动态生成的配置头文件
+// 2. 导出动态生成的配置头文件
 lib.installConfigHeader(config_h);
 
-// 3. 导出 Artifact 供下游消费
+// 3. 导出库产物供下游消费
 b.installArtifact(lib);
 ```
 
@@ -114,11 +114,11 @@ b.installArtifact(lib);
 
 #### 场景 A：下游是 C/Zig 混编工程（直接链接）
 ```zig
-// 下游 build.zig
+// 下游依赖项目 build.zig
 const foo_dep = b.dependency("foo", .{ .target = target, .optimize = optimize });
 const foo_lib = foo_dep.artifact("foo");
 
-// 链接静态库，并自动引入该库导出的头文件路径
+// 链接静态库，并自动继承其导出的头文件路径
 exe.root_module.linkLibrary(foo_lib);
 ```
 下游的 C 源文件可直接 `#include <foo.h>`。
@@ -127,11 +127,11 @@ exe.root_module.linkLibrary(foo_lib);
 纯 Zig 项目通过 `addTranslateC` 转译头文件时，由于转译属于前置步骤，需先从上游库产物中提取头文件树路径：
 
 ```zig
-// 1. 从 Artifact 获取上游导出的头文件树
+// 1. 提取静态库导出的头文件树
 const lib_artifact = foo_dep.artifact("foo");
 translate_c.addIncludePath(lib_artifact.getEmittedIncludeTree());
 
-// 2. 将转译模块导入 Zig 源码
+// 2. 将转译后的头文件模块导入 Zig 源码
 exe.root_module.addImport("foo", translate_c.createModule());
 
 // 3. 链接静态库二进制

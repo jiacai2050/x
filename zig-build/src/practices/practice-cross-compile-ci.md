@@ -109,7 +109,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0
+          version: 0.17.0
 
       - name: Install Make (Windows)
         if: runner.os == 'Windows'
@@ -128,7 +128,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0
+          version: 0.17.0
 
       - name: Run Cross-Compilation Matrix
         run: make cross-compile
@@ -136,4 +136,5 @@ jobs:
 
 ### 配置说明：
 1. **本地与 CI 行为保持一致**：开发者在本地执行 `make` 和 `make cross-compile`，与 CI 中的执行命令相同，便于在本地复现和排查问题；
-2. **多平台编译验证**：在单个 Linux Runner 上即可完成 Windows、Linux 等多目标架构的交叉编译验证。
+2. **多平台编译验证**：在单个 Linux Runner 上即可完成 Windows、Linux 等多目标架构的交叉编译验证；
+3. **CI 纯净构建验证（`--cache-poison=disallowed`）**：在生产级 CI 中，建议在构建参数中追加 `--cache-poison=disallowed`。这样如果脚本在配置期误调用了扫描外部不可控环境变量的 API，CI 会立即报错中断，确保工程构建配置保持纯函数性与确定性。

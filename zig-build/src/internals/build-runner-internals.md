@@ -1,239 +1,210 @@
-# 构建自举：Build Runner 的动态编译与调度
+# 构建自举与双进程：Maker 与 Configurer 架构流转
 
-执行 `zig build` 时，Zig 既没有内置解释器来动态解释 `build.zig`，也没有将构建逻辑固化在编译器二进制中，而是采用自举动态编译（Bootstrap Dynamic Compilation）机制：先将 `build.zig` 编译为独立的构建运行器程序，再启动运行。
+构建系统的底层运行机制由两个职责正交的独立进程协同完成 —— **`Maker`**（主控调度与包管理引擎）与 **`Configurer`**（轻量短命配置序列化进程）。
+
+本文深入分析 Zig 官方源码，揭示从终端执行 `zig build` 到构建图生成与多线程调度的全链路流转机制。
 
 ---
 
-## 1. 架构总览：从命令路由到独立运行器
+## 1. 架构总览：双进程解耦模型
 
-从执行 `zig build` 到构建图调度执行，主要分为四个阶段：
+Zig 构建系统将逻辑严格解耦为双独立进程与两阶段通信模型：
 
 ```mermaid
-graph TD
-    subgraph S_CLI ["阶段一：CLI 命令分发"]
-        C_Cmd["终端执行 zig build"]
-        C_Route["src/main.zig: cmdBuild()"]
-        C_Cmd --> C_Route
+flowchart TD
+    subgraph Entrance ["阶段一：进程自举与 JIT (jitCmd)"]
+        User["终端执行 zig build"]
+        Jit["src/main.zig: jitCmd 检查/编译 Maker"]
+        Exec["process.replace (execve 原地原子替换进程)"]
+        User --> Jit --> Exec
     end
 
-    subgraph S_CompileRunner ["阶段二：Build Runner 动态编译"]
-        R_Entry["编译器内部模版: lib/compiler/build_runner.zig"]
-        R_User["用户项目脚本: build.zig (作为 @build 模块)"]
-        R_Bin["编译生成临时独立程序:<br/>.zig-cache/o/.../build"]
-        R_Entry --> R_Bin
-        R_User --> R_Bin
+    subgraph ConfigPhase ["阶段二：构建图配置探测 (双轨机制)"]
+        Check{"配置缓存是否命中且未污染?"}
+        FastPath["Fast Path: 直接读取 .zig-cache/c/{digest}"]
+
+        subgraph SubConf ["派生临时子进程 (Slow Path)"]
+            Spawn["Maker 派生 configurer 子进程"]
+            Eval["configurer: 执行 build.zig 并构建内存图"]
+            Dump["configurer: 序列化为紧凑二进制流并退出"]
+            Spawn --> Eval --> Dump
+        end
+
+        Check -- "命中 (Pure)" --> FastPath
+        Check -- "未命中 / 污染" --> Spawn
     end
 
-    subgraph S_Spawn ["阶段三：派生子进程运行"]
-        P_Spawn["std.process.spawn 启动该 build 二进制程序"]
-        P_Args["转发 CLI 参数 (-Dtarget, -Doptimize, top-level step 等)"]
-        P_Spawn --> P_Args
+    subgraph MakePhase ["阶段三：任务调度与构建执行 (Maker 独占)"]
+        LoadGraph["Maker: 加载二进制构建图配置"]
+        ResolveDeps["Maker: 解析包依赖并执行惰性拉取"]
+        ExecSteps["Maker: 多线程 WorkerPool 并发调度 Step"]
+        ExitCheck{"是否开启 --watch / --listen 会话?"}
+        Term["构建完成，Maker 进程正常退出"]
+        Session["持续保持事件循环，监听文件系统变更"]
+
+        LoadGraph --> ResolveDeps --> ExecSteps --> ExitCheck
+        ExitCheck -- "否 (普通单次构建)" --> Term
+        ExitCheck -- "是 (会话持久模式)" --> Session
     end
 
-    subgraph S_Exec ["阶段四：图构建与多线程调度"]
-        E_Build["调用 @build.build(b) 在堆中构建 DAG"]
-        E_Topo["拓扑排序并提取依赖子图"]
-        E_Pool["工作线程池并发拉取 Step 执行 make()"]
-        E_Build --> E_Topo
-        E_Topo --> E_Pool
-    end
+    Exec --> Check
+    FastPath --> LoadGraph
+    Dump -- "管道二进制配置流" --> LoadGraph
 
-    C_Route --> R_Bin
-    R_Bin --> P_Spawn
-    P_Args --> E_Build
+    %% 会话持久模式下的事件分流回环
+    Session -- "常规源码 (src/*.zig) 变动" --> ExecSteps
+    Session -- "构建配置 (build.zig) 变动" --> Check
 
-    classDef default stroke:#495057;
-    style S_CLI stroke:#ff9900,stroke-width:2px;
-    style S_CompileRunner stroke:#0066cc,stroke-width:2px;
-    style S_Spawn stroke:#ffc107,stroke-width:2px;
-    style S_Exec stroke:#009900,stroke-width:2px;
-    style C_Cmd stroke:#495057,stroke-width:2px;
-    style C_Route stroke:#ff9900,stroke-width:2px;
-    style R_Entry stroke:#0066cc,stroke-width:2px;
-    style R_User stroke:#0066cc,stroke-width:2px;
-    style R_Bin stroke:#0066cc,stroke-width:2px;
-    style P_Spawn stroke:#ffc107,stroke-width:2px;
-    style P_Args stroke:#ffc107,stroke-width:2px;
-    style E_Build stroke:#009900,stroke-width:2px;
-    style E_Topo stroke:#009900,stroke-width:2px;
-    style E_Pool stroke:#009900,stroke-width:2px;
+    style Entrance stroke:#495057,stroke-width:2px;
+    style ConfigPhase stroke:#0066cc,stroke-width:2px;
+    style SubConf stroke:#ff9900,stroke-width:2px;
+    style MakePhase stroke:#009900,stroke-width:2px;
+    style User stroke:#495057,stroke-width:2px;
+    style Jit stroke:#0066cc,stroke-width:2px;
+    style Exec stroke:#009900,stroke-width:2px;
+    style Check stroke:#ffc107,stroke-width:2px;
+    style FastPath stroke:#009900,stroke-width:2px;
+    style Spawn stroke:#ff9900,stroke-width:2px;
+    style Eval stroke:#ff9900,stroke-width:2px;
+    style Dump stroke:#0066cc,stroke-width:2px;
+    style LoadGraph stroke:#0066cc,stroke-width:2px;
+    style ResolveDeps stroke:#0066cc,stroke-width:2px;
+    style ExecSteps stroke:#009900,stroke-width:2px;
+    style ExitCheck stroke:#ffc107,stroke-width:2px;
+    style Term stroke:#495057,stroke-width:2px;
+    style Session stroke:#0066cc,stroke-width:2px;
 ```
 
 ---
 
-## 2. 源码级机制：运行器的动态组装
+## 2. 阶段一：进程自举与 JIT (`jitCmd`)
 
-1. **命令路由**：
-   在 Zig 编译器入口 [src/main.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/main.zig) 中，命令行解析器识别到子命令 `build`，路由进入 `cmdBuild` 函数。
-2. **装载 `build_runner.zig`**：
-   Zig 内置了一个运行器模版文件 `lib/compiler/build_runner.zig`。编译器创建一个编译单元：
-   - 将 `build_runner.zig` 作为根源文件；
-   - 将用户工作区中的 `build.zig` 映射为一个特殊的模块名称 `@build`。
-3. **编译为独立临时程序**：
-   Zig 使用 Native Debug 后端快速将其编译为一个独立的可执行文件，落盘存放在：
-   `.zig-cache/o/<hash>/build`
-4. **子进程执行**：
-   `cmdBuild` 随后调用操作系统的 `spawn` 接口，启动该 `build` 二进制程序，并将终端接收到的所有参数原封不动地转发过去。
+在现代架构中，构建与包管理相关的子命令均通过 JIT 自举入口收敛：
 
----
-
-## 3. 调度引擎：拓扑排序与多线程工作池
-
-在编译好的 `build` 程序内部：
-
-1. **执行 `@build.build(b)`**：
-   在单线程中初始化 `std.Build` 上下文，调用用户的构建函数，生成内存 DAG。
-2. **提取执行子图与拓扑排序**：
-   如果用户指定了构建目标（例如 `zig build test`），运行器遍历图结构，裁剪出所有未执行的前置依赖节点。
-3. **并发任务队列推进**：
-   运行器内置了工作线程池（Worker Pool）。调度器循环扫描入度（In-degree）为 0 的节点：
-   - 首先通过 `Cache.Manifest` 比对输入指纹，若完全一致则标记为已完成（Cache Hit）；
-   - 若未命中，则派发到空闲的工作线程执行 `step.make()`；
-   - 当某个节点执行完成，其依赖者的入度减 1；一旦入度降为 0，立即激活并推入并发执行队列。
-
-这一机制确保了依赖图中的各个节点能够在无竞态的前提下全核并发执行。
-
----
-
-## 4. 运行器自举机制与代价
-
-### 4.1 机器码执行与环境一致性
-
-Zig 构建运行器采用自举编译，直接生成原生可执行文件：
-- **执行效率高**：运行器本身是原生二进制程序，图构建与 Manifest 序列化直接以机器码执行，无额外解释器或虚拟机开销；
-- **环境一致**：编译 `build.zig` 的编译器与构建项目的编译器是同一套程序，无需依赖宿主机的外部脚本运行时。
-
-### 4.2 局限与代价
-
-1. **冷启动编译开销**：
-   在干净环境或修改 `build.zig` 后，执行 `zig build` 时需要先完成运行器的编译与子进程启动，相比直接解析静态配置（如 Cargo.toml）存在短暂的冷启动耗时；
-2. **错误堆栈混杂运行器代码**：
-   若 `build.zig` 出现运行时 panic，报错堆栈中会包含 `lib/compiler/build_runner.zig` 的内部调度代码，初次排查时需要注意区分用户脚本逻辑与运行器调度代码。
-
----
-
-## 5. 惰性依赖的重试机制
-
-在 `build.zig.zon` 中标记为 `.lazy = true` 的依赖，在构建初始阶段不会预先拉取。运行器子进程与 `zig` 主进程通过退出码 3 的通信约定，实现了惰性依赖的按需探测与重新触发。
-
-### 5.1 架构设计：为什么运行器自身不直接执行网络下载？
-
-`build_runner` 是由 Zig 编译器动态编译生成的原生子进程，具有常规的用户态权限。构建系统没有让它直接联网下载依赖，主要出于两点考虑：
-
-1. **包管理职责集中在主进程**：
-   网络下载、镜像回退、代理配置、Multihash 校验，以及全局缓存（`~/.cache/zig/p/<hash>`）的文件锁与原子解压，都由 `zig` 主进程统一负责。如果让每个项目的临时 `build` 程序都链接 HTTP/TLS 和 Git 客户端，会明显增加运行器的编译开销与二进制体积。
-2. **支持批量并发拉取**：
-   如果每次在 `lazyDependency` 处同步下载，多个条件依赖就会串行阻塞（下载 A -> 继续执行 -> 发现缺少 B -> 下载 B）。把配置期作为无网络阻塞的探测阶段，可以让运行器一次性收集齐本次构建所需的全部缺失依赖，交由主进程并发拉取。
-
-### 5.2 源码级交互机制与时序
-
-父子进程的协作流程如下：
-
-```mermaid
-graph TD
-    subgraph S_Parent ["1. Zig 编译前端主进程 (zig build)"]
-        P_Start["启动 zig build 命令"]
-        P_Compile["编译 build_runner 程序<br/>(缺失依赖注入 available = false)"]
-        P_Spawn["启动运行器子进程<br/>(传入 -Z<nonce> 等参数)"]
-        P_Wait["等待子进程退出并检查退出码"]
-        P_Fetch["读取 .zig-cache/tmp/<nonce><br/>并发网络拉取缺失依赖至 ~/.cache/zig/p/"]
-        P_Recompile["重新编译 build_runner<br/>(依赖就绪，available = true)"]
-    end
-
-    subgraph S_Child ["2. 运行器子进程 (build_runner)"]
-        C_Run["执行 build.zig 中的 build(b)"]
-        C_Lazy["调用 b.lazyDependency(name, args)"]
-        C_Check{"检查依赖是否已在全局缓存<br/>(available)"}
-        C_Mark["调用 markNeededLazyDep<br/>记录 pkg_hash 并返回 null"]
-        C_Ret["返回 *Dependency 实例"]
-        C_Exit3["写出缺失清单至 .zig-cache/tmp/<nonce><br/>调用 process.exit(3) 退出"]
-        C_DAG["构建 DAG 完成<br/>进入 Make 执行阶段"]
-    end
-
-    P_Start --> P_Compile
-    P_Compile --> P_Spawn
-    P_Spawn --> C_Run
-    C_Run --> C_Lazy
-    C_Lazy --> C_Check
-    C_Check -- "未下载 (available=false)" --> C_Mark
-    C_Check -- "已缓存 (available=true)" --> C_Ret
-    C_Ret --> C_DAG
-    C_Mark -- "配置期结束且缺失清单非空" --> C_Exit3
-    C_Exit3 -- "子进程退出 (退出码 3)" --> P_Wait
-    P_Wait -- "捕获 exit(3)" --> P_Fetch
-    P_Fetch -- "全部解压就绪" --> P_Recompile
-    P_Recompile -- "二次启动运行器" --> P_Spawn
-
-    classDef default stroke:#495057;
-    style S_Parent stroke:#ff9900,stroke-width:2px;
-    style S_Child stroke:#0066cc,stroke-width:2px;
-    style P_Start stroke:#495057,stroke-width:2px;
-    style P_Compile stroke:#ff9900,stroke-width:2px;
-    style P_Spawn stroke:#ffc107,stroke-width:2px;
-    style P_Wait stroke:#ffc107,stroke-width:2px;
-    style P_Fetch stroke:#0066cc,stroke-width:2px;
-    style P_Recompile stroke:#198754,stroke-width:2px;
-    style C_Run stroke:#495057,stroke-width:2px;
-    style C_Lazy stroke:#0066cc,stroke-width:2px;
-    style C_Check stroke:#ffc107,stroke-width:2px;
-    style C_Mark stroke:#dc3545,stroke-width:2px;
-    style C_Ret stroke:#198754,stroke-width:2px;
-    style C_Exit3 stroke:#dc3545,stroke-width:2px;
-    style C_DAG stroke:#198754,stroke-width:2px;
-```
-
-#### 流程分步说明：
-
-1. **传递临时通信标识（`-Z<nonce>`）**：
-   在 `src/main.zig` 中，主进程启动 `build_runner` 时会传入一个 16 字节随机标识 `-Z<nonce>`（即源码中的 `output_tmp_nonce`），作为本次通信的临时文件名。
-2. **检查可用性并记录缺失哈希**：
-   在 `lib/std/Build.zig` 的 `lazyDependency` 源码中：
-   ```zig
-   const pkg = @field(deps.packages, decl.name);
-   const available = !@hasDecl(pkg, "available") or pkg.available;
-   if (!available) {
-       markNeededLazyDep(b, pkg_hash);
-       return null;
-   }
-   ```
-   如果依赖未下载（全局缓存中不存在），代码生成阶段会把该包的 `available` 设为 `false`。`lazyDependency` 将其哈希加入 `graph.needed_lazy_dependencies`，并返回 `null`。
-3. **写出缺失清单并以状态码 3 退出**：
-   用户 `build(b)` 函数返回后，`lib/compiler/build_runner.zig` 会检查收集到的依赖：
-   ```zig
-   if (graph.needed_lazy_dependencies.entries.len != 0) {
-       // 将缺失的 pkg_hash 写入 .zig-cache/tmp/<nonce> 文件
-       ...
-       process.exit(3);
-   }
-   ```
-   只要探测到缺失的惰性依赖，运行器就会把哈希列表写入 `.zig-cache/tmp/<nonce>`，随后调用 `process.exit(3)` 退出，不会进入后续的 Make 编译阶段。
-4. **主进程并发拉取并重新运行**：
-   主进程捕获到子进程退出码为 3，读取临时文件中的哈希列表，通过网络并发下载这些依赖包，校验 Multihash 并解压至全局缓存目录；随后重新生成元数据、重新编译 `build_runner` 并再次执行。第二轮运行时，依赖的 `available` 已变为 `true`，`b.lazyDependency` 就能正常返回 `*Dependency` 实例。
-
----
-
-### 5.3 库作者注意事项：提前注册对外模块
-
-运行器的两阶段重试机制对公共库的设计提出了一个明确要求：
-
-> ⚠️ 对外暴露的模块（`b.addModule`）必须在任何因 `lazyDependency == null` 提前返回的代码之前完成注册。
-
-当公共库被下游项目引用时：
-- 下游项目的 `build.zig` 通常会先调用 `const dep = b.dependency("your_lib", .{});`，随后通过 `dep.module("your_module")` 获取导出的模块；
-- 在第一轮探测阶段，若上游库因为 `b.lazyDependency(...)` 返回 `null` 而直接 `return`，且此时还没有调用 `b.addModule("your_module", ...)`，下游项目在调用 `dep.module` 时就会直接 panic（`unable to find module 'your_module'`）；
-- 这个 panic 会导致构建进程非正常退出（退出码不是 3），主进程也就无法进入依赖下载与重新运行流程。
-
-编写包含惰性依赖的公共库时，应优先调用 `b.addModule` 注册对外暴露的模块骨架，然后再处理内部依赖的探测与装配：
+查看 [src/main.zig:L352-L363](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/main.zig#L352-L363)：
 
 ```zig
-// 推荐写法：先注册对外模块，再处理惰性依赖
-pub fn build(b: *std.Build) void {
-    const module = b.addModule("my_lib", .{
-        .root_source_file = b.path("src/root.zig"),
+.build, .fetch, .init, .libc, .@"cache-cat" => {
+    return jitCmd(gpa, arena, io, cmd_args, environ_map, .{
+        .cmd_name = "maker",
+        .root_src_path = "Maker.zig",
+        .prepend_cmd = cmd,
+        .prepend_zig_lib_dir_path = true,
+        .prepend_global_cache_path = true,
+        .prepend_zig_exe_path = true,
+        .prepend_seed = true,
+        .release_mode = .safe,
     });
+},
+```
 
-    const upstream = b.lazyDependency("upstream", .{}) orelse return;
-    module.linkLibrary(upstream.artifact("c_lib"));
+### 自举核心逻辑（`jitCmdInner`）：
+1. **优化级别**：默认以 `.release_mode = .safe`（`-O ReleaseSafe`）编译，确保构建调度与文件比对具有极高的执行性能；
+2. **全局缓存落盘**：`Maker.zig` 编译出的 `maker` 可执行文件存放在全局缓存中：
+   ```zig
+   const exe_path = try dirs.global_cache.join(arena, &.{
+       "o",
+       &Cache.binToHex(comp.digest.?),
+       comp.emit_bin.?,
+   });
+   ```
+   只要 Zig 版本与标准库未变动，该编译直接命中缓存；
+3. **进程无缝替换（`process.replace`）**：
+   在支持 `execve` 的现代操作系统上，Zig 进程直接调用 `process.replace` 将当前进程镜像原子替换为编译好的 `maker`，消除常驻父进程的内存与管理开销。
+
+---
+
+## 3. 阶段二：`Maker` 主控会话与双循环架构
+
+启动 `maker` 进程后，其核心调度骨架由内外两层嵌套循环构成（提炼自 [lib/compiler/Maker.zig:L737-L1040](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L737-L1040)）：
+
+```zig
+// lib/compiler/Maker.zig: 双循环调度会话骨架
+configure: while (true) {
+    // 阶段一：探测构建图配置（缓存命中走 Fast Path，未命中走 configurer）
+    var scanned_config = try configure(&graph, ...);
+
+    // 基于探测到的配置初始化 Maker 实例
+    var maker: Maker = .{
+        .graph = &graph,
+        .scanned_config = &scanned_config,
+        // ...
+    };
+    defer maker.deinit();
+
+    rebuild: while (true) {
+        // 阶段二：执行 DAG 任务调度
+        try maker.makeSteps(main_progress_node, ...);
+
+        // 单次构建模式：任务执行完毕直接退出！
+        if (!maker.watch) return;
+
+        // 会话模式（--watch / --listen）：等待文件变更或 RPC 请求
+        switch (try watch.wait(timeout)) {
+            error.MustReconfigure => {
+                // build.zig / build.zig.zon 发生变更：回流至阶段一重新执行 configurer
+                continue :configure;
+            },
+            .timeout => {
+                // 普通源文件（src/*.zig）发生变更：回流至阶段二增量重跑脏 Step
+                markFailedStepsDirty(&maker);
+                continue :rebuild;
+            },
+        }
+    }
 }
 ```
-这样即使上游依赖尚未就绪、构建脚本在首轮提前退出，下游也能拿到有效的模块引用，让主进程顺利完成两阶段的依赖补全。
+
+### 事件分级回流机制：
+- **常规源码修改（`src/*.zig`）**：触发 `continue :rebuild;`，`Maker` 实例与内存构建图继续复用，直接回到**阶段三（ExecSteps）**，仅增量重跑被标记为脏的 Step；
+- **构建配置文件修改（`build.zig` / `build.zig.zon`）**：抛出 `error.MustReconfigure`，触发 `continue :configure;`，跳出内层循环并触发 `defer maker.deinit()`，回到**阶段二（Check）**重新探测配置并重建 `Maker` 实例。
+
+---
+
+## 4. 阶段三：`Configurer` 进程派生与二进制序列化
+
+当 `Maker` 判定配置缓存未命中时，会派生一个极短生命周期的子进程 `configurer`：
+
+### 4.1 编译 Configurer
+在 [lib/compiler/Maker.zig:L1151-L1182](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L1151-L1182) 中，`Maker` 组装参数并调用 `std.zig.buildExeSubprocess` 编译临时 `configurer`：
+- `lib/compiler/configurer.zig` 映射为主模块；
+- 用户项目的 `build.zig` 映射为 `@build` 模块；
+- 包管理器生成的依赖元数据映射为 `@dependencies` 模块。
+
+### 4.2 执行与二进制序列化
+在 `configurer` 内部（见 [lib/compiler/configurer.zig:L138-L164](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/configurer.zig#L138-L164)）：
+1. 调用 `builder.runPackageScript(root)` 执行用户的 `build(b)` 函数；
+2. 收集所有的 Step、Module、Artifact 及编译选项；
+3. 调用 `builder.serializeConfigurationExiting()` 将整张构建图序列化为紧凑二进制字节流输出到标准输出管道，随后立刻调用 `process.exit(0)` 退出销毁；
+4. `Maker` 接收到管道数据后，反序列化为内存中的 `Configuration` 实例；若未受污染（`!configuration.poisoned`），原子性存入 `.zig-cache/c/{digest}`，供后续构建直接复用。
+
+---
+
+## 5. 惰性依赖的自动重试机制
+
+当构建配置中使用了尚未下载的惰性依赖时，双进程架构提供了高度优雅的自动重试支持：
+在 [lib/compiler/Maker.zig:L1530-L1542](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L1530-L1542) 中：
+```zig
+if (configuration.unlazy_deps.len != 0) {
+    for (configuration.unlazy_deps) |hash_string| {
+        log.info("fetching lazy dependency {s}", .{hash});
+        try unlazy_set.put(arena, .fromSlice(hash), {});
+    }
+    // Maker 在后台并发拉取缺失的依赖包，拉取完成后重试配置循环
+}
+```
+`configurer` 仅需在输出的二进制配置流中包含 `unlazy_deps` 列表。`Maker` 作为常驻主控进程，在后台并发拉取缺失的依赖包解压至全局缓存，随后直接在双循环架构的外层重新执行 `configure` 探测，整个过程**无需重启主进程**，对用户完全透明。
+
+---
+
+## 6. Build Server Protocol (BSP)
+
+为支持 IDE 与语言服务器深度集成，Zig 官方推出了标准化的 **Build Server Protocol**：
+
+- **服务端启动**：通过执行 `zig build --listen=-`，构建系统通过标准输入输出作为通信管道，提供基于 JSON-RPC 规范的结构化服务；
+- **能力矩阵**：
+  1. **构建图元数据直读**：IDE（如 ZLS）可直接查询构建图中所有的 Step 拓扑关系、暴露的选项与模块映射，无需触发实际编译；
+  2. **细粒度进度事件推送**：实时推送每个 Step 的开始、完成、耗时以及详细的 `ErrorBundle` 诊断信息；
+  3. **交互式构建控制**：语言服务器可主动下发指令，触发指定 Step 的重编或单元测试。
+
+这标志着 IDE 与 Zig 构建系统的交互从以往的黑盒猜测与 Hack，转向了官方标准化的协议通信通道。

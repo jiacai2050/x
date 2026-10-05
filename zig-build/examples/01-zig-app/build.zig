@@ -4,14 +4,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Library module
+    // 1. 业务库模块
     const lib_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // Executable
+    // 2. 主应用程序可执行文件
     const exe = b.addExecutable(.{
         .name = "my-cli",
         .root_module = b.createModule(.{
@@ -25,16 +25,14 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    // Run command
+    // 3. 运行命令支持
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // Unit test command
+    // 4. 单元测试命令支持
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_mod,
     });

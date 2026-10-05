@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 1. Render configuration header
+    // 1. 生成配置头文件（ConfigHeader）
     const config_h = b.addConfigHeader(
         .{
             .style = .{ .cmake = b.path("upstream/include/config.h.in") },
@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
         },
     );
 
-    // 2. Create static C library module
+    // 2. 创建静态 C 库模块
     const c_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
         .flags = &.{"-Wall"},
     });
 
-    // 3. Add static library artifact
+    // 3. 构建静态库产物并导出头文件
     const lib = b.addLibrary(.{
         .name = "myclib",
         .linkage = .static,
@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
     lib.installConfigHeader(config_h);
     b.installArtifact(lib);
 
-    // 4. Test step: run test/ sub-project
+    // 4. 测试步骤：在 test/ 子目录运行集成测试
     const test_step = b.step("test", "Run integration tests");
     const test_runner = b.addSystemCommand(&.{ "zig", "build", "run" });
     test_runner.setCwd(b.path("test"));

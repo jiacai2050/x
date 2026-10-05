@@ -18,16 +18,16 @@
 # 核心 API 全景与实战用法
 
 - [标准选项与顶层入口：b.standardTargetOptions 与 b.step](api/options-and-entry.md)
-- [产物构建：Executable、Library 与 Test](api/artifacts-api.md)
+-https://blog.cloudflare.com/birthday-week-2026-wrap-up/?utm_campaign=cf_blog&utm_content=20261005&utm_medium=organic_social&utm_source=twitter [产物构建与测试验证：Executable、Library、Test 与 ObjCopy](api/artifacts-api.md)
 - [模块组织与命名空间：createModule、addModule 与 addImport](api/modules-api.md)
 - [C/C++ 互操作与库导出：addTranslateC 与 linkLibrary](api/c-cpp-interop-api.md)
-- [动态生成与模板配置：addConfigHeader 与 addWriteFiles](api/code-generation-api.md)
-- [第三方依赖引入与消费：b.dependency](api/dependency-api.md)
+- [代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles](api/code-generation-api.md)
+- [第三方依赖引入与消费：b.dependency、--fork 与系统包集成](api/dependency-api.md)
 - [编写自定义 Step：扩展构建管线](api/custom-steps.md)
 
 # 源码级底层运行机制
 
-- [构建自举：Build Runner 的动态编译与调度](internals/build-runner-internals.md)
+- [构建自举与双进程：Maker 与 Configurer 架构流转](internals/build-runner-internals.md)
 - [编译器交接：Step.Compile 到子进程拼装](internals/step-compile-internals.md)
 - [编译单元：ZCU (Zig Compilation Unit) 与单体编译](internals/zcu-internals.md)
 - [内置 C 工具链：嵌入式 Clang 与 LLD 桥接](internals/clang-lld-internals.md)

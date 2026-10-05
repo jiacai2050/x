@@ -70,7 +70,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 1. Step 1: Translate C header file into a Zig Module
+    // 1. 第一步：将 C 头文件转译为 Zig Module
     const translate_c = b.addTranslateC(.{
         .root_source_file = b.path("c_include/native_math.h"),
         .target = target,
@@ -79,30 +79,37 @@ pub fn build(b: *std.Build) void {
     translate_c.addIncludePath(b.path("c_include"));
     const math_c_module = translate_c.createModule();
 
-    // 2. Step 2: Create main Zig executable module with C source attached
+    // 2. 第二步：创建挂载了 C 源码的 Zig 可执行模块
     const exe_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true, // Must enable libc linking when compiling C sources!
+        .link_libc = true, // 编译 C 源码时必须显式开启 libc 链接！
         .imports = &.{
             .{ .name = "native_math", .module = math_c_module },
         },
     });
 
-    // Attach C source files to exe_module
+    // 向可执行模块追加 C 源码实现与头文件路径
     exe_module.addCSourceFile(.{
         .file = b.path("c_src/native_math.c"),
         .flags = &.{"-Wall", "-Wextra", "-O3"},
     });
     exe_module.addIncludePath(b.path("c_include"));
 
-    // 3. Step 3: Build and install executable
+    // 3. 第三步：声明并安装可执行文件
     const exe = b.addExecutable(.{
         .name = "mixed_app",
         .root_module = exe_module,
     });
     b.installArtifact(exe);
+
+    // 4. 第四步：注册运行命令
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
 }
 ```
 
@@ -114,7 +121,7 @@ pub fn build(b: *std.Build) void {
 
 ```zig
 const std = @import("std");
-// Directly import the translated C header module!
+// 直接导入转译后的 C 头文件模块！
 const math = @import("native_math");
 
 pub fn main() void {

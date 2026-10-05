@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 1. Config header generation
+    // 1. 生成配置头文件（ConfigHeader）
     const config_h = b.addConfigHeader(
         .{
             .style = .{ .cmake = b.path("include/config.h.in") },
@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) void {
         },
     );
 
-    // 2. Dynamic file writing
+    // 2. 动态生成源码文件（WriteFiles）
     const write_files = b.addWriteFiles();
     const version_zig = write_files.add("version.zig", b.fmt(
         \\pub const app_name = "CodegenDemo";

@@ -61,15 +61,15 @@ graph TD
 
 Zig 官方在编译 `zig` 编译器自身时，直接将 LLVM、Clang 和 LLD 编译为静态库链接进单体程序中。两者通过标准的 C ABI 进行桥接：
 
-### 2.1 Zig 侧声明：[src/main.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/main.zig#L5981)
+### 2.1 Zig 侧声明：[src/main.zig:L5269-L5292](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/main.zig#L5269-L5292)
 ```zig
-// In src/main.zig
+// 源码位于 src/main.zig:L5269-L5292
 extern "c" fn ZigClang_main(argc: c_int, argv: [*:null]?[*:0]u8) c_int;
 ```
 
-### 2.2 C++ 侧导出：[src/zig_clang_driver.cpp](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/zig_clang_driver.cpp#L467)
+### 2.2 C++ 侧导出：[src/zig_clang_driver.cpp:L474-L477](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/zig_clang_driver.cpp#L474-L477)
 ```cpp
-// In src/zig_clang_driver.cpp
+// 源码位于 src/zig_clang_driver.cpp:L474-L477
 extern "C" int ZigClang_main(int argc, char **argv) {
     return clang_main(argc, argv, {argv[0], nullptr, false});
 }
@@ -81,10 +81,10 @@ extern "C" int ZigClang_main(int argc, char **argv) {
 
 ## 3. 并发 C 编译工作队列：`c_object_work_queue`
 
-当构建图中包含大量 C 源文件时，[src/Compilation.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/Compilation.zig) 会启动专用的并发编译工作队列：
+当构建图中包含大量 C 源文件时，[src/Compilation.zig:L2893-L2897](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Compilation.zig#L2893-L2897) 会启动专用的并发编译工作队列：
 
 ```zig
-// src/Compilation.zig
+// 源码位于 src/Compilation.zig:L2893-L2897
 for (comp.c_object_table.keys()) |c_object| {
     comp.c_object_work_queue.pushBackAssumeCapacity(c_object);
 }

@@ -14,22 +14,22 @@ Zig 采用 **ZON (Zig Object Notation)** 语法声明包元数据。ZON 是 Zig 
 .{
     .name = .my_project,
     .version = "0.1.0",
-    .fingerprint = 0xd58b8f2d4e195cc9, // 项目全局唯一指纹
-    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0xd58b8f2d4e195cc9, // 唯一指纹标识
+    .minimum_zig_version = "0.17.0",
 
     .dependencies = .{
-        // 1. 远程归档依赖（URL + Hash）
+        // 1. 远程归档依赖（URL + 哈希）
         .network = .{
             .url = "https://github.com/MasterQ32/zig-network/archive/refs/tags/v0.1.0.tar.gz",
             .hash = "1220a1b2c3d4e5f67890abcdef...",
         },
 
-        // 2. 本地相对路径依赖（Path）
+        // 2. 本地路径依赖
         .local_utils = .{
             .path = "../shared-utils",
         },
 
-        // 3. Git 仓库直连依赖
+        // 3. Git 仓库依赖
         .zlog = .{
             .url = "git+https://github.com/jiacai2050/zlog.git#v0.2.0",
             .hash = "1220456789abcdef0123...",
@@ -180,8 +180,10 @@ graph TD
 
 ### 2. 项目本地缓存（`.zig-cache/`）
 位于项目根目录下，通常加入 `.gitignore`：
+- **`c/`（Configuration 构建图配置缓存）**：
+  持久化存放已序列化的二进制构建图配置（`.zig-cache/c/{digest}`）。若输入参数与构建文件未变动且未受污染，`Maker` 直接读取此配置，跳过派生 `configurer` 进程；
 - **`h/`（Manifest 清单记录）**：
-  持久化记录每个 Step 的输入依赖哈希。构建时通过比对 Manifest 判定步骤是否命中缓存；
+  持久化记录每个 Step 的输入依赖元数据，采用连续紧凑的二进制格式存储，支持直接内存映射高效比对；
 - **`o/`（Object 编译产物）**：
   每个 Step 独立生成的二进制文件、编译对象（`.o`）及代码生成结果。每个构建配置与源码状态对应一个唯一的 32 位 Hex 子目录（如 `o/a4f3b890.../`），不同 Target、不同 Optimize 模式互不干扰；
 - **`tmp/`（临时工作区）**：
@@ -277,6 +279,35 @@ graph TD
    - **未命中（Miss）**：执行该 Step 的编译或运行任务。产物先写入 `.zig-cache/tmp/<uuid>` 临时目录。只有当子进程成功退出且退出码为 0 时，引擎才通过操作系统的**原子重命名（Atomic Rename）**将其移动至 `.zig-cache/o/<digest>/`，并写入新的 Manifest 文件；
    - **异常安全**：若构建过程被手动中断（如 `Ctrl+C`）或编译失败，临时文件仅停留在 `tmp/` 中，不会在产物目录 `o/` 留下残缺文件。
 
+### 4.4 二进制 Manifest 与诊断工具 `zig cache-cat`
+
+缓存记录文件采用紧凑二进制格式存储：
+- **紧凑二进制格式**：缓存结构由紧凑连续的二进制记录构成，体积紧凑，读取到内存后直接映射为结构体指针比对，极大提升了任务缓存检查速度；
+- **支持元数据模式**：对静态巨型资源，可配置仅比对 `inode/mtime/size` 而不进行昂贵的内容哈希比对；
+- **官方反序列化查看工具 `zig cache-cat`**：
+  由于二进制格式不可直接用文本编辑器阅读，Zig 提供了官方命令将其反序列化为可读的 ZON 数据结构：
+  ```bash
+  $ zig cache-cat .zig-cache/h/ac2f2b6c157f36769986aff06a3c3b06
+  ```
+  输出示例：
+  ```zig
+  .{
+      .input_hash = "ac2f2b6c157f36769986aff06a3c3b06",
+      .files = .{
+          .{
+              .size = 1420,
+              .inode = 86241092,
+              .mtime = 1728045612,
+              .digest = "d5a8b3...",
+              .prefix = .cwd,
+              .path = "src/main.zig",
+          },
+      },
+      .discovered_hash = "f12c8b74a...",
+  }
+  ```
+  当遇到意外重编或缓存未命中时，可通过该命令迅速排查导致哈希失效的具体文件。
+
 ---
 
 ## 5. 产物安装：`.zig-cache` 与 `zig-out` 的关系
@@ -296,3 +327,62 @@ graph TD
 因此：
 - 即使删除 `zig-out/` 目录，只要 `.zig-cache/` 保持完整，重新执行 `zig build` 时仅需重新建立硬链接或轻量复制即可完成产物输出；
 - 即使清理了项目内的 `.zig-cache/`，只要全局缓存 `~/.cache/zig/p/` 存在，Zig 仍可以直接使用本地已解压的依赖包，无需重复联网拉取。
+
+---
+
+## 6. 现代依赖调试与分叉：`--fork` 命令行替换
+
+### 6.1 传统本地调试的痛点
+在多包协作与调试第三方依赖（尤其是深层传递依赖）时，传统的方案通常需要在 `build.zig.zon` 中临时修改依赖声明：
+```zig
+.dependencies = .{
+    .zlog = .{
+        // 传统方式：手动修改 build.zig.zon 为本地相对路径
+        .path = "../zlog",
+    },
+},
+```
+这种传统方式存在明显的工程痛点：
+1. **侵入源码仓库**：必须修改并污染 `build.zig.zon`，极易因疏忽将本地调试路径 `git commit` 提交到版本库，导致 CI 构建或下游消费时发生灾难性的路径缺失报错；
+2. **难以修补深层传递依赖**：若你的项目依赖库 A，而库 A 间接依赖了库 B（发生 bug 的地方）。在传统模式下，你不仅要 clone 库 B，还必须在本地 clone 并修改库 A 的 `build.zig.zon`，并在主工程中级联替换库 A，极其繁琐且极易出错。
+
+### 6.2 `--fork` 的设计哲学与工作原理
+
+现代 Zig 在命令行中引入了原生的包分叉替换机制：
+```bash
+zig build --fork [path]
+# 或
+zig build --fork=[path]
+```
+
+`--fork` 彻底解决了这一痛点：**允许开发者在命令行无侵入地将依赖树中的任意项目临时重定向到本地开发目录，完全不需要修改任何 `build.zig.zon`！**
+
+#### 底层匹配与拦截机制（源码解析）
+
+查看编译器源码 [lib/compiler/Maker/Fetch.zig:L595-L608](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Fetch.zig#L595-L608)：
+
+1. **自动提取项目标识（Project ID）**：
+   启动 `zig build --fork ../my-patched-lib` 时，`Maker` 进程读取目标本地目录下的 `build.zig.zon`，提取其 `fingerprint`（指纹），将其映射为唯一的 `Package.ProjectId` 并注册到全局 `fork_set` 拦截表中；
+2. **依赖图遍历时的透明拦截**：
+   当 `Maker` 遍历解析依赖树时，每当探测到一个依赖声明（无论是顶层直接依赖，还是第 N 层传递依赖），都会通过 `expected_hash.projectId()` 查询 `fork_set`：
+   ```zig
+   // lib/compiler/Maker/Fetch.zig:L595-L608
+   if (remote.hash) |expected_hash| {
+       const expected_project_id: Package.ProjectId = expected_hash.projectId();
+       if (job_queue.fork_set.getKeyPtrAdapted(expected_project_id, ...)) |fork| {
+           log.debug("using fork {f} for {s}", .{ fork.path, fork.manifest.name });
+           f.package_root = fork.path; // 透明重定向为本地目录！
+           // ...
+       }
+   }
+   ```
+3. **零侵入与多依赖并行分叉**：
+   - 当命令行带有 `--fork` 时，全局缓存与远程下载被透明绕过，直接使用本地源码执行配置与编译；
+   - 支持同时指定多个 `--fork` 选项进行多库联合调试：
+     ```bash
+     zig build --fork ../zlog --fork ../zig-network
+     ```
+   - 调试结束后，只需去掉命令行中的 `--fork` 参数，项目即刻恢复为标准的远程固定版本依赖，**版本库中没有任何脏代码残留**。
+
+> 💡 **提示**：
+> 使用 `--fork` 时，本地分叉项目的 `build.zig.zon` 中必须包含与原依赖一致的 `fingerprint`（指纹）。Zig 依靠指纹来精准匹配依赖树中对应的项目，防止不同依赖包之间发生误替换。

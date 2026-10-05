@@ -1,6 +1,6 @@
-# 动态生成与模板配置：addConfigHeader 与 addWriteFiles
+# 代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles
 
-移植 C/C++ 库或构建复杂工程时，通常需要处理平台相关的配置文件（如 CMake 生成的 `config.h`），或者在构建期动态生成版本信息文件。Zig 标准库提供了对应的支持。
+在现代软件工程中，构建系统承担的职责远不止编译源码，通常还需要动态生成中间代码、渲染平台相关的配置文件（如 CMake 模板），乃至跨越依赖边界共享生成物与将 Golden File 回写持久化到版本库中。Zig 标准库提供了一整套基于 DAG 数据流的类型安全代码生成与同步 API。
 
 > 💡 **配套可运行示例**
 > 本章中关于 `addConfigHeader`（CMake 模板渲染）和 `addWriteFiles`（动态源码生成）的完整可运行代码位于 GitHub：[`examples/03-code-generation`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation)。
@@ -14,9 +14,9 @@
 
 ## 1. 配置头文件生成：`b.addConfigHeader`
 
-在 C/C++ 项目中，常使用 CMake 的 `configure_file(config.h.in config.h)` 根据环境替换宏定义。在 Zig 中可以通过 `b.addConfigHeader` 实现类似功能：
+在 C/C++ 库移植或混合编程中，项目通常依赖 CMake 的 `configure_file(config.h.in config.h)` 根据编译平台宏替换变量。Zig 通过 [lib/std/Build/Step/ConfigHeader.zig](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/ConfigHeader.zig#L1-L70) 的 `b.addConfigHeader` 提供了原生替代方案，无需在宿主机安装 CMake 或 Python 解释器。
 
-### 示例用法：
+### 1.1 核心用法
 
 ```zig
 // 1. 声明 ConfigHeader 步骤
@@ -30,7 +30,7 @@ const config_h = b.addConfigHeader(
         .HAVE_UNISTD_H = target.result.os.tag != .windows,
         .HAVE_PTHREAD = true,
 
-        // 数值类型
+        // 数值类型：生成 #define SIZEOF_SIZE_T 8
         .SIZEOF_SIZE_T = @as(i64, target.result.ptrBitWidth() / 8),
 
         // 字符串：生成 #define DEFAULT_CHARSET "utf8mb4"
@@ -42,20 +42,21 @@ const config_h = b.addConfigHeader(
 lib.installConfigHeader(config_h);
 ```
 
-### 核心特性：
-- **支持 CMake 模板语法**：`.cmake` 样式支持解析 `#cmakedefine VAR`、`#cmakedefine01 VAR` 和 `@VAR@`，并替换为对应的 C 宏定义；
-- **类型校验**：键值对通过匿名结构体传入，编译器在配置阶段进行类型检查。
+### 1.2 关键特性
+- **支持标准 CMake 模板语法**：自动解析 `#cmakedefine VAR`、`#cmakedefine01 VAR` 和 `@VAR@`，并替换为对应的 C 宏定义；
+- **强类型编译期检查**：所有宏替换值均通过 Zig 匿名结构体传入，编译器在构建配置阶段进行严格类型校验。
 
 ---
 
-## 2. 动态写入文件：`b.addWriteFiles`
+## 2. 动态生成文件集合：`b.addWriteFiles`
 
-当构建过程中需要生成源代码、聚合头文件或版本信息时，可以使用 `b.addWriteFiles`。
+当构建过程中需要动态拼装源码片段、聚合多个输入文件、或者生成包含构建元数据的 `.zig` 文件时，使用 `b.addWriteFiles`。
 
 ### 场景一：生成构建期版本与元数据
 ```zig
 const write_files = b.addWriteFiles();
 
+// 在构建缓存中动态生成 version.zig
 const version_zig = write_files.add("version.zig", b.fmt(
     \\pub const app_name = "CodegenDemo";
     \\pub const version = "{s}";
@@ -64,50 +65,222 @@ const version_zig = write_files.add("version.zig", b.fmt(
     .{ "1.0.0", @tagName(optimize) },
 ));
 
-// 作为内部模块提供给主程序使用
+// 作为内部模块提供给主程序直接导入
 const version_mod = b.createModule(.{
     .root_source_file = version_zig,
 });
 exe.root_module.addImport("version", version_mod);
 ```
 
-### 场景二：为 `addTranslateC` 聚合多个分散头文件
-当第三方库有多个分散的头文件需要集中转译时，可动态生成一个入口头文件：
-
+### 场景二：聚合文件或复制物理文件到虚拟根目录
 ```zig
-const bundle_h = b.addWriteFiles().add("bundle.h",
-    \\#include <foo.h>
-    \\#include <foo_error.h>
-);
+const asset_pack = b.addWriteFiles();
+// 复制物理文件到虚拟集合
+_ = asset_pack.addCopyFile(b.path("assets/icon.png"), "icon.png");
+// 动态写入文本内容
+_ = asset_pack.add("manifest.txt", "name=my_app\nversion=1.0.0\n");
 
-const translate_c = b.addTranslateC(.{
-    .root_source_file = bundle_h,
-    .target = target,
-    .optimize = optimize,
-});
+// 获取整个虚拟根目录对应的 LazyPath
+const assets_dir = asset_pack.getDirectory();
 ```
 
 ---
 
-## 3. 使用 `LazyPath` 生成文件的优势
+## 3. 跨包动态生成物共享：`addNamedWriteFiles`
 
-使用 `b.addWriteFiles` 和 `b.addConfigHeader` 生成的文件路径均为 `LazyPath`：
-1. **支持增量缓存**：仅当输入模板内容或键值发生变动时，才会在执行期重新生成文件；
-2. **时序安全**：生成物存放在 `.zig-cache/` 的哈希隔离目录下，不污染源码工作区，并能通过数据流自动向消费步骤传递依赖关系。
+在复杂的微库或模块化工程中，经常存在一种需求：**上游依赖包通过自定义工具动态生成了一批代码（例如 Protocol Buffers、RPC 桩代码、SQL 结构体），下游主项目需要直接导入消费这些生成物**。
+
+传统构建系统往往要求下游包直接入侵探测上游的磁盘缓存目录，极易产生硬编码路径与并发竞争。Zig 通过 [lib/std/Build.zig:L862-L880](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L862-L880) 的 `addNamedWriteFiles` 与 [lib/std/Build.zig:L1880-L1895](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1880-L1895) 的 `dep.namedWriteFiles` 实现了跨包声明式共享。
+
+### 3.1 跨包命名导出与消费模式
+
+```mermaid
+flowchart LR
+    subgraph Upstream ["上游依赖包 (proto-generator)"]
+        direction TB
+        Generator["addExecutable(protoc)"]
+        RunGen["addRunArtifact() 生成 .zig 桩代码"]
+        NamedWF["b.addNamedWriteFiles('proto_bindings')<br/>命名写入集合"]
+
+        Generator --> RunGen --> NamedWF
+    end
+
+    subgraph Downstream ["下游消费包 (main-project)"]
+        direction TB
+        Dep["b.dependency('proto-generator', .{})"]
+        GetWF["dep.namedWriteFiles('proto_bindings')<br/>通过命名句柄消费生成物"]
+        AppMod["b.createModule(root_source_file)"]
+        AppExe["addExecutable(app)"]
+
+        Dep --> GetWF --> AppMod --> AppExe
+    end
+
+    NamedWF -. "跨 Package 边界暴露命名集合" .-> GetWF
+
+    classDef default stroke:#495057;
+    style Upstream fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
+    style Downstream fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
+    style NamedWF fill:#d5e8d4,stroke:#009900,stroke-width:2px;
+    style GetWF fill:#d5e8d4,stroke:#009900,stroke-width:2px;
+```
+
+### 3.2 完整代码实现范式
+
+**上游库（`proto-generator/build.zig`）命名导出：**
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    // 1. 构建并运行 IDL 代码生成工具
+    const protoc_exe = b.addExecutable(.{
+        .name = "protoc",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/compiler.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseFast,
+        }),
+    });
+    const run_protoc = b.addRunArtifact(protoc_exe);
+    const generated_msg = run_protoc.addOutputFileArg("messages.zig");
+
+    // 2. 将生成的文件放入具有全局命名标识的 WriteFiles 步骤中
+    const named_files = b.addNamedWriteFiles("proto_bindings");
+    _ = named_files.addCopyFile(generated_msg, "messages.zig");
+}
+```
+
+**下游项目（`main-project/build.zig`）跨包消费：**
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // 1. 获取上游依赖
+    const proto_dep = b.dependency("proto-generator", .{});
+
+    // 2. 声明式获取上游导出的命名集合
+    const proto_files = proto_dep.namedWriteFiles("proto_bindings");
+    const msg_zig = proto_files.files.get("messages.zig").?;
+
+    // 3. 基于上游动态产物组装模块
+    const msg_module = b.createModule(.{
+        .root_source_file = msg_zig,
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 4. 主应用程序直接导入该模块
+    const exe = b.addExecutable(.{
+        .name = "app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "proto_messages", .module = msg_module },
+            },
+        }),
+    });
+    b.installArtifact(exe);
+}
+```
+
+> 💡 **说明**：
+> 命名写入集合不仅保证了跨包文件引用的干净解耦，还能确保 DAG 拓扑自动感知数据流依赖：下游编译步骤会自动等待上游的代码生成任务执行完毕。
 
 ---
 
-## 4. 内置生成机制与局限
+## 4. 源码树同步回写模式：`b.addUpdateSourceFiles`
 
-### 4.1 减少外部运行时依赖
+### 4.1 适用场景与工程权衡（Golden File 模式）
 
-在传统 C/C++ 工程中，生成配置文件通常需要宿主机安装 Python 或 CMake。Zig 通过内置组件降低了对外部工具的依赖：
-- **内置模板解析**：`addConfigHeader` 直接解析 `.h.in` 语法并完成宏替换，无需在宿主机安装 CMake；
-- **工作区隔离**：动态生成的文件保存在 `.zig-cache/` 目录下，不会污染源码工作区。
+大多数代码生成操作（如 `addConfigHeader` 或 `addWriteFiles`）生成的都是瞬态中间文件，存放在 `.zig-cache/` 中。然而在以下场景中，工程上更倾向于将生成代码**持久化提交到 Git 源码树**：
 
-### 4.2 局限与不足
+1. **庞大依赖的离线构建**：生成代码需要由复杂的主机工具产出（如从复杂 IDL 解析或调用大型分析库），为了避免所有构建机器和 CI 都必须安装重型工具，通常在提交版本时预生成好；
+2. **源码可读性与 IDE 补全支持**：开发者希望直接在编辑区跳转到生成的代码定义，而不是只能在缓存目录寻找；
+3. **自举编译器构建（Bootstrapping）**：例如 Zig 官方自身在构建阶段一的 WASM 编译器时，就是通过生成产物直接覆盖 `stage1/zig1.wasm` 并提交至版本库。
 
-1. **模板语法支持有限**：
-   目前 `addConfigHeader` 主要支持常见的 CMake 宏模式（`#cmakedefine`、`#cmakedefine01`、`@VAR@`）。若第三方 C 库使用 Autotools 风格的 `config.h.in`（依赖 `#undef VAR` 替换等语法），通常需要先手动将其调整为兼容的模板格式；
-2. **生成代码的报错定位问题**：
-   使用 `b.addWriteFiles` 动态生成的 `.zig` 源码若存在语法或类型错误，编译器报错指向的是 `.zig-cache/o/<hash>/` 中的临时文件，无法直接跳转回 `build.zig` 中拼接该代码的具体行号，排查生成代码错误时不够直观。
+### 4.2 核心实现范式
+
+严禁在 `build(b)` 的配置期直接通过 `std.fs.cwd().writeFile()` 篡改源码，这会引发配置缓存污染和文件竞争。
+
+标准方案是使用 [lib/std/Build/Step/UpdateSourceFiles.zig:L1-L60](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/UpdateSourceFiles.zig#L1-L60) 的专用步骤：
+
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // 1. 声明代码生成步骤（运行外部工具或 Zig 生成程序）
+    const generator = b.addExecutable(.{
+        .name = "table_gen",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/table_gen.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseSafe,
+        }),
+    });
+    const run_gen = b.addRunArtifact(generator);
+    const generated_table = run_gen.addOutputFileArg("lookup_table.zig");
+
+    // 2. 声明专用回写步骤：Step.UpdateSourceFiles
+    const update_source = b.addUpdateSourceFiles();
+    // 将缓存中生成的文件回写至源码树中的 "src/generated/lookup_table.zig"
+    update_source.addCopyFileToSource(generated_table, "src/generated/lookup_table.zig");
+
+    // 3. 注册顶层命令："zig build update"
+    const update_step = b.step("update", "Regenerate code and write back to src/ repository");
+    update_step.dependOn(&update_source.step);
+
+    // 4. 常规构建直接使用已在源码树中存在的稳定文件
+    const exe = b.addExecutable(.{
+        .name = "app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(exe);
+}
+```
+
+> 💡 **提示**：
+> 常规执行 `zig build` 时，`update` 步骤不会被触发，保证日常构建纯净极速；只有在协议定义或查找表算法更新时，执行 `zig build update` 显式触发生成并同步提交 Git。
+
+---
+
+## 5. 防御性配置缓存细粒度追踪：`dependOnFileContents`
+
+如果构建配置逻辑（`build.zig` 函数体内部）需要直接读取外部文件（例如项目根目录下的 `VERSION` 文件或配置文件）来决定编译参数，必须向构建引擎显式声明依赖，防止配置缓存产生静默过时：
+
+```zig
+const version_path = b.path("VERSION");
+
+// 1. 显式告知构建系统配置期依赖该文件的内容哈希
+b.dependOnFileContents(version_path);
+
+// 2. 其它细粒度声明 API
+b.dependOnFileMetadata(b.path("assets/logo.png"));    // 仅依赖文件元数据 (inode/mtime/size)
+b.dependOnDirectoryContents(b.path("plugins/"));     // 依赖目录下所有文件内容
+b.dependOnDirectoryMetadata(b.path("templates/"));   // 仅依赖目录元数据 (增删文件)
+```
+
+通过显式声明，`Maker` 会将这些文件或目录的哈希纳入配置缓存凭据（Configure Cache Digest）。只要外部文件未发生修改，配置缓存继续命中，直接跳过 `configurer` 进程。
+
+---
+
+## 6. 内置生成机制与局限分析
+
+### 6.1 优势
+1. **基于 LazyPath 的天然增量构建**：所有生成物输出到 `.zig-cache/` 的内容寻址路径下，仅当输入发生改变时才重新执行生成步骤；
+2. **消除外部脚本依赖**：内置模板引擎与 Zig 源码级动态拼接，无需在构建宿主机强制安装 Python、CMake 或 Bash 环境；
+3. **时序与数据流安全**：DAG 调度器在执行期根据路径依赖自动编排拓扑顺序，杜绝了并发构建下的文件读写冲突。
+
+### 6.2 局限与工程建议
+1. **模板语法支持有限**：`addConfigHeader` 目前主要支持常见 CMake 宏模式（`#cmakedefine` 等），若 C 库采用 Autotools 风格的宏替换（依赖 `#undef`），通常需要先手工将其标准化为 `.h.in` 模板；
+2. **生成代码调试定位**：通过 `write_files.add` 拼装的 Zig 源码在报错时指向缓存目录下的临时文件，排查深层类型错误时排查链路较长；对于核心逻辑，建议优先使用静态编译的 Zig 代码结合编译期泛型（Comptime），减少纯文本拼接。

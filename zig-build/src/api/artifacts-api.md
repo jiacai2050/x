@@ -1,6 +1,6 @@
-# 产物构建：Executable、Library 与 Test
+# 产物构建与测试：Executable、Library、Test 与 ObjCopy
 
-在 Zig 构建系统中，生成最终二进制产物（可执行文件、静态库/动态库、测试程序）的任务由 `Step.Compile` 负责。
+在 Zig 构建系统中，生成最终二进制产物（可执行文件、静态库/动态库、测试程序）的任务由 `Step.Compile` 负责，并通过 `Step.Run`、`Step.InstallArtifact` 以及 `Step.ObjCopy` 进行执行验证、安装交付与固件提取。
 
 > 💡 **配套可运行示例**
 > 关于标准应用程序产物与单元测试构建的完整代码工程，可参考 GitHub 示例：[`examples/01-zig-app`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app)，以及后续实战章节 [实战一：标准 Zig CLI 应用与单元测试](../practices/practice-zig-app.md)。
@@ -21,11 +21,51 @@ const exe = b.addExecutable(.{
 
 // 将产物安装到 zig-out/bin/ 目录下
 b.installArtifact(exe);
+
+// 注册运行命令并支持命令行参数透传
+const run_cmd = b.addRunArtifact(exe);
+run_cmd.step.dependOn(b.getInstallStep());
+run_cmd.addPassthruArgs(); // 记录 .passthru 占位符，执行期由调度器动态注入
+
+const run_step = b.step("run", "Run the application");
+run_step.dependOn(&run_cmd.step);
 ```
 
-### 关键配置：
+### 1.1 关键配置：
 - **`root_module`**：挂载主程序的编译上下文与依赖；
-- **产物安装**：通过 `b.installArtifact(exe)` 将生成的可执行文件输出到 `zig-out/bin/my_app`（在 Windows 平台会自动追加 `.exe` 后缀）。
+- **产物安装**：通过 `b.installArtifact(exe)` 将生成的可执行文件输出到 `zig-out/bin/my_app`（在 Windows 平台会自动追加 `.exe` 后缀）；
+- **参数透传（`addPassthruArgs`）**：通过 `addPassthruArgs()` 在计算图中注册占位符，由调度器在执行期动态注入命令行参数，避免在配置期读取参数导致配置缓存失效。
+
+### 1.2 裸机固件与格式转换：`b.addObjCopy`
+
+在嵌入式开发、操作系统内核或微控制器（MCU）固件构建中，编译器输出的标准可执行文件为 ELF 格式，包含头部信息、段符号表与重定位表，无法直接烧录到 Flash 中执行。
+
+通过 [lib/std/Build.zig:L1492-L1505](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1492-L1505) 的 `addObjCopy` 步骤，可以从 ELF 编译产物中直接剥离出纯平铺二进制（`.bin`）或 Intel 十六进制镜像（`.hex`）：
+
+```zig
+// 1. 编译目标为嵌入式无操作系统裸机（如 ARM Cortex-M4）
+const kernel_elf = b.addExecutable(.{
+    .name = "kernel.elf",
+    .root_module = b.createModule(.{
+        .root_source_file = b.path("src/kernel.zig"),
+        .target = b.resolveTargetQuery(.{
+            .cpu_arch = .thumb,
+            .os_tag = .freestanding,
+            .abi = .none,
+        }),
+        .optimize = .ReleaseSmall,
+    }),
+});
+
+// 2. 从 ELF 产物中剥离并提取纯二进制 .bin 固件
+const bin_step = b.addObjCopy(kernel_elf.getEmittedBin(), .{
+    .format = .bin,
+});
+
+// 3. 安装裸固件至交付目录：zig-out/firmware.bin
+const install_bin = b.addInstallRaw(bin_step.getOutput(), "firmware.bin", .{});
+b.getInstallStep().dependOn(&install_bin.step);
+```
 
 ---
 
@@ -57,7 +97,7 @@ b.installArtifact(shared_lib);
 
 ---
 
-## 3. 运行与单元测试：`b.addTest` 与 `b.addRunArtifact`
+## 3. 运行与测试管线：`b.addTest` 与 `b.addRunArtifact`
 
 构建脚本中运行单元测试分为两步：
 1. 编译单元测试可执行文件（`addTest`）；
@@ -81,7 +121,7 @@ const test_step = b.step("test", "Run all unit tests");
 test_step.dependOn(&run_unit_tests.step);
 ```
 
-### 将编译与运行拆分的用途：
+### 3.1 编译与运行拆分的必要性
 - **支持交叉编译下的测试验证**：若指定目标为其他平台架构（如在 macOS 上交叉编译 Linux aarch64 产物），测试程序可以在宿主机缺少仿真环境时，仅执行编译验证；
 - **配置执行环境**：`run_unit_tests` 允许定制工作目录、环境变量，以及断言进程退出码：
   ```zig
@@ -89,24 +129,53 @@ test_step.dependOn(&run_unit_tests.step);
   run_unit_tests.setEnvironmentVariable("LOG_LEVEL", "DEBUG");
   ```
 
+### 3.2 命令行工具集成测试断言与流控
+
+除了源码级单元测试（`addTest`），命令行应用程序更需要端到端黑盒测试（E2E Integration Testing）。Zig 的 `Step.Run` 提供了丰富的流捕获与断言校验能力：
+
+```zig
+// 1. 获取已构建的主程序产物
+const run_app = b.addRunArtifact(exe);
+
+// 2. 传入测试命令行参数
+run_app.addArgs(&.{ "--config", "test.json", "--verbose" });
+
+// 3. 捕获并断言标准输出 (Stdout)
+run_app.captureStdOut();
+run_app.expectStdOutMatch("Operation completed successfully");
+
+// 4. 断言异常退出状态码（如错误输入应返回退出码 1）
+run_app.expectExitCode(1);
+
+// 5. 注入测试隔离环境变量
+run_app.setEnvironmentVariable("APP_ENV", "integration-test");
+
+// 6. 绑定到 test 步骤联动调度
+test_step.dependOn(&run_app.step);
+```
+
+> 💡 **提示**：
+> 当使用 `captureStdOut()` 时，进程的标准输出会被管道拦截并在构建引擎内部进行比对。如果输出不匹配，构建过程会以高亮 Diff 报错，非常适合用于 CLI 程序的端到端自动化回归测试。
+
 ---
 
-## 4. 测试解耦与产物管理局限
+## 4. 跨平台测试执行器配置与产物清理局限
 
-### 4.1 跨平台测试执行器配置
+### 4.1 仿真器配置（QEMU Runner）
 
-`addTest` 与 `addRunArtifact` 的拆分在交叉编译时具有实际用途：
-- **仿真器配置（QEMU Runner）**：在 x86_64 开发机上交叉编译 ARM64 或 RISC-V 测试程序时，可以通过 `run_unit_tests.setExecCmd` 指定仿真器：
-  ```zig
-  if (target.result.cpu.arch != builtin.target.cpu.arch) {
-      run_unit_tests.setExecCmd(&.{ "qemu-aarch64", "-L", "/usr/aarch64-linux-gnu" });
-  }
-  ```
-- **仅编译检查（Check-only in CI）**：在缺少运行环境的 CI 机器上，可以仅调度 `&unit_tests.step`（只编译测试二进制），提前发现目标平台的语法和类型错误。
+在 x86_64 开发机上交叉编译 ARM64 或 RISC-V 测试程序时，可以通过 `run_unit_tests.setExecCmd` 指定仿真器：
+
+```zig
+if (target.result.cpu.arch != builtin.target.cpu.arch) {
+    run_unit_tests.setExecCmd(&.{ "qemu-aarch64", "-L", "/usr/aarch64-linux-gnu" });
+}
+```
+
+在缺少运行环境或仿真器的 CI 机器上，可以仅调度 `&unit_tests.step`（只编译测试二进制），提前发现目标平台的语法和类型错误。
 
 ### 4.2 局限与不足
 
 1. **缺少内置的 `clean` 目标**：
-   Zig 官方未提供 `zig build clean` 命令。当需要释放磁盘空间或清理缓存时，开发者需要通过外部命令手动删除 `.zig-cache` 和 `zig-out`，在跨平台脚本（特别是 Windows 环境）中缺乏统一的内置支持；
+   Zig 官方未提供 `zig build clean` 命令。当需要释放磁盘空间或清理缓存时，开发者需要通过外部命令手动删除 `.zig-cache` 和 `zig-out`；
 2. **交付目录缺少失效产物清理**：
    若在 `build.zig` 中重命名或删除了某个产物，重新构建时旧的二进制文件仍会留在 `zig-out/bin/` 目录中，系统不会自动清理当前构建图未声明的残留文件。

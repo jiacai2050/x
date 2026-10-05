@@ -66,18 +66,18 @@ graph TD
 ### 职责分工：
 
 1. **`std.Build.Module`（编译单元）**：
-   - 源码位于 [lib/std/Build/Module.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Module.zig)。
+   - 源码位于 [lib/std/Build/Module.zig:L1-L60](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L1-L60)。
    - **职责**：代表一组源文件（Zig 源码、C 源文件或混编）及其所需的编译上下文（`target`、`optimize`、`c_macros`、`include_dirs`、子模块依赖表等）。
    - 它不直接生成 `.a` 或 `.exe` 文件，而是一个可被编译器前端解析的逻辑单元。
 2. **`std.Build.Step.Compile`（构建产物 / 链接任务）**：
-   - 源码位于 [lib/std/Build/Step/Compile.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Step/Compile.zig)。
+   - 源码位于 [lib/std/Build/Step/Compile.zig:L1-L50](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L1-L50)。
    - **职责**：驱动编译器与链接器，将指定的 `Module` 编译链接为特定格式的目标二进制（如可执行文件、静态库或动态库）。
 
 ---
 
 ## 3. 纯 C 静态库中 root_module 的作用
 
-在纯 C 工程中即使没有 `.zig` 源码，创建库时 `root_module` 依然是必填参数（参考 [lib/std/Build.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build.zig) 中的 `addLibrary` 定义）：
+在纯 C 工程中即使没有 `.zig` 源码，创建库时 `root_module` 依然是必填参数（参考 [lib/std/Build.zig:L615-L646](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L615-L646) 中的 `addLibrary` 定义）：
 
 ```zig
 pub const LibraryOptions = struct {

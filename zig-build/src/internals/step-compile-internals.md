@@ -39,9 +39,9 @@ graph LR
 
 ---
 
-## 2. 核心机制：`getZigArgs()`
+## 2. 核心机制：编译命令组装（`lowerZigArgs`）
 
-在 [lib/std/Build/Step/Compile.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Step/Compile.zig) 中，`Step.Compile.make()` 首先调用 `getZigArgs()`：
+在 [lib/compiler/Maker/Step/Compile.zig:L160-L938](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Step/Compile.zig#L160-L938)（函数 `lowerZigArgs`）中，`Maker` 调度该节点时负责组装底层编译命令：
 
 1. **确定子命令类别**：
    根据产物类型（可执行文件、库、测试）确定底层的 Zig CLI 命令：
@@ -60,7 +60,7 @@ graph LR
 
 ### 底层 CLI 命令示例
 
-对于一个同时包含 Zig 源码、子模块与 C 语言文件的项目，`getZigArgs()` 组装出的最终命令行大致如下：
+对于一个同时包含 Zig 源码、子模块与 C 语言文件的项目，组装出的最终命令行大致如下：
 
 ```bash
 zig build-exe \
@@ -77,9 +77,9 @@ zig build-exe \
   --listen=-
 ```
 
-随后，[lib/std/Build/Step.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Step.zig) 中的 `step.evalZigProcess` 通过 IPC 管道启动 `zig` 编译器主进程执行实际编译。
+随后，`Maker` 通过 IPC 管道启动 `zig` 编译器子进程执行实际编译。
 
-通过下发标准化 CLI 参数调用编译器，构建运行器与编译器实现解耦。当构建出现问题时，开发者也可以直接复制对应命令在终端独立复现与排查。
+通过下发标准化 CLI 参数调用编译器，主控调度器与编译器实现解耦。当构建出现问题时，开发者也可以直接复制对应命令在终端独立复现与排查。
 
 ---
 

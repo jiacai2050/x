@@ -88,7 +88,7 @@ const windows_sources = &.{
     "libmariadb/secure/schannel.c",
 };
 
-// Add to module based on OS
+// 根据操作系统差异添加源文件
 c_module.addCSourceFiles(.{
     .root = upstream.path(""),
     .files = common_sources,
@@ -120,13 +120,13 @@ const lib = b.addLibrary(.{
     .root_module = c_module,
 });
 
-// 1. Install static headers from upstream include directory
+// 1. 导出上游静态公共头文件目录
 lib.installHeadersDirectory(upstream.path("include"), "mariadb", .{});
 
-// 2. Install dynamically rendered configuration header
+// 2. 导出动态生成的配置头文件
 lib.installConfigHeader(config_h);
 
-// 3. Expose library artifact
+// 3. 安装暴露库产物
 b.installArtifact(lib);
 ```
 
