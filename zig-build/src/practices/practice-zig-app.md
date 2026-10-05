@@ -1,6 +1,6 @@
 # 实战一：标准 Zig CLI 应用与单元测试
 
-本章通过一个规范的纯 Zig 命令行工程模板，展示现代 Zig（0.17.0）项目的基础工程目录布局与 `build.zig` 标准骨架。
+本章通过一个纯 Zig 命令行工程模板，展示项目的基础工程目录布局与 `build.zig` 标准骨架。
 
 > 💡 **配套可运行示例**
 > 本章对应的完整独立工程代码位于 GitHub：[`examples/01-zig-app`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app)。

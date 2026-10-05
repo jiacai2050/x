@@ -67,6 +67,18 @@ const install_bin = b.addInstallRaw(bin_step.getOutput(), "firmware.bin", .{});
 b.getInstallStep().dependOn(&install_bin.step);
 ```
 
+### 1.3 链接脚本与符号导出控制：`setLinkerScript` 与 `setVersionScript`
+
+在系统级与嵌入式编程中，控制内存布局与导出符号至关重要：
+- **指定链接脚本（`setLinkerScript`）**：在无操作系统（Freestanding）裸机开发中，通过 [lib/std/Build/Step/Compile.zig:L571](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L571) 指定自定义的 `linker.ld`，精确规划 Flash、RAM 区域及中断向量表的物理地址：
+  ```zig
+  kernel_elf.setLinkerScript(b.path("src/linker.ld"));
+  ```
+- **版本符号控制脚本（`setVersionScript`）**：在构建 Linux 动态共享库时，通过 [lib/std/Build/Step/Compile.zig:L577](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L577) 传入 GNU 链接器版本脚本（Version Script / Symbol Map），精确控制对外公开的导出符号，隐藏内部符号：
+  ```zig
+  shared_lib.setVersionScript(b.path("src/exports.map"));
+  ```
+
 ---
 
 ## 2. 构建库文件：`b.addLibrary`
@@ -157,9 +169,73 @@ test_step.dependOn(&run_app.step);
 > 💡 **提示**：
 > 当使用 `captureStdOut()` 时，进程的标准输出会被管道拦截并在构建引擎内部进行比对。如果输出不匹配，构建过程会以高亮 Diff 报错，非常适合用于 CLI 程序的端到端自动化回归测试。
 
+### 3.3 IDE 极速诊断模式：`check` 步骤
+
+在日常开发与 IDE 编码中，ZLS（Zig Language Server）每次保存文件都需要触发构建系统获取语法和类型检查报错。如果每次都执行全量编译、链接与落盘，会带来显著延迟。
+
+社区与官方标准做法是在 `build.zig` 中配置轻量级 `check` 步骤：
+
+```zig
+// 为 IDE/语言服务器准备的语义检查步骤（不产生任何最终磁盘二进制）
+const exe_check = b.addExecutable(.{
+    .name = "check",
+    .root_module = exe.root_module, // 复用主应用程序的核心编译配置
+});
+
+// 注册专用的顶层 check 命令："zig build check"
+const check_step = b.step("check", "Check syntax and type safety without linking or installing");
+check_step.dependOn(&exe_check.step);
+```
+
+ZLS 默认会调用 `zig build check`，仅触发编译器前端语义分析（Sema），跳过后端的机器码优化、代码生成与链接，使编辑器保存时的错误提示缩短至毫秒级。
+
 ---
 
-## 4. 跨平台测试执行器配置与产物清理局限
+## 4. 辅助产物与静态资源交付：文档生成与 `installDirectory`
+
+在工业级项目中，最终交付的产物不仅包含二进制可执行文件，往往还包括 API 参考文档与静态资源文件（如 Web 前端资源、着色器、配置文件等）。
+
+### 4.1 自动化 HTML API 文档生成：`compile.getEmittedDocs()`
+
+Zig 编译器内置了自动化文档生成系统，能够直接从源码注释（`//!` 与 `///`）中提取并渲染生成现代化的单页 HTML API 参考文档。
+
+通过 [lib/std/Build/Step/Compile.zig:L723](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L723) 的 `getEmittedDocs()` 获取文档输出的 `LazyPath`，并接入安装步骤：
+
+```zig
+// 1. 从编译产物中提取 HTML 文档树 (LazyPath)
+const docs = exe.getEmittedDocs();
+
+// 2. 声明文档安装步骤：将生成的 HTML 文档输出到交付目录 zig-out/docs/
+const install_docs = b.addInstallDirectory(.{
+    .source_dir = docs,
+    .install_dir = .prefix,
+    .install_subdir = "docs",
+});
+
+// 3. 注册顶层命令："zig build docs"
+const docs_step = b.step("docs", "Generate and install HTML API documentation");
+docs_step.dependOn(&install_docs.step);
+```
+
+开发者在终端执行 `zig build docs` 即可在 `zig-out/docs/` 下生成完整的静态文档网站。
+
+### 4.2 静态资源目录打包交付：`b.installDirectory`
+
+当应用程序需要打包随行资源（例如游戏中的纹理模型、GUI 客户端中的图标着色器、Web 服务的静态前端 HTML/JS 资源）时，使用 [lib/std/Build.zig:L1478](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1478) 的 `installDirectory` 将整个物理目录复制到交付目录：
+
+```zig
+b.installDirectory(.{
+    .source_dir = b.path("assets"),
+    .install_dir = .prefix,
+    .install_subdir = "share/my_app/assets",
+});
+```
+
+构建执行后，`assets/` 目录下的所有文件会完整保留层级结构投影至 `zig-out/share/my_app/assets/` 中。
+
+---
+
+## 5. 跨平台测试执行器配置与产物清理局限
 
 ### 4.1 仿真器配置（QEMU Runner）
 

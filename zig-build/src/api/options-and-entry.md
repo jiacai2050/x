@@ -79,10 +79,18 @@ pub fn build(b: *std.Build) void {
 ### 机制说明：
 1. **`b.step(name, description)`**：在任务图中注册一个顶层节点（`Step.Tag.top_level`），可通过 `zig build <name>` 调用；
 2. **`b.default_step`**：当命令行未指定具体目标、仅执行 `zig build` 时触发，默认负责安装所有已声明的产物；
-3. **参数透传（`addPassthruArgs`）**：调用 `run_cmd.addPassthruArgs()` 在构建图中记录占位符，由 `Maker` 调度器在执行期动态将命令行 `--` 后面的参数透传给应用程序，避免在配置期直接读取参数破坏配置缓存。
+3. **参数透传（`addPassthruArgs`）**：调用 `run_cmd.addPassthruArgs()` 在构建图中记录占位符，由 `Maker` 调度器在执行期动态将命令行 `--` 后面的参数透传给应用程序，避免在配置期直接读取参数破坏配置缓存；
+4. **条件构建的安全防御（`b.addFail`）**：若某个目标在特定平台上不受支持，避免在 `build()` 配置期直接执行 `@panic`（这会导致无关任务甚至 `zig build --help` 一并崩溃）。通过 [lib/std/Build.zig:L941](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L941) 的 `b.addFail` 进行延迟报错：
+   ```zig
+   if (target.result.os.tag == .windows) {
+       // 仅当用户显式请求构建该任务时才报错
+       const fail_step = b.addFail("Windows platform is not currently supported for this target");
+       run_step.dependOn(&fail_step.step);
+   }
+   ```
 
 ### 常用构建控制参数：
-- `--fork=[path]` 或 `--fork [path]`：在命令行将依赖树中的指定项目透明重定向到本地开发目录（支持多次指定），无需修改任何 `build.zig.zon`，极大提升了第三方依赖本地修补与多库联合调试的效率；
+- `--fork=[path]` 或 `--fork [path]`：在命令行将依赖树中的指定项目透明重定向到本地开发目录（支持多次指定），无需修改任何 `build.zig.zon`，便于第三方依赖本地修补与多库联合调试；
 - `--cache-poison=disallowed`：若构建脚本调用了破坏配置纯函数性的 API（如 `b.findProgram`），直接触发 panic 中断，适合用于确保 CI 环境构建配置的纯净性；
 - `--cache-poison=pure`（默认值）：若发生污染则安全降级，本次构建不缓存配置图；
 - `--listen=-`：启动官方 Build Server Protocol 服务端，与 IDE/语言服务器进行基于 JSON-RPC 的双向通信；

@@ -1,6 +1,6 @@
 # 代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles
 
-在现代软件工程中，构建系统承担的职责远不止编译源码，通常还需要动态生成中间代码、渲染平台相关的配置文件（如 CMake 模板），乃至跨越依赖边界共享生成物与将 Golden File 回写持久化到版本库中。Zig 标准库提供了一整套基于 DAG 数据流的类型安全代码生成与同步 API。
+构建系统除了编译源码，通常还需要动态生成中间代码、渲染平台配置文件（如 CMake 模板）、跨依赖边界共享生成物，以及将 Golden File 回写到版本库中。Zig 标准库提供了一整套基于 DAG 数据流的代码生成与同步 API。
 
 > 💡 **配套可运行示例**
 > 本章中关于 `addConfigHeader`（CMake 模板渲染）和 `addWriteFiles`（动态源码生成）的完整可运行代码位于 GitHub：[`examples/03-code-generation`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation)。
@@ -86,7 +86,84 @@ const assets_dir = asset_pack.getDirectory();
 
 ---
 
-## 3. 跨包动态生成物共享：`addNamedWriteFiles`
+## 3. 强类型配置常量注入：`b.addOptions`
+
+在纯 Zig 项目中，若需要将构建期配置（如语义化版本、Git Commit Hash、编译模式、Feature Flags）注入到源代码中，手动使用 `addWriteFiles` 拼接 Zig 字符串容易出现转义或类型拼写错误。
+
+Zig 标准库在 [lib/std/Build/Step/Options.zig:L1-L490](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Options.zig#L1-L490) 中提供了类型安全的专用步骤 `b.addOptions`。
+
+### 3.1 核心用法
+
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // 1. 声明强类型选项步骤
+    const options = b.addOptions();
+
+    // 注入基本标量类型
+    options.addOption([]const u8, "version", "1.2.0");
+    options.addOption(bool, "enable_logging", true);
+    options.addOption(u32, "max_connections", 1024);
+
+    // 注入标准语义化版本
+    options.addOption(std.SemanticVersion, "semver", .{ .major = 1, .minor = 2, .patch = 0 });
+
+    // 注入枚举或自定义结构体
+    const Environment = enum { development, staging, production };
+    options.addOption(Environment, "env", .production);
+
+    // 注入带自动依赖追踪的文件路径 (自动建立 DAG 依赖边)
+    options.addOptionPath("default_config_path", b.path("config/default.json"));
+
+    // 2. 将选项模块直接注入至应用程序中
+    const exe = b.addExecutable(.{
+        .name = "app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    // 挂载为名为 "build_options" 的内部模块
+    exe.root_module.addOptions("build_options", options);
+    b.installArtifact(exe);
+}
+```
+
+### 3.2 业务源码中直接导入
+
+在 `src/main.zig` 中，直接以模块名导入并使用强类型的编译期常量：
+
+```zig
+const std = @import("std");
+const build_options = @import("build_options");
+
+pub fn main() void {
+    std.debug.print("App Version: {s} (SemVer: {})\n", .{
+        build_options.version,
+        build_options.semver,
+    });
+
+    if (build_options.enable_logging) {
+        std.debug.print("Logging is enabled for environment: {s}\n", .{
+            @tagName(build_options.env),
+        });
+    }
+}
+```
+
+### 3.3 核心优势
+1. **编译期严格类型保障**：键值对全部经过 Zig 编译器的类型系统检查，杜绝文本拼接引起的语法错误；
+2. **文件依赖自动追踪（`addOptionPath`）**：使用 `options.addOptionPath` 传入 `LazyPath` 时，构建系统会自动将该文件作为依赖项挂载。当该外部文件被修改时，构建图能准确感知并触发重编。
+
+---
+
+## 4. 跨包动态生成物共享：`addNamedWriteFiles`
 
 在复杂的微库或模块化工程中，经常存在一种需求：**上游依赖包通过自定义工具动态生成了一批代码（例如 Protocol Buffers、RPC 桩代码、SQL 结构体），下游主项目需要直接导入消费这些生成物**。
 
@@ -192,7 +269,7 @@ pub fn build(b: *std.Build) void {
 
 ---
 
-## 4. 源码树同步回写模式：`b.addUpdateSourceFiles`
+## 5. 源码树同步回写模式：`b.addUpdateSourceFiles`
 
 ### 4.1 适用场景与工程权衡（Golden File 模式）
 
@@ -254,7 +331,7 @@ pub fn build(b: *std.Build) void {
 
 ---
 
-## 5. 防御性配置缓存细粒度追踪：`dependOnFileContents`
+## 6. 防御性配置缓存细粒度追踪：`dependOnFileContents`
 
 如果构建配置逻辑（`build.zig` 函数体内部）需要直接读取外部文件（例如项目根目录下的 `VERSION` 文件或配置文件）来决定编译参数，必须向构建引擎显式声明依赖，防止配置缓存产生静默过时：
 
@@ -274,7 +351,7 @@ b.dependOnDirectoryMetadata(b.path("templates/"));   // 仅依赖目录元数据
 
 ---
 
-## 6. 内置生成机制与局限分析
+## 7. 内置生成机制与局限分析
 
 ### 6.1 优势
 1. **基于 LazyPath 的天然增量构建**：所有生成物输出到 `.zig-cache/` 的内容寻址路径下，仅当输入发生改变时才重新执行生成步骤；

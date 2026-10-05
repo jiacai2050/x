@@ -18,7 +18,7 @@ zig build -Dtarget=aarch64-windows
 # 3. 交叉编译至 Linux musl (纯静态链接，适合 Docker 极简容器)
 zig build -Dtarget=x86_64-linux-musl
 
-# 4. 指定 glibc 最低兼容版本 (彻底避免生产环境报 GLIBC_2.XX not found)
+# 4. 指定 glibc 最低兼容版本 (避免生产环境报 GLIBC_2.XX not found)
 zig build -Dtarget=x86_64-linux-gnu.2.28
 ```
 

@@ -9,7 +9,7 @@
 Zig 提供了另一种思路：
 1. **直接用 Zig 编写构建逻辑（No DSL, Just Zig）**：不再引入专用的构建脚本语言，构建逻辑直接在 `build.zig` 中使用标准 Zig 编写；
 2. **自包含工具链**：Zig 二进制内嵌了 Clang 编译器、LLD 链接器以及主流平台的 libc 符号库，无需额外安装目标平台的外部交叉编译环境；
-3. **Maker 与 Configurer 双进程架构**：将构建图的配置生成（短命 `configurer` 进程）与任务调度执行（高度优化的 `maker` 进程）解耦；
+3. **Maker 与 Configurer 双进程架构**：将构建图的配置生成（短命 `configurer` 进程）与任务调度执行（`maker` 进程）解耦；
 4. **配置缓存与污染追踪（Cache Poisoning）**：构建配置支持二进制缓存；只有当脚本检测外部非受控环境时才标记污染降级，兼顾性能与纯函数确定性；
 5. **增量二进制缓存与 BSP 标准**：缓存 Manifest 采用紧凑二进制格式（提供 `zig cache-cat` 诊断），并确立官方 Build Server Protocol 规范 IDE 交互。
 
@@ -65,7 +65,7 @@ Zig 提供了另一种思路：
   | :--- | :--- | :--- |
   | [examples/01-zig-app](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app) | 标准 Zig CLI 应用、模块拆分与单元测试 | [实战一：标准 Zig CLI 应用与单元测试](practices/practice-zig-app.md) |
   | [examples/02-mixed-c-zig](https://github.com/jiacai2050/x/tree/main/zig-build/examples/02-mixed-c-zig) | Zig 与 C 混合编译、头文件自动转译 | [实战二：Zig 与 C/C++ 混合编程工程结构](practices/practice-mixed-c-zig.md) |
-  | [examples/03-code-generation](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation) | CMake 风格配置头文件与动态代码生成 | [动态生成与模板配置：addConfigHeader 与 addWriteFiles](api/code-generation-api.md) |
+  | [examples/03-code-generation](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation) | CMake 风格配置头文件与动态代码生成 | [代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles](api/code-generation-api.md) |
   | [examples/04-c-library-port](https://github.com/jiacai2050/x/tree/main/zig-build/examples/04-c-library-port) | 复杂第三方 C 静态库封装与导出 | [实战三：复杂第三方 C 库的完整移植实践](practices/practice-porting-c-library.md) |
   | [examples/05-custom-step](https://github.com/jiacai2050/x/tree/main/zig-build/examples/05-custom-step) | 编写辅助构建工具并接入构建 DAG（Host Tool + Run Step） | [编写自定义 Step：扩展构建管线](api/custom-steps.md) |
 

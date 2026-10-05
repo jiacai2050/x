@@ -174,13 +174,13 @@ zig build --fork ../my-patched-zlog --fork ../zig-network
 
 ### 6.1 Vendored vs System Package 矛盾
 
-在现代开源软件分发中，往往存在两种天然冲突的诉求：
+在开源软件分发中，经常存在两种冲突的诉求：
 - **应用程序开发者与跨平台构建**：希望 `zig build` 零配置一键下载并静态编译所有 C/C++ 依赖（Vendored 模式），实现真正的自包含和开箱即用；
 - **Linux 发行版维护者（Debian / Arch / Fedora / Alpine）**：打包规范**严格禁止使用内嵌第三方源码**，所有动态库（如 SQLite、zlib、OpenSSL）必须链接操作系统原生提供的系统包（System Library）。
 
 ### 6.2 声明式双模切换机制
 
-Zig 通过 [lib/std/Build.zig:L2552-L2581](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2552-L2581) 的 `systemIntegrationOption` 提供了优雅的标准解决方案：
+Zig 通过 [lib/std/Build.zig:L2552-L2581](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2552-L2581) 的 `systemIntegrationOption` 提供了标准解决方案：
 
 ```zig
 const std = @import("std");
@@ -232,4 +232,4 @@ zig build
 zig build -Dsystem-sqlite=true
 ```
 
-这种模式彻底解决了开源项目在“便携性”与“发行版合规性”之间的两难选择。
+这种机制兼顾了开源项目的开箱即用体验与 Linux 发行版的打包规范。

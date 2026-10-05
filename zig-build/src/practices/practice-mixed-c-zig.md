@@ -84,7 +84,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true, // 编译 C 源码时必须显式开启 libc 链接！
+        .link_libc = true, // 编译 C 源码时必须显式开启 libc 链接
         .imports = &.{
             .{ .name = "native_math", .module = math_c_module },
         },
@@ -121,7 +121,7 @@ pub fn build(b: *std.Build) void {
 
 ```zig
 const std = @import("std");
-// 直接导入转译后的 C 头文件模块！
+// 直接导入转译后的 C 头文件模块
 const math = @import("native_math");
 
 pub fn main() void {

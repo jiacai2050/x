@@ -84,9 +84,51 @@ fn linkLibraryOrObject(m: *Module, other: *Step.Compile) void {
 
 ---
 
-## 3. 上游导出与下游消费范式
+## 3. 模块级 C/C++ 与多平台高级配置
 
-### 3.1 上游库导出头文件与 Artifact
+除了基础的 C 源码挂载与头文件包含，`std.Build.Module` 还内置了一系列常用且细粒度的编译配置 API：
+
+### 3.1 预处理宏直接注入：`addCMacro`
+当只需要配置几个简单的编译宏，而无需大动干戈生成 CMake 风格的 `config.h` 时，直接通过 [lib/std/Build/Module.zig:L530](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L530) 注入预处理宏：
+
+```zig
+module.addCMacro("SQLITE_ENABLE_JSON1", "1");
+module.addCMacro("BUFFER_SIZE", "4096");
+```
+
+### 3.2 独立汇编源文件挂载：`addAssemblyFile`
+在加密算法、操作系统内核或 SIMD 高性能计算中，经常包含单独编写的手写汇编文件（`.s` 或 `.S`）。通过 [lib/std/Build/Module.zig:L442](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L442) 直接挂载：
+
+```zig
+module.addAssemblyFile(b.path("src/asm/sha256_avx2.s"));
+```
+
+### 3.3 macOS 系统 Framework 链接：`linkFramework`
+在 macOS / iOS 平台开发图形、音频或系统工具时，常需链接 Apple 官方的系统框架（如 `Metal`、`Cocoa`、`IOKit`）。通过 [lib/std/Build/Module.zig:L374](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L374) 声明链接：
+
+```zig
+if (target.result.os.tag.isDarwin()) {
+    module.linkFramework("Metal", .{ .needed = true });
+    module.linkFramework("Cocoa", .{});
+}
+```
+
+### 3.4 Windows 资源文件编译嵌入：`addWin32ResourceFile`
+在 Windows 平台上分发桌面软件时，必须嵌入包含软件图标（Icon）、版本声明（Version Info）以及高 DPI / UAC 清单的 `.rc` 脚本。通过 [lib/std/Build/Module.zig:L429](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L429) 自动调用内置工具链编译并打包进二进制：
+
+```zig
+if (target.result.os.tag == .windows) {
+    module.addWin32ResourceFile(.{
+        .file = b.path("res/app.rc"),
+    });
+}
+```
+
+---
+
+## 4. 上游导出与下游消费范式
+
+### 4.1 上游库导出头文件与 Artifact
 库提供方在构建静态库时，将静态头文件目录及动态生成的配置头安装到该产物中：
 
 ```zig
@@ -110,7 +152,7 @@ lib.installConfigHeader(config_h);
 b.installArtifact(lib);
 ```
 
-### 3.2 下游消费场景
+### 4.2 下游消费场景
 
 #### 场景 A：下游是 C/Zig 混编工程（直接链接）
 ```zig
@@ -142,15 +184,15 @@ exe.root_module.linkLibrary(lib_artifact);
 
 ---
 
-## 4. C 互操作的优势与限制
+## 5. C 互操作的优势与限制
 
-### 4.1 包含路径传播与转译缓存
+### 5.1 包含路径传播与转译缓存
 
 Zig 在处理 C 代码互操作时有以下机制：
 - **包含树自动传播**：调用 `exe.root_module.linkLibrary(foo_lib)` 时，构建系统会自动将 `foo_lib` 导出的头文件路径追加到当前模块中，减少了重复配置搜索路径的负担；
 - **转译结果独立缓存**：`addTranslateC` 作为独立的 Step 节点运行，转译生成的 Zig AST 享受构建系统的哈希缓存，避免了每次构建重复解析大型 C 头文件。
 
-### 4.2 局限与不足
+### 5.2 局限与不足
 
 1. **复杂宏转译受限**：
    C 预处理器基于文本替换，而 Zig 语法要求严格的静态类型。当 C 头文件中包含复杂变参宏、GCC 语句表达式扩展 `({ ... })` 或指针操作宏时，`translate-c` 往往无法自动生成对应的 Zig 代码，而是输出 `@compileError("unable to translate macro: ...")`。遇到此类宏时，通常需要编写 `shim.h` 过滤或手动补充 Zig 接口声明；

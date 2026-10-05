@@ -4,7 +4,7 @@
 
 > 💡 **配套可运行示例**
 > 本章对应的完整工程代码位于 GitHub：[`examples/05-custom-step`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/05-custom-step)。
-> 你可以进入该目录体验现代 Zig 推荐的 Host 辅助工具与打包管线：
+> 你可以进入该目录体验 Host 辅助工具与打包管线：
 > ```bash
 > cd examples/05-custom-step
 > zig build pack
@@ -17,7 +17,7 @@
 
 在早期版本中，扩展构建流程通常是在 `build.zig` 内部定义一个结构体，内嵌 `std.Build.Step` 并实现 `makeFn` 回调函数指针，借助 `@fieldParentPtr` 实现内联多态。
 
-但在 Maker 与 Configurer 双进程架构下，扩展构建管线的标准范式全面转向 Host Tool 模式：
+在 Maker 与 Configurer 双进程架构下，扩展构建管线的标准做法是采用 Host Tool 模式：
 
 ```mermaid
 flowchart TD
@@ -28,7 +28,7 @@ flowchart TD
         L_Build --> L_Runner --> L_Call
     end
 
-    subgraph Modern ["现代标准范式：Host Tool + Run Step (推荐)"]
+    subgraph Modern ["标准模式：Host Tool + Run Step"]
         M_Tool["编写独立辅助工具: tools/pack.zig"]
         M_Conf["build.zig (configurer 进程):<br/>声明构建图并由 b.addExecutable 编译 Host 工具"]
         M_Run["b.addRunArtifact(pack_tool):<br/>将工具作为独立任务节点编排进 DAG"]

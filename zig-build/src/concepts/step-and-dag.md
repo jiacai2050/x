@@ -154,7 +154,7 @@ test_step.dependOn(&run_unit_tests.step);
 在 Maker 与 Configurer 物理双进程架构下：
 - `build.zig` 仅在临时配置进程中运行，负责纯声明式地构造依赖图拓扑；
 - 若允许在配置脚本中内联执行任务逻辑，主控调度器 `Maker` 就必须在执行期重新把构建脚本编译为动态库或以 Debug 模式加载，破坏调度性能；
-- 主控调度器 `Maker` 自身以 `-O ReleaseSafe` 高优化编译，调度独立的 Host 工具能够兼顾构建纯净性与任务执行效率。
+- 主控调度器 `Maker` 自身以 `-O ReleaseSafe` 编译，调度独立的 Host 工具能够兼顾构建纯净性与任务执行效率。
 
 ### 标准实现范式
 实现独立的 Host 工具并通过 `b.addRunArtifact` 接入构建图：
@@ -180,7 +180,7 @@ const install_tar = b.addInstallFile(tar_output, "bundle.tar.gz");
 top_pack_step.dependOn(&install_tar.step);
 ```
 
-### 这种演进的优势：
+### 这种模式的优势：
 1. **完全解耦与纯净性**：`build.zig` 保持只声明依赖图，不混杂具体的任务实现代码，天然保持纯函数性，有利于配置缓存命中；
 2. **更高性能**：辅助工具可独立以 `-O ReleaseSafe` 甚至 `-O ReleaseFast` 编译，在处理大型归档或复杂代码生成时显著快于内联在 `build.zig` 里的 Debug 模式执行；
 3. **独立可测试**：辅助工具本身是一个标准的可执行程序，具备清晰的命令行参数与标准输入输出，可以单独编写单元测试与调试。
