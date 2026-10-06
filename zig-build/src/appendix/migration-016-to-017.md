@@ -8,6 +8,10 @@
 
 | 0.16 写法 | 0.17 写法 | 变动原因与说明 |
 | :--- | :--- | :--- |
+| `@cImport({ @cInclude(...) })` | `b.addTranslateC` + `createModule()` | 语言内置 `@cImport` 已完全移除，统一由构建系统转译并以模块注入 |
+| `b.lazyDependency(name, args)` | `b.dependencyLazy(name, args)` | 早期返回可选指针 API 已废弃，改用强类型错误驱动重试 |
+| `run.addOutputFileArg(name)` | `run.addOutputFileArg2(name, .{})` | 旧 API 已废弃，改用接收选项的 `addOutputFileArg2` |
+| `run.captureStdOut()` | `_ = run.captureStdOut(.{})` | 必须传参且不可丢弃返回值 `LazyPath` |
 | `if (b.args) \|args\| run_cmd.addArgs(args);` | `run_cmd.addPassthruArgs();` | 配置期不再观察参数，避免改动命令行参数触发配置重新编译 |
 | `b.build_root` (`Directory`) | `b.root` (`Path` / `LazyPath`) | 统一路径抽象类型 |
 | `b.findProgram(&.{ ... }, .{})` | `b.findProgramLazy(&.{ ... }, .{})` | 延迟到执行期解析路径，避免污染配置缓存 |
@@ -106,6 +110,33 @@ const root_dir = b.build_root.path;
 // 0.17
 const root_path = b.path(""); // 推荐：直接获取工程根目录 LazyPath
 // 或读取 b.root
+```
+
+---
+
+### 2.6 C 头文件转译：`@cImport` 彻底移除与 `addTranslateC` 替代
+
+0.17 彻底移除了语言内置的 `@cImport` 原语。业务源码中不再支持通过内联 `@cImport({ @cInclude(...) })` 转译 C 头文件，所有转译工作统一交由构建系统完成：
+
+```zig
+// 0.16 早期源码内联写法（0.17 已彻底移除）
+// const c = @cImport({
+//     @cInclude("my_header.h");
+// });
+
+// 0.17 标准做法：在 build.zig 中声明转译步骤并注入模块
+const translate_c = b.addTranslateC(.{
+    .root_source_file = b.path("include/my_header.h"),
+    .target = target,
+    .optimize = optimize,
+});
+
+exe.root_module.addImport("c", translate_c.createModule());
+```
+
+在业务代码（`src/main.zig`）中直接作为标准模块导入：
+```zig
+const c = @import("c");
 ```
 
 ---

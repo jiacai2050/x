@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
     // 传入主程序二进制 LazyPath 作为命令行输入
     pack_cmd.addFileArg(exe.getEmittedBin());
     // 声明工具生成的 tar.gz 输出文件（返回 LazyPath）
-    const output_tar = pack_cmd.addOutputFileArg("bundle.tar.gz");
+    const output_tar = pack_cmd.addOutputFileArg2("bundle.tar.gz", .{});
 
     // 将打包好的归档安装到交付目录（zig-out/bundle.tar.gz）
     const install_tar = b.addInstallFile(output_tar, "bundle.tar.gz");

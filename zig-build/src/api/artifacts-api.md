@@ -153,7 +153,7 @@ const run_app = b.addRunArtifact(exe);
 run_app.addArgs(&.{ "--config", "test.json", "--verbose" });
 
 // 3. 捕获并断言标准输出 (Stdout)
-run_app.captureStdOut(.{});
+_ = run_app.captureStdOut(.{});
 run_app.expectStdOutMatch("Operation completed successfully");
 
 // 4. 断言异常退出状态码（如错误输入应返回退出码 1）

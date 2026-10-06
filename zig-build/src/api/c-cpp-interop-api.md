@@ -9,7 +9,7 @@ Zig 在语言层面支持 C ABI，并在构建系统中提供了头文件转译�
 
 ## 1. 显式头文件转译：`b.addTranslateC`
 
-除了在源码中使用 `@cImport`，在构建脚本中通过 `b.addTranslateC` 将 C 头文件转译定义为独立的 Step，能够获得更好的构建缓存控制。
+早期 Zig 曾允许在源码中使用 `@cImport` 隐式转译 C 头文件，但该机制会导致编译期语义分析与宿主环境发生隐式绑定。随着构建系统架构的解耦，Zig 已完全移除了语言内置的 `@cImport` 原语。所有 C 头文件的转译均由构建脚本通过 `b.addTranslateC` 显式定义为独立 Step，并将转译产物作为模块注入业务源码。
 
 ```mermaid
 graph LR

@@ -26,7 +26,7 @@
 | `b.dependOnFileContents(path)` | 显式声明配置期依赖该文件的内容哈希，纳入配置缓存凭据 |
 | `b.dependOnDirectoryContents(p)` | 显式声明配置期依赖目录条目（新增/删除/重命名） |
 | `b.dependency(name, args)` | 实例化 `build.zig.zon` 中声明的第三方包依赖 |
-| `b.lazyDependency(name, args)` | 惰性按需实例化依赖，返回 `?*std.Build.Dependency`（未请求时不触发网络拉取） |
+| `b.dependencyLazy(name, args)` | 惰性按需实例化依赖，未就绪时返回 `error.LazyDependencyNeeded` 供主进程拉取重试 |
 | `b.addTranslateC(.{ ... })` | 创建 C 头文件转译步骤（`*Step.TranslateC`） |
 | `b.addConfigHeader(opts, values)` | 创建基于 CMake 风格的配置头文件渲染步骤（`*Step.ConfigHeader`） |
 | `b.addOptions()` | 创建强类型的编译期配置常量生成器（`*Step.Options`） |

@@ -1,6 +1,6 @@
 # 第三方依赖引入与消费：b.dependency、--fork 与系统包集成
 
-在 `build.zig.zon` 中声明第三方依赖后，可在 `build.zig` 中通过 `b.dependency` 与 `b.lazyDependency` API 获取并消费依赖导出的模块与产物。对于复杂工程，Zig 还提供了命令行快速分叉调试（`--fork`）与操作系统发行版双模集成机制（`systemIntegrationOption`）。
+在 `build.zig.zon` 中声明第三方依赖后，可在 `build.zig` 中通过 `b.dependency` 与 `b.dependencyLazy` API 获取并消费依赖导出的模块与产物。对于复杂工程，Zig 还提供了命令行快速分叉调试（`--fork`）与操作系统发行版双模集成机制（`systemIntegrationOption`）。
 
 ---
 
@@ -29,29 +29,33 @@ pub fn build(b: *std.Build) void {
 
 ---
 
-## 2. 惰性依赖按需解析：`b.lazyDependency`
+## 2. 惰性依赖按需解析：`b.dependencyLazy`
 
-如果某个依赖项在 `build.zig.zon` 中被标记为 `.lazy = true`，应使用 `b.lazyDependency` 进行获取：
+如果某个依赖项在 `build.zig.zon` 中被标记为 `.lazy = true`，应使用 `b.dependencyLazy` 进行获取：
 
 ```zig
 // 按需条件实例化依赖（惰性拉取）
 const enable_gui = b.option(bool, "enable-gui", "Build with GUI support") orelse false;
 
 if (enable_gui) {
-    if (b.lazyDependency("heavy_gui_toolkit", .{
+    const gui_dep = b.dependencyLazy("heavy_gui_toolkit", .{
         .target = target,
         .optimize = optimize,
-    })) |gui_dep| {
-        const gui_module = gui_dep.module("gui");
-        exe.root_module.addImport("gui", gui_module);
-    }
+    }) catch |err| switch (err) {
+        // 若依赖尚未拉取，向构建系统标记需求并退出配置期，由主进程拉取后自动重试
+        error.LazyDependencyNeeded => return,
+    };
+
+    const gui_module = gui_dep.module("gui");
+    exe.root_module.addImport("gui", gui_module);
 }
 ```
 
 ### 机制说明：
-1. **返回值类型为可选指针**：`b.lazyDependency` 返回 `?*std.Build.Dependency`；
-2. **零网络开销**：当未满足条件分支（如 `-Denable-gui=false`）时，该调用根本不会被执行，构建系统绝不会触发对该依赖的网络下载或磁盘解压；
-3. **底层实现机制**：若检测到未拉取的惰性依赖，`configurer` 会将其写入已序列化配置流的 `unlazy_deps` 列表中；主控进程 `Maker` 接收后自动在后台下载，并在下载完成后于外层事件循环中重试配置阶段，无需用户干预。详见 [构建自举与双进程：Maker 与 Configurer 架构流转 - 3.3 惰性依赖重试](../internals/build-runner-internals.md)。
+1. **强类型错误驱动重试**：`b.dependencyLazy` 返回 `error{LazyDependencyNeeded}!*Dependency`。若该依赖本地缓存尚未就绪，函数会向构建系统记录该需求并返回 `error.LazyDependencyNeeded`；
+2. **零网络开销**：当未满足条件分支（如 `-Denable-gui=false`）时，该调用不会被执行，构建系统绝不会触发对该依赖的网络下载或磁盘解压；
+3. **主进程自动重试**：当配置期退出后，常驻主进程 `Maker` 收到配置流中的 `unlazy_deps` 列表，在后台并发下载依赖包并解压，随后自动在外层循环中重新执行配置期；
+4. **废弃 API 替代**：早期版本中的 `b.lazyDependency`（返回可选指针 `?*Dependency`）已被官方标记为废弃（Deprecated），推荐统一使用 `b.dependencyLazy`。详见 [构建自举与双进程：Maker 与 Configurer 架构流转 - 5. 惰性依赖的自动重试机制](../internals/build-runner-internals.md)。
 
 ---
 

@@ -72,7 +72,7 @@ Zig 采用 **ZON (Zig Object Notation)** 语法声明包元数据。ZON 是 Zig 
 
 #### 3. 惰性依赖（`.lazy = true`）
 - 默认情况下，`zig build` 会在执行前解析并下载 `dependencies` 中的所有依赖项；
-- 若设置 `.lazy = true`，仅当构建脚本中通过 `b.lazyDependency("heavy_assets", .{})` 显式请求时才会触发下载。常用于跨平台条件依赖（例如特定系统的二进制预编译库），避免在其他平台上下载不必要的大文件；
+- 若设置 `.lazy = true`，仅当构建脚本中通过 `b.dependencyLazy("heavy_assets", .{})` 显式请求时才会触发下载。常用于跨平台条件依赖（例如特定系统的二进制预编译库），避免在其他平台上下载不必要的大文件；
 - 关于运行器如何按需探测并重新触发下载的底层机制，详见 [构建自举：Build Runner 的动态编译与调度 - 5. 惰性依赖的重试机制](../internals/build-runner-internals.md#5-惰性依赖的重试机制)。
 
 #### 4. `.paths` 的作用

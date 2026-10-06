@@ -46,7 +46,7 @@ sign_step.dependOn(&sign_cmd.step);
 ### 1.2 参数与文件传递
 - **字面量参数**：通过 `sign_cmd.addArgs(&.{ "--verbose", "--deep" })` 追加固定参数；
 - **文件路径参数**：传递文件时应使用 `sign_cmd.addFileArg(lazy_path)`，而不是直接传递相对路径字符串。这样构建系统能够自动记录文件输入并在该文件变更时触发重新执行；
-- **捕获输出文件**：若外部命令会在磁盘生成新文件，可使用 `const out = sign_cmd.addOutputFileArg("output.bin")`，返回的 `LazyPath` 可直接供给下游任务消费。
+- **捕获输出文件**：若外部命令会在磁盘生成新文件，可使用 `const out = sign_cmd.addOutputFileArg2("output.bin", .{})`，返回的 `LazyPath` 可直接供给下游任务消费。
 
 ### 1.3 适用场景与局限
 - **适用场景**：临时调用开发机环境中特有的本地工具（如 macOS 的 `codesign`、Windows 的 `signtool`，或开发阶段调用本地 `git` 提取提交信息）；
@@ -83,7 +83,7 @@ flowchart LR
 
     S_Exe -- "输入 LazyPath" --> S_RunPack
     S_Tool -- "提供执行文件" --> S_RunPack
-    S_RunPack -- "addOutputFileArg" --> LP_Out
+    S_RunPack -- "addOutputFileArg2" --> LP_Out
     LP_Out --> S_Inst
     TopPack -- "dependOn" --> S_Inst
 
@@ -218,7 +218,7 @@ pub fn build(b: *std.Build) void {
     // 传入待打包的二进制文件（建立输入数据依赖）
     pack_cmd.addFileArg(exe.getEmittedBin());
     // 声明输出文件位置（由调度器分配缓存路径并传递给工具命令行）
-    const output_tar = pack_cmd.addOutputFileArg("bundle.tar.gz");
+    const output_tar = pack_cmd.addOutputFileArg2("bundle.tar.gz", .{});
 
     // 4. 将输出归档安装到交付目录（zig-out/bundle.tar.gz）
     const install_tar = b.addInstallFile(output_tar, "bundle.tar.gz");
@@ -235,8 +235,8 @@ pub fn build(b: *std.Build) void {
 
 1. **宿主目标明确（`b.graph.host`）**：
    在交叉编译场景中（例如在 macOS 上构建 Linux aarch64 程序），主程序 `exe` 的目标是 `aarch64-linux`，但辅助构建工具 `pack_tool` 必须在 macOS 上直接执行。因此辅助工具的 target 必须显式传入 `b.graph.host`；
-2. **通过 `addOutputFileArg` 管理生成路径**：
-   使用 `pack_cmd.addOutputFileArg("bundle.tar.gz")` 会自动在 `.zig-cache/` 中分配唯一的内容寻址路径，并将该路径作为参数传给辅助工具。返回的 `LazyPath` 可安全传递给 `b.addInstallFile`，确保增量缓存与输出目录的确定性；
+2. **通过 `addOutputFileArg2` 管理生成路径**：
+   使用 `pack_cmd.addOutputFileArg2("bundle.tar.gz", .{})` 会自动在 `.zig-cache/` 中分配唯一的内容寻址路径，并将该路径作为参数传给辅助工具。返回的 `LazyPath` 可安全传递给 `b.addInstallFile`，确保增量缓存与输出目录的确定性；
 3. **保持 `build.zig` 配置纯净**：
    `build.zig` 的函数体只负责构建 DAG 拓扑描述，不应包含耗时的数据处理或繁重的同步文件读写。具体逻辑下沉到独立的辅助工具中执行，有利于提升配置阶段的性能与缓存命中率。
 
