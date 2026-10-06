@@ -10,10 +10,10 @@ Zig 提供了开箱即用的标准选项解析方法：
 
 ```zig
 pub fn build(b: *std.Build) void {
-    // 1. 标准目标选项：解析 -Dtarget=...
+    // 1. 标准目标平台解析：解析 -Dtarget=...
     const target = b.standardTargetOptions(.{});
 
-    // 2. 标准优化选项：解析 -Doptimize=Debug/ReleaseFast/ReleaseSafe/ReleaseSmall
+    // 2. 标准优化级别解析：解析 -Doptimize=...
     const optimize = b.standardOptimizeOption(.{});
 }
 ```
@@ -38,13 +38,13 @@ pub fn build(b: *std.Build) void {
 
 ```zig
 pub fn build(b: *std.Build) void {
-    // 解析布尔值：zig build -Denable-tls=true
+    // 解析布尔值开关：zig build -Denable-tls=true
     const enable_tls = b.option(bool, "enable-tls", "Enable TLS support") orelse false;
 
-    // 解析字符串：zig build -Dapi-endpoint=https://api.example.com
+    // 解析字符串选项：zig build -Dapi-endpoint=https://api.example.com
     const endpoint = b.option([]const u8, "api-endpoint", "Custom backend API endpoint");
 
-    // 解析枚举类型
+    // 解析枚举选项
     const Backend = enum { sqlite, postgres, mysql };
     const backend = b.option(Backend, "backend", "Database backend driver") orelse .sqlite;
 }
@@ -62,24 +62,40 @@ pub fn build(b: *std.Build) void {
 
 ```zig
 pub fn build(b: *std.Build) void {
-    // 1. 创建顶层 Step
+    // 1. 创建顶层命令入口
     const run_step = b.step("run", "Run the application");
 
-    // 2. 创建可执行文件及运行任务
+    // 2. 创建可执行文件与运行步骤
     const exe = b.addExecutable(.{ ... });
     const run_cmd = b.addRunArtifact(exe);
+    run_cmd.addPassthruArgs();
 
-    // 3. 绑定依赖：运行 "zig build run" 时执行 run_cmd
+    // 3. 绑定依赖："zig build run" 会触发 run_cmd
     run_step.dependOn(&run_cmd.step);
 
-    // 4. 默认目标：直接运行 "zig build" 时执行 b.default_step（默认对应 install）
+    // 4. 默认目标：直接执行 "zig build" 触发 b.default_step（默认执行 install）
 }
 ```
 
 ### 机制说明：
-1. **`b.step(name, description)`**：在任务图中注册一个顶层节点（`Step.Id.top_level`），可通过 `zig build <name>` 调用；
+1. **`b.step(name, description)`**：在任务图中注册一个顶层节点（`Step.Tag.top_level`），可通过 `zig build <name>` 调用；
 2. **`b.default_step`**：当命令行未指定具体目标、仅执行 `zig build` 时触发，默认负责安装所有已声明的产物；
-3. **参数透传**：调用 `run_cmd.addArgs(b.args orelse &.{})` 时，可将命令行 `--` 后面的参数透传给被调用的应用程序。
+3. **参数透传（`addPassthruArgs`）**：调用 `run_cmd.addPassthruArgs()` 在构建图中记录占位符，由 `Maker` 调度器在执行期动态将命令行 `--` 后面的参数透传给应用程序，避免在配置期直接读取参数破坏配置缓存；
+4. **平台或条件不支持时的延迟报错（`b.addFail`）**：若某个任务在特定平台上不受支持，避免在 `build()` 配置期直接执行 `@panic`（否则无关任务甚至 `zig build --help` 也会中断退出）。可通过 [lib/std/Build.zig:L941](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L941) 的 `b.addFail` 注册延迟报错步骤：
+   ```zig
+   if (target.result.os.tag == .windows) {
+       // 仅当用户显式请求构建该任务时才报错
+       const fail_step = b.addFail("Windows platform is not currently supported for this target");
+       run_step.dependOn(&fail_step.step);
+   }
+   ```
+
+### 常用构建控制参数：
+- `--fork=[path]` 或 `--fork [path]`：在命令行将依赖树中的指定项目透明重定向到本地开发目录（支持多次指定），无需修改任何 `build.zig.zon`，便于第三方依赖本地修补与多库联合调试；
+- `--cache-poison=disallowed`：若构建脚本调用了破坏配置纯函数性的 API（如 `b.findProgram`），直接触发 panic 中断，适合用于确保 CI 环境构建配置的纯净性；
+- `--cache-poison=pure`（默认值）：若发生污染则安全降级，本次构建不缓存配置图；
+- `--listen=-`：启动官方 Build Server Protocol 服务端，与 IDE/语言服务器（如 ZLS）通过标准输入输出进行版本化二进制协议的双向通信；
+- `--watch`：进入会话模式，主控进程 `Maker` 持续驻留，监听源码与配置文件变更并自动执行增量重跑。
 
 ---
 

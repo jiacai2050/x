@@ -16,7 +16,7 @@
 
 ## 1. 移植面临的核心挑战
 
-大型 C 库的构建脚本通常包含以下四个核心难题：
+大型 C 库的构建通常需要处理以下常见问题：
 
 ```mermaid
 graph TD
@@ -88,7 +88,7 @@ const windows_sources = &.{
     "libmariadb/secure/schannel.c",
 };
 
-// Add to module based on OS
+// 根据操作系统差异添加源文件
 c_module.addCSourceFiles(.{
     .root = upstream.path(""),
     .files = common_sources,
@@ -120,13 +120,13 @@ const lib = b.addLibrary(.{
     .root_module = c_module,
 });
 
-// 1. Install static headers from upstream include directory
+// 1. 导出上游静态公共头文件目录
 lib.installHeadersDirectory(upstream.path("include"), "mariadb", .{});
 
-// 2. Install dynamically rendered configuration header
+// 2. 导出动态生成的配置头文件
 lib.installConfigHeader(config_h);
 
-// 3. Expose library artifact
+// 3. 安装暴露库产物
 b.installArtifact(lib);
 ```
 
@@ -143,9 +143,9 @@ b.installArtifact(lib);
 - **Windows 系统库**：涉及网络和加密时，通常需要链接 Winsock 与安全子系统：
   ```zig
   if (target_is_windows) {
-      lib.linkSystemLibrary("ws2_32");
-      lib.linkSystemLibrary("advapi32");
-      lib.linkSystemLibrary("crypt32");
+      c_module.linkSystemLibrary("ws2_32", .{});
+      c_module.linkSystemLibrary("advapi32", .{});
+      c_module.linkSystemLibrary("crypt32", .{});
   }
   ```
 - **POSIX 系统库**：在部分 Linux/BSD 环境下可能需要链接 `libpthread` 或 `libdl`。若通过 Zig 交叉编译，这些基础 libc 符号由内嵌环境统一管理。

@@ -17,7 +17,7 @@ test-examples:
 	@echo "===> Testing 02-mixed-c-zig"
 	cd examples/02-mixed-c-zig && $(ZIG) build run
 	@echo "===> Testing 03-code-generation"
-	cd examples/03-code-generation && $(ZIG) build run
+	cd examples/03-code-generation && $(ZIG) build run && $(ZIG) build test
 	@echo "===> Testing 04-c-library-port"
 	cd examples/04-c-library-port && $(ZIG) build test
 	@echo "===> Testing 05-custom-step"

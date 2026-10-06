@@ -103,22 +103,22 @@ graph LR
 ```
 
 1. **AST（抽象语法树）**：
-   位于 [lib/std/zig/Ast.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/zig/Ast.zig)，采用扁平化的 `MultiArrayList` 结构，提供高效的缓存局部性；
+   位于 [lib/std/zig/Ast.zig:L12-L40](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Ast.zig#L12-L40)，采用扁平化的 `MultiArrayList` 结构，提供高效的缓存局部性；
 2. **ZIR（Zig Intermediate Representation）**：
-   位于 [lib/std/zig/Zir.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/zig/Zir.zig)。它是**无类型的平铺指令序列**，每个 `.zig` 文件独立生成一个 ZIR，并在生成后直接序列化存放在 `.zig-cache/z/` 中，供增量构建复用；
+   位于 [lib/std/zig/Zir.zig:L14-L60](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L14-L60)。它是**无类型的平铺指令序列**，每个 `.zig` 文件独立生成一个 ZIR，并在生成后直接序列化存放在 `.zig-cache/z/` 中，供增量构建复用；
 3. **AIR（Analyzed Intermediate Representation）**：
-   位于 [src/Air.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/Air.zig)。语义分析器消费 ZIR 并执行完所有 `comptime` 估值后，输出带有完全确定类型与控制流图的 AIR；
+   位于 [src/Air.zig:L11-L50](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Air.zig#L11-L50)。语义分析器消费 ZIR 并执行完所有 `comptime` 估值后，输出带有完全确定类型与控制流图的 AIR；
 4. **后端选择（Native vs LLVM）**：
    - **Native 后端**：在 Debug 模式下，Zig 可以直接将 AIR 翻译为目标架构机器码，绕过 LLVM IR 生成环节，缩短构建耗时；
    - **LLVM 后端**：在 Release 模式下，Zig 将 AIR 转换为 LLVM IR，调用 LLVM 优化器与后端生成更高执行效率的机器码。
 
 ---
 
-## 3. ZCU 单体编译分析与演进瓶颈
+## 3. ZCU 单体编译分析与工程权衡
 
 ### 3.1 死代码消除与跨模块分析
 
-ZCU 模型的特点在于结合了按需语义分析：
+ZCU 模型（源码定义见 [src/Zcu.zig:L1-L7](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu.zig#L1-L7)）的特点在于结合了按需语义分析：
 - **按需语义分析与死代码消除**：在传统 C/C++ 中，参与编译的源文件中的函数通常都会被完整生成为机器码，依赖链接器（如 `--gc-sections` 或 LTO）剔除无用符号。在 Zig 中，未被 `main` 或导出符号引用的函数和泛型实例不会进入 Sema 语义分析阶段，减少了多余的代码生成；
 - **跨模块内联**：编译器拥有当前构建目标下全部 Zig 模块的 AST，跨模块的小函数调用便于直接进行内联优化。
 

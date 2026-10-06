@@ -70,7 +70,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 1. Step 1: Translate C header file into a Zig Module
+    // 1. 第一步：将 C 头文件转译为 Zig Module
     const translate_c = b.addTranslateC(.{
         .root_source_file = b.path("c_include/native_math.h"),
         .target = target,
@@ -79,30 +79,37 @@ pub fn build(b: *std.Build) void {
     translate_c.addIncludePath(b.path("c_include"));
     const math_c_module = translate_c.createModule();
 
-    // 2. Step 2: Create main Zig executable module with C source attached
+    // 2. 第二步：创建挂载了 C 源码的 Zig 可执行模块
     const exe_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true, // Must enable libc linking when compiling C sources!
+        .link_libc = true, // 编译 C 源码时必须显式开启 libc 链接
         .imports = &.{
             .{ .name = "native_math", .module = math_c_module },
         },
     });
 
-    // Attach C source files to exe_module
+    // 向可执行模块追加 C 源码实现与头文件路径
     exe_module.addCSourceFile(.{
         .file = b.path("c_src/native_math.c"),
         .flags = &.{"-Wall", "-Wextra", "-O3"},
     });
     exe_module.addIncludePath(b.path("c_include"));
 
-    // 3. Step 3: Build and install executable
+    // 3. 第三步：声明并安装可执行文件
     const exe = b.addExecutable(.{
         .name = "mixed_app",
         .root_module = exe_module,
     });
     b.installArtifact(exe);
+
+    // 4. 第四步：注册运行命令
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
 }
 ```
 
@@ -114,7 +121,7 @@ pub fn build(b: *std.Build) void {
 
 ```zig
 const std = @import("std");
-// Directly import the translated C header module!
+// 直接导入转译后的 C 头文件模块
 const math = @import("native_math");
 
 pub fn main() void {
@@ -129,11 +136,11 @@ pub fn main() void {
 
 ## 5. 注意事项与进阶要点
 
-1. **混编 C++ 源码时调用 `linkLibCpp()`**：
-   若工程中混编了 `.cpp` 源文件，仅开启 `.link_libc = true` 会在链接阶段报缺失 C++ 运行时符号（如 `operator new`）。此时需在模块上调用：
+1. **混编 C++ 源码时设置 `link_libcpp`**：
+   若工程中混编了 `.cpp` 源文件，仅开启 `.link_libc = true` 会在链接阶段报缺失 C++ 运行时符号（如 `operator new`）。此时需在模块上配置：
    ```zig
-   exe_module.linkLibCpp();
+   exe_module.link_libcpp = true;
    ```
-   Zig 会自动链接目标平台对应的 C++ 标准库；
+   也可以在 `b.createModule` 时直接指定 `.link_libcpp = true`。Zig 会自动链接目标平台对应的 C++ 标准库（如 libc++）；
 2. **C 头文件中的 `static inline` 函数**：
    对于简单的 `static inline` 函数，`translate-c` 可以自动转译为 Zig 内联函数。若函数体内使用了未受支持的编译器扩展宏或内联汇编，转译可能会报错。此时建议在 `.c` 文件中将其重新封装为常规的 `extern` 函数。

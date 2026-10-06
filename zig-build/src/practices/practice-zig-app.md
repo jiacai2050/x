@@ -1,6 +1,6 @@
 # 实战一：标准 Zig CLI 应用与单元测试
 
-本章通过一个规范的纯 Zig 命令行工程模板，展示现代 Zig（0.16.0）项目的基础工程目录布局与 `build.zig` 标准骨架。
+本章通过一个纯 Zig 命令行工程模板，展示项目的基础工程目录布局与 `build.zig` 标准骨架。
 
 > 💡 **配套可运行示例**
 > 本章对应的完整独立工程代码位于 GitHub：[`examples/01-zig-app`](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app)。
@@ -22,9 +22,9 @@ my-zig-cli/
 ├── build.zig             # 构建脚本
 ├── build.zig.zon         # 包元数据与依赖清单
 ├── src/
-│   ├── main.zig          # CLI 命令行入口（包含参数解析、命令分发）
+│   ├── main.zig          # CLI 命令行入口（参数解析与派发）
 │   ├── root.zig          # 核心业务库入口（导出类型与函数）
-│   └── calc.zig          # 具体计算逻辑模块
+│   └── calc.zig          # 计算器核心逻辑实现
 └── README.md
 ```
 
@@ -36,52 +36,50 @@ my-zig-cli/
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    // 1. Standard options
+    // 1. 标准命令行构建选项
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 2. Define the core library module
+    // 2. 定义核心业务库模块
     const lib_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // 3. Define the main CLI application executable
+    // 3. 定义主 CLI 应用程序的可执行文件
     const exe = b.addExecutable(.{
         .name = "my-cli",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            // Inject lib_mod so main.zig can @import("my_lib")
+            // 注入业务库模块，使 main.zig 可以 @import("my_lib")
             .imports = &.{
                 .{ .name = "my_lib", .module = lib_mod },
             },
         }),
     });
 
-    // Install application to zig-out/bin/my-cli
+    // 将应用安装到交付目录 zig-out/bin/my-cli
     b.installArtifact(exe);
 
-    // 4. "zig build run" support
+    // 4. 支持 "zig build run" 运行命令并透传命令行参数
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // 5. "zig build test" support
-    const exe_unit_tests = b.addTest(.{
-        .root_module = exe.root_module,
+    // 5. 支持 "zig build test" 执行单元测试
+    const lib_unit_tests = b.addTest(.{
+        .root_module = lib_mod,
     });
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&run_lib_unit_tests.step);
 }
 ```
 
@@ -90,9 +88,9 @@ pub fn build(b: *std.Build) void {
 ## 3. 关键设计说明
 
 1. **库与 CLI 解耦**：通过创建 `lib_mod`，核心业务逻辑可以同时被 `main.zig` 消费，也可以作为库被其他项目依赖；
-2. **命令行参数转发**：通过 `if (b.args) |args| run_cmd.addArgs(args);`，终端用户可以直接运行：
+2. **命令行参数透传（`addPassthruArgs`）**：通过 `run_cmd.addPassthruArgs()`，在 DAG 中记录参数占位符，由 `Maker` 在执行期将命令行 `--` 之后的参数安全透传给被调用的应用程序：
    ```bash
    zig build run -- --version
    zig build run -- process input.txt --output result.json
    ```
-   所有在 `--` 之后的参数都会直接传递给目标应用程序的 `main` 函数。
+   所有在 `--` 之后的参数都会直接传递给目标应用程序的参数迭代器，且不会破坏配置缓存。

@@ -28,7 +28,7 @@ graph TD
 ### 1.1 `b.createModule`
 用于项目内部组件的组装：
 ```zig
-// 创建供内部可执行文件使用的私有模块
+// 为主程序创建工程内部私有模块
 const internal_mod = b.createModule(.{
     .root_source_file = b.path("src/internal_helper.zig"),
     .target = target,
@@ -39,7 +39,7 @@ const internal_mod = b.createModule(.{
 ### 1.2 `b.addModule`
 用于将模块暴露给外部下游依赖消费：
 ```zig
-// 注册公开导出的模块
+// 注册并公开导出模块
 const pub_mod = b.addModule("my_lib", .{
     .root_source_file = b.path("src/root.zig"),
     .target = target,
@@ -49,7 +49,7 @@ const pub_mod = b.addModule("my_lib", .{
 当第三方项目通过 `build.zig.zon` 引入当前包后，在其 `build.zig` 中即可通过名字获取该模块：
 ```zig
 const dep = b.dependency("my_pkg", .{ ... });
-const mod = dep.module("my_lib"); // 对应 addModule("my_lib", ...)
+const mod = dep.module("my_lib"); // 对应上游通过 addModule("my_lib", ...) 导出的模块
 ```
 
 ---
@@ -72,15 +72,25 @@ const core_mod = b.createModule(.{
     .optimize = optimize,
 });
 
-// 模块 B：主应用
+// 模块 B：主应用程序
 const app_mod = b.createModule(.{
     .root_source_file = b.path("src/main.zig"),
     .target = target,
     .optimize = optimize,
 });
 
-// 建立依赖映射：允许 app_mod 源码中使用 @import("engine") 引用 core_mod
+// 依赖关联方式 1：通过 addImport 方法显式注入
 app_mod.addImport("engine", core_mod);
+
+// 依赖关联方式 2（推荐）：在 .imports 字段中声明式注入
+const app_mod_inline = b.createModule(.{
+    .root_source_file = b.path("src/main.zig"),
+    .target = target,
+    .optimize = optimize,
+    .imports = &.{
+        .{ .name = "engine", .module = core_mod },
+    },
+});
 ```
 
 ### 机制特点：

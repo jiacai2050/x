@@ -4,44 +4,43 @@
 
 ---
 
-## 1. 核心流程：参数序列化与子进程派生
+## 1. 核心流程：参数展开与子进程派生
 
-当调度线程池处理未命中的 `Step.Compile` 节点时，会调用其内部的 `make` 方法（`Step.Compile.make`）：
+`Step.Compile` 自身并不直接派生子进程，而是由主控进程 `Maker` 统一调度。当处理未命中的 `Step.Compile` 节点时，`Maker` 会调用内部的 `lowerZigArgs` 将其配置（根模块树、Target、优化级别及头文件路径等）展开为命令行参数，随后派生编译器子进程执行编译：
 
 ```mermaid
 graph LR
-    subgraph Step_State ["Step.Compile 内存状态"]
-        S_Mod["root_module (源码、宏、Target)"]
+    subgraph Step_State ["Step.Compile 配置描述"]
+        S_Mod["root_module (源码树、宏、Target)"]
         S_Opts["优化级别、链接模式、产物格式"]
     end
 
-    subgraph Serializer ["参数序列化 (Compile.zig)"]
-        G_Args["getZigArgs()<br/>将结构体展开为 CLI 参数数组"]
+    subgraph Maker_Schedule ["Maker 调度与参数展开"]
+        G_Args["lowerZigArgs()<br/>平铺模块树与展开 CLI 参数"]
     end
 
-    subgraph Spawn_Proc ["派生底层编译器 (Step.zig)"]
-        E_Proc["step.evalZigProcess(...)<br/>启动 zig build-exe / build-lib"]
+    subgraph Spawn_Proc ["派生底层编译器"]
+        E_Proc["spawnChild()<br/>启动 zig build-exe / build-lib"]
     end
 
     S_Mod --> G_Args
     S_Opts --> G_Args
     G_Args --> E_Proc
 
-    classDef default stroke:#495057;
-    style Step_State stroke:#ff9900,stroke-width:2px;
-    style Serializer stroke:#0066cc,stroke-width:2px;
-    style Spawn_Proc stroke:#009900,stroke-width:2px;
-    style S_Mod stroke:#ff9900,stroke-width:2px;
-    style S_Opts stroke:#ff9900,stroke-width:2px;
-    style G_Args stroke:#0066cc,stroke-width:2px;
-    style E_Proc stroke:#009900,stroke-width:2px;
+    style Step_State fill:#fff0e6,stroke:#ff9900,stroke-width:2px
+    style Maker_Schedule fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    style Spawn_Proc fill:#e6ffe6,stroke:#009900,stroke-width:2px
+    style S_Mod fill:#fff0e6,stroke:#ff9900
+    style S_Opts fill:#fff0e6,stroke:#ff9900
+    style G_Args fill:#cce5ff,stroke:#0066cc
+    style E_Proc fill:#e6ffe6,stroke:#009900
 ```
 
 ---
 
-## 2. 核心机制：`getZigArgs()`
+## 2. 核心机制：编译命令组装（`lowerZigArgs`）
 
-在 [lib/std/Build/Step/Compile.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Step/Compile.zig) 中，`Step.Compile.make()` 首先调用 `getZigArgs()`：
+在 [lib/compiler/Maker/Step/Compile.zig:L160-L938](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Step/Compile.zig#L160-L938)（函数 `lowerZigArgs`）中，`Maker` 调度该节点时负责组装底层编译命令：
 
 1. **确定子命令类别**：
    根据产物类型（可执行文件、库、测试）确定底层的 Zig CLI 命令：
@@ -60,7 +59,7 @@ graph LR
 
 ### 底层 CLI 命令示例
 
-对于一个同时包含 Zig 源码、子模块与 C 语言文件的项目，`getZigArgs()` 组装出的最终命令行大致如下：
+对于一个同时包含 Zig 源码、子模块与 C 语言文件的项目，组装出的最终命令行大致如下：
 
 ```bash
 zig build-exe \
@@ -77,9 +76,9 @@ zig build-exe \
   --listen=-
 ```
 
-随后，[lib/std/Build/Step.zig](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Build/Step.zig) 中的 `step.evalZigProcess` 通过 IPC 管道启动 `zig` 编译器主进程执行实际编译。
+随后，`Maker` 通过 IPC 管道启动 `zig` 编译器子进程执行实际编译。
 
-通过下发标准化 CLI 参数调用编译器，构建运行器与编译器实现解耦。当构建出现问题时，开发者也可以直接复制对应命令在终端独立复现与排查。
+通过下发标准化 CLI 参数调用编译器，主控调度器与编译器实现解耦。当构建出现问题时，开发者也可以直接复制对应命令在终端独立复现与排查。
 
 ---
 
