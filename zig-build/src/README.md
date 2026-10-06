@@ -52,7 +52,8 @@ Zig 提供了另一种思路：
    - 单体编译单元 ZCU 与跨模块 comptime 分析机制；
    - 内置 Clang 前端 C++ FFI 桥接（`ZigClang_main`）与工具链解耦。
 6. **附录**（`appendix/`）
-   - `std.Build` 常用 API 速查表。
+   - `std.Build` 常用 API 速查表；
+   - 从 Zig 0.16 迁移到 0.17 构建指南。
 
 ---
 

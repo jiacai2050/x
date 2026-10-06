@@ -146,41 +146,19 @@ test_step.dependOn(&run_unit_tests.step);
 
 ---
 
-## 4. 自定义构建任务：Host Tool + Run Step 模式
+## 4. 控制依赖与数据依赖
 
-在需要执行自定义构建逻辑（如文件打包、资源编译、协议代码生成等）时，标准的最佳实践是编写独立的辅助工具代码（如 `tools/pack.zig`），并结合 `Step.Run` 接入计算图。
+在任务图的构建中，Step 之间的依赖关系主要通过两种形式建立：
 
-### 为什么采用 Host Tool 模式？
-在 Maker 与 Configurer 物理双进程架构下：
-- `build.zig` 仅在临时配置进程中运行，负责纯声明式地构造依赖图拓扑；
-- 若允许在配置脚本中内联执行任务逻辑，主控调度器 `Maker` 就必须在执行期重新把构建脚本编译为动态库或以 Debug 模式加载，破坏调度性能；
-- 主控调度器 `Maker` 自身以 `-O ReleaseSafe` 编译，调度独立的 Host 工具能够兼顾构建纯净性与任务执行效率。
+### 4.1 显式控制依赖（`dependOn`）
+通过 `step_a.dependOn(step_b)` 建立的依赖属于纯控制流关系：它仅保证在执行 `step_a` 之前，`step_b` 必须已经成功完成，但不直接涉及具体文件的流动。例如：
+- 顶层安装步骤依赖编译产物的安装步骤；
+- 测试步骤（`test`）依赖运行测试产物的执行步骤。
 
-### 标准实现范式
-实现独立的 Host 工具并通过 `b.addRunArtifact` 接入构建图：
+### 4.2 隐式数据流依赖
+在真实的构建场景中，许多任务不仅需要控制先后顺序，还需要把前置任务生成的文件传递给下游任务消费（例如将代码生成步骤输出的 `.zig` 文件作为编译步骤的源码输入）。
 
-```zig
-// 1. 编译专用于宿主机的辅助构建工具
-const pack_tool = b.addExecutable(.{
-    .name = "pack_tool",
-    .root_module = b.createModule(.{
-        .root_source_file = b.path("tools/pack.zig"),
-        .target = b.graph.host, // 针对宿主机环境编译
-        .optimize = .ReleaseSafe,
-    }),
-});
+在 Zig 中，这种跨任务节点的数据流传递不是通过硬编码磁盘文件路径实现的，而是通过下一章将深入介绍的核心机制 —— **`LazyPath`（惰性路径）**。当下游 Step 消费上游 Step 产生的 `LazyPath` 时，构建系统会自动在计算图中推导并补全相应的依赖边。
 
-// 2. 声明运行步骤，连接输入输出依赖
-const pack_cmd = b.addRunArtifact(pack_tool);
-pack_cmd.addFileArg(exe.getEmittedBin()); // 输入 LazyPath
-const tar_output = pack_cmd.addOutputFileArg("bundle.tar.gz"); // 输出 LazyPath
-
-// 3. 将输出文件安装到目标交付目录
-const install_tar = b.addInstallFile(tar_output, "bundle.tar.gz");
-top_pack_step.dependOn(&install_tar.step);
-```
-
-### 这种模式的优势：
-1. **完全解耦与纯净性**：`build.zig` 保持只声明依赖图，不混杂具体的任务实现代码，天然保持纯函数性，有利于配置缓存命中；
-2. **更高性能**：辅助工具可独立以 `-O ReleaseSafe` 甚至 `-O ReleaseFast` 编译，在处理大型归档或复杂代码生成时显著快于内联在 `build.zig` 里的 Debug 模式执行；
-3. **独立可测试**：辅助工具本身是一个标准的可执行程序，具备清晰的命令行参数与标准输入输出，可以单独编写单元测试与调试。
+> 💡 **提示**：
+> 当内置的 Step 无法满足需求时，Zig 允许通过 `Step.Run` 运行外部命令或独立的辅助构建工具来扩展管线。具体用法将在后续 API 篇的 [编写自定义 Step：扩展构建管线](../api/custom-steps.md) 中展开介绍。

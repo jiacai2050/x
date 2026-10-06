@@ -195,10 +195,10 @@ flowchart LR
     NamedWF -. "跨 Package 边界暴露命名集合" .-> GetWF
 
     classDef default stroke:#495057;
-    style Upstream fill:#fff0e6,stroke:#ff9900,stroke-width:2px;
-    style Downstream fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    style NamedWF fill:#d5e8d4,stroke:#009900,stroke-width:2px;
-    style GetWF fill:#d5e8d4,stroke:#009900,stroke-width:2px;
+    style Upstream stroke:#ff9900,stroke-width:2px;
+    style Downstream stroke:#0066cc,stroke-width:2px;
+    style NamedWF stroke:#009900,stroke-width:2px;
+    style GetWF stroke:#009900,stroke-width:2px;
 ```
 
 ### 4.2 完整代码实现范式

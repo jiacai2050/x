@@ -42,3 +42,4 @@
 # 附录
 
 - [常用构建 API 速查表](appendix/api-cheatsheet.md)
+- [从 0.16 迁移到 0.17 构建指南](appendix/migration-016-to-017.md)
