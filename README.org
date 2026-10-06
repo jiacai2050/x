@@ -1,6 +1,6 @@
 #+TITLE: X
 #+DATE: 2025-04-16T10:11:50+0800
-#+LASTMOD: 2026-10-03T23:48:00+0800
+#+LASTMOD: 2026-10-06T15:58:20+0800
 #+AUTHOR: Jiacai Liu
 
 X represents infinite possibilities and embodies the diversity of the projects.
@@ -12,7 +12,7 @@ https://jiacai2050.github.io/x/
 - [[file:zigos/][zigos]] :: A Chinese tutorial on writing an OS in Zig.
 
 * Tutorials
-- [[file:zig-build/][zig-build]] :: A comprehensive guide to Zig's build system, covering its core concepts, APIs, internals, and practical examples based on Zig 0.16.0.
+- [[file:zig-build/][zig-build]] :: A comprehensive guide to Zig's build system, covering its core concepts, APIs, internals, and practical examples based on Zig 0.17.0.
 - [[file:zig-compiler/][zig-compiler]] :: A deep dive into the design and implementation of the Zig 0.17.0 compiler, covering DOD, zero-pointer AST, dual-layer IR, Comptime, native backends, and incremental linking.
 
 * Go
