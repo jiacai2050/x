@@ -14,7 +14,7 @@
 | `run.captureStdOut()` | `_ = run.captureStdOut(.{})` | 必须传参且不可丢弃返回值 `LazyPath` |
 | `if (b.args) \|args\| run_cmd.addArgs(args);` | `run_cmd.addPassthruArgs();` | 配置期不再观察参数，避免改动命令行参数触发配置重新编译 |
 | `b.build_root` (`Directory`) | `b.root` (`Path` / `LazyPath`) | 统一路径抽象类型 |
-| `b.findProgram(&.{ ... }, .{})` | `b.findProgramLazy(&.{ ... }, .{})` | 延迟到执行期解析路径，避免污染配置缓存 |
+| `b.findProgram(&.{ ... }, .{})` | `b.findProgramLazy(.{ .names = &.{ ... } })` | 延迟到执行期解析路径，避免污染配置缓存 |
 | `options.addOptionPath("key", lp)` (目录) | `options.addOptionPathDirectory("key", lp)` | 显式区分单个文件与目录的依赖追踪 |
 | `header.include_guard_override = ...` | `header.include_guard = ...` | 字段精简重命名 |
 | `lazy_path.basename` | *已移除* | 执行前文件名可能未知，需通过 `LazyPath` 延迟流转 |
@@ -53,12 +53,14 @@ run_cmd.addPassthruArgs();
 const git_exe = b.findProgram(&.{"git"}, .{}) catch null;
 
 // 0.17 推荐写法：惰性查找（返回 LazyPath，不污染配置缓存）
-const git_exe = b.findProgramLazy(&.{"git"}, .{});
+const git_exe = b.findProgramLazy(.{ .names = &.{"git"} });
 run_cmd.step.dependOn(&b.addRunArtifact(exe).step);
 run_cmd.addFileArg(git_exe);
 
-// 0.17 仅当配置逻辑自身需要根据程序是否存在做分支时，才使用立即查找：
-const git_path = try b.findProgram(&.{"git"}, .{}); // 会将配置标记为缓存污染
+// 0.17 仅当配置逻辑自身需要根据程序是否存在做分支时，才使用立即查找（返回 ?[]const u8）：
+if (b.findProgram(.{ .names = &.{"git"} })) |git_path| {
+    _ = git_path; // 会将配置标记为缓存污染
+}
 ```
 
 ---
@@ -92,8 +94,8 @@ const dep = b.dependencyLazy("optional_pkg", .{
     .target = target,
     .optimize = optimize,
 }) catch |err| switch (err) {
-    error.LazyDependencyNeeded => return, // 告知调度器触发拉取后重新配置
-    else => return err,
+    // 错误集仅包含 error.LazyDependencyNeeded，通知调度器触发拉取后重新配置
+    error.LazyDependencyNeeded => return,
 };
 ```
 

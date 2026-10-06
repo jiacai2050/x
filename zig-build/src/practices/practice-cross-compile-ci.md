@@ -109,7 +109,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: master
+          version: 0.17.0
 
       - name: Install Make (Windows)
         if: runner.os == 'Windows'
@@ -128,7 +128,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: master
+          version: 0.17.0
 
       - name: Run Cross-Compilation Matrix
         run: make cross-compile

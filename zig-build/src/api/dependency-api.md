@@ -55,7 +55,7 @@ if (enable_gui) {
 1. **强类型错误驱动重试**：`b.dependencyLazy` 返回 `error{LazyDependencyNeeded}!*Dependency`。若该依赖本地缓存尚未就绪，函数会向构建系统记录该需求并返回 `error.LazyDependencyNeeded`；
 2. **零网络开销**：当未满足条件分支（如 `-Denable-gui=false`）时，该调用不会被执行，构建系统绝不会触发对该依赖的网络下载或磁盘解压；
 3. **主进程自动重试**：当配置期退出后，常驻主进程 `Maker` 收到配置流中的 `unlazy_deps` 列表，在后台并发下载依赖包并解压，随后自动在外层循环中重新执行配置期；
-4. **废弃 API 替代**：早期版本中的 `b.lazyDependency`（返回可选指针 `?*Dependency`）已被官方标记为废弃（Deprecated），推荐统一使用 `b.dependencyLazy`。详见 [构建自举与双进程：Maker 与 Configurer 架构流转 - 5. 惰性依赖的自动重试机制](../internals/build-runner-internals.md)。
+4. **废弃 API 替代**：早期版本中的 `b.lazyDependency`（返回可选指针 `?*Dependency`）已被官方标记为废弃（Deprecated），推荐统一使用 `b.dependencyLazy`。详见 [构建自举与双进程：Maker 与 Configurer 架构流转 - 5. 惰性依赖的自动重试机制](../internals/build-runner-internals.md#5-惰性依赖的自动重试机制)。
 
 ---
 

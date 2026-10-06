@@ -3,3 +3,5 @@
 zig-out
 .zig-cache
 examples/05-custom-step/pack
+*.exe
+*.pdb

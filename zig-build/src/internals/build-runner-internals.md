@@ -202,7 +202,7 @@ if (configuration.unlazy_deps.len != 0) {
 
 为支持 IDE 与语言服务器深度集成，Zig 官方推出了标准化的 **Build Server Protocol**：
 
-- **服务端启动**：通过执行 `zig build --listen=-`，构建系统通过标准输入输出作为通信管道，提供基于 JSON-RPC 规范的结构化服务；
+- **服务端启动**：通过执行 `zig build --listen=-`，构建系统通过标准输入输出作为通信管道，提供基于 Zig 原生版本化二进制线协议（Binary Wire Protocol）的结构化服务；
 - **能力矩阵**：
   1. **构建图元数据直读**：IDE（如 ZLS）可直接查询构建图中所有的 Step 拓扑关系与暴露的配置选项，无需触发实际编译（注：当前 BSP 协议尚未导出完整的模块名称集合）；
   2. **细粒度进度事件推送**：实时推送每个 Step 的开始、完成、耗时以及详细的 `ErrorBundle` 诊断信息；

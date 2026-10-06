@@ -156,7 +156,7 @@ Configuration = build(CLI Flags, build.zig.zon)
 如果开发者在 `build.zig` 中执行了观察外部不可控环境的操作（例如在配置期调用系统 `findProgram` 扫描 host 的 `PATH` 环境变量）：
 ```zig
 // 反模式：在配置期扫描主机 PATH 会污染配置缓存
-const python_path = b.findProgram(&.{"python3", "python"}, &.{});
+const python_path = b.findProgram(.{ .names = &.{"python3", "python"} });
 ```
 在标准库源码中，`findProgram` 会显式调用 `graph.poisonCache()`。一旦配置被标记为 **Poisoned（被污染）**：
 - `Maker` 认为该构建图可能随外部不可控状态而变化；

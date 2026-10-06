@@ -59,11 +59,11 @@ const kernel_elf = b.addExecutable(.{
 
 // 2. 从 ELF 产物中剥离并提取纯二进制 .bin 固件
 const bin_step = b.addObjCopy(kernel_elf.getEmittedBin(), .{
-    .format = .bin,
+    .format = .binary,
 });
 
 // 3. 安装裸固件至交付目录：zig-out/firmware.bin
-const install_bin = b.addInstallRaw(bin_step.getOutput(), "firmware.bin", .{});
+const install_bin = b.addInstallFile(bin_step.getOutput(), "firmware.bin");
 b.getInstallStep().dependOn(&install_bin.step);
 ```
 
@@ -237,19 +237,18 @@ b.installDirectory(.{
 
 ## 5. 跨平台测试执行器配置与产物清理局限
 
-### 4.1 仿真器配置（QEMU Runner）
+### 5.1 跨平台测试执行与仿真器配置
 
-在 x86_64 开发机上交叉编译 ARM64 或 RISC-V 测试程序时，可以通过 `run_unit_tests.setExecCmd` 指定仿真器：
+在开发机上交叉编译目标架构（如在 x86_64 上测试 ARM64 或 RISC-V 产物）时，执行期需要仿真器支持：
+- **命令行自动调度仿真器**：Zig 原生集成了外部执行器探测（如 Linux 的 `binfmt_misc` 或 macOS 的 Rosetta）。用户也可在命令行直接传入 `-fqemu` 或 `-fwasmtime`，让构建系统自动挂载仿真环境；
+- **配置跨平台执行容错**：在构建脚本中，可以通过 `failing_to_execute_foreign_is_an_error` 声明策略。当缺少目标架构仿真器时优雅跳过运行，避免打断构建流水线：
+  ```zig
+  // 遇到非宿主架构（Foreign Binary）时，若无可用仿真器则跳过而不是直接失败
+  run_unit_tests.failing_to_execute_foreign_is_an_error = false;
+  ```
+- **仅编译测试产物**：在缺少运行环境或仿真器的 CI 机器上，可以仅调度 `&unit_tests.step`（只编译测试二进制），提前发现目标平台的语法和类型错误。
 
-```zig
-if (target.result.cpu.arch != builtin.target.cpu.arch) {
-    run_unit_tests.setExecCmd(&.{ "qemu-aarch64", "-L", "/usr/aarch64-linux-gnu" });
-}
-```
-
-在缺少运行环境或仿真器的 CI 机器上，可以仅调度 `&unit_tests.step`（只编译测试二进制），提前发现目标平台的语法和类型错误。
-
-### 4.2 局限与不足
+### 5.2 局限与不足
 
 1. **缺少内置的 `clean` 目标**：
    Zig 官方未提供 `zig build clean` 命令。当需要释放磁盘空间或清理缓存时，开发者需要通过外部命令手动删除 `.zig-cache` 和 `zig-out`；

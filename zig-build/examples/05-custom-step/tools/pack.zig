@@ -4,8 +4,9 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.arena.allocator();
 
-    var it = init.minimal.args.iterate();
-    _ = it.next(); // Skip executable argv[0]
+    var it = try init.minimal.args.iterateAllocator(allocator);
+    defer it.deinit();
+    _ = it.next(); // 跳过 argv[0]
     const input_path = it.next() orelse return error.MissingInputPath;
     const output_path = it.next() orelse return error.MissingOutputPath;
 
@@ -46,7 +47,7 @@ pub fn main(init: std.process.Init) !void {
     const tar_entry_path = try std.fmt.allocPrint(allocator, "bin/{s}", .{bin_name});
     const bin_size = try bin_reader.getSize();
 
-    // Explicitly record executable permission mode (0o755: rwxr-xr-x)
+    // 显式指定可执行权限 (0o755: rwxr-xr-x)
     try tar_writer.writeFileStream(
         tar_entry_path,
         bin_size,

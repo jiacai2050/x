@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) void {
 - `--fork=[path]` 或 `--fork [path]`：在命令行将依赖树中的指定项目透明重定向到本地开发目录（支持多次指定），无需修改任何 `build.zig.zon`，便于第三方依赖本地修补与多库联合调试；
 - `--cache-poison=disallowed`：若构建脚本调用了破坏配置纯函数性的 API（如 `b.findProgram`），直接触发 panic 中断，适合用于确保 CI 环境构建配置的纯净性；
 - `--cache-poison=pure`（默认值）：若发生污染则安全降级，本次构建不缓存配置图；
-- `--listen=-`：启动官方 Build Server Protocol 服务端，与 IDE/语言服务器进行基于 JSON-RPC 的双向通信；
+- `--listen=-`：启动官方 Build Server Protocol 服务端，与 IDE/语言服务器（如 ZLS）通过标准输入输出进行版本化二进制协议的双向通信；
 - `--watch`：进入会话模式，主控进程 `Maker` 持续驻留，监听源码与配置文件变更并自动执行增量重跑。
 
 ---

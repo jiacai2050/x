@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // 4. 单元测试命令支持
+    // 4. 单元测试支持
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_mod,
     });

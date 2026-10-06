@@ -2,9 +2,12 @@ const std = @import("std");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
+    const allocator = init.arena.allocator();
 
-    var it = init.minimal.args.iterate();
-    _ = it.next(); // Skip executable argv[0]
+    var it = try init.minimal.args.iterateAllocator(allocator);
+    defer it.deinit();
+
+    _ = it.next(); // 跳过 argv[0]
     const out_path = it.next() orelse return error.MissingOutputPath;
 
     const cwd = std.Io.Dir.cwd();
