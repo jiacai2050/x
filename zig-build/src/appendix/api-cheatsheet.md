@@ -69,7 +69,7 @@
 | `mod.addIncludePath(lazy_path)` | 追加头文件包含路径（`-I`） |
 | `mod.addSystemIncludePath(lazy_path)`| 追加系统级头文件包含路径（`-isystem`） |
 | `mod.linkLibrary(artifact)` | 链接静态库或动态库，并自动继承其导出的头文件包含路径 |
-| `mod.linkLibCpp()` | 启用 C++ 混编支持，自动链接内嵌的目标系统 C++ 标准库（如 libc++） |
+| `mod.link_libcpp = true` | 启用 C++ 混编支持，自动链接内嵌的目标系统 C++ 标准库（如 libc++） |
 
 ---
 

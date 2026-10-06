@@ -59,7 +59,7 @@ pub const LazyPath = union(enum) {
 1. **`.src_path`（项目源码树路径）**：
    通过 `b.path("src/main.zig")` 创建，将相对路径绑定在当前项目根目录下；
 2. **`.generated`（动态生成物路径）**：
-   由生成类 Step 输出（如 `config_header.getOutput()`、`write_files.getDirectory()`、`b.findProgramLazy`），内部持有指向生成该文件的 `Step` 指针；
+   由生成类 Step 输出（如 `config_header.getOutputFile()`、`write_files.getDirectory()`、`b.findProgramLazy`），内部持有指向生成该文件的 `Step` 指针；
 3. **`.dependency`（依赖包内部路径）**：
    通过 `dep.path("include/foo.h")` 创建，将路径解析到第三方依赖包解压后的物理目录中；
 4. **`.relative` 与 `.cwd_relative`**：
@@ -98,7 +98,7 @@ flowchart LR
 ```zig
 .generated => |gen| other_step.dependOn(gen.file.step),
 ```
-当将一个动态生成的 `LazyPath` 传递给下游函数时（例如 `module.addIncludePath(config_h.getOutput())`）：
+当将一个动态生成的 `LazyPath` 传递给下游函数时（例如 `module.addIncludePath(config_h.getOutputDir())`）：
 - Zig 构建系统在底层自动调用 `addStepDependencies`；
 - 下游编译步骤会自动向生成步骤添加一条依赖边；
 - 避免了手动调用 `dependOn` 的遗漏，使任务图的执行时序与数据流保持一致。
@@ -120,7 +120,7 @@ flowchart LR
 1. **配置期无法获取未生成文件的路径字符串**：
    对于 `.generated` 变体，由于实际文件在执行期才会写入磁盘，在配置期无法获取确定的物理路径。尝试在 `build(b)` 中直接解析绝对路径字符串做判断会触发断言失败；
 2. **未区分单文件与目录类型**：
-   `LazyPath` 类型没有区分其指向的是单个文件还是目录树（例如 `write_files.getDirectory()` 与 `config_h.getOutput()` 都是 `LazyPath`）。如果将目录传递给接收单文件的 API，错误只能在执行期被发现；
+   `LazyPath` 类型没有区分其指向的是单个文件还是目录树（例如 `write_files.getDirectory()` 与 `config_h.getOutputFile()` 都是 `LazyPath`）。如果将目录传递给接收单文件的 API，错误只能在执行期被发现；
 3. **`b.path` 与 `cwd_relative` 的基准路径差异**：
    - `b.path("sub/file")` 始终相对于当前 `build.zig` 所在项目根目录；
    - `.{ .cwd_relative = "sub/file" }` 则相对于终端执行 `zig build` 时的当前工作目录（CWD）。

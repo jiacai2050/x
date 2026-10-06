@@ -219,7 +219,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        exe.linkLibrary(sqlite_dep.artifact("sqlite"));
+        exe.root_module.linkLibrary(sqlite_dep.artifact("sqlite"));
     }
 
     b.installArtifact(exe);

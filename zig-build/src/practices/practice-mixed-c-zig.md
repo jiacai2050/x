@@ -136,11 +136,11 @@ pub fn main() void {
 
 ## 5. 注意事项与进阶要点
 
-1. **混编 C++ 源码时调用 `linkLibCpp()`**：
-   若工程中混编了 `.cpp` 源文件，仅开启 `.link_libc = true` 会在链接阶段报缺失 C++ 运行时符号（如 `operator new`）。此时需在模块上调用：
+1. **混编 C++ 源码时设置 `link_libcpp`**：
+   若工程中混编了 `.cpp` 源文件，仅开启 `.link_libc = true` 会在链接阶段报缺失 C++ 运行时符号（如 `operator new`）。此时需在模块上配置：
    ```zig
-   exe_module.linkLibCpp();
+   exe_module.link_libcpp = true;
    ```
-   Zig 会自动链接目标平台对应的 C++ 标准库；
+   也可以在 `b.createModule` 时直接指定 `.link_libcpp = true`。Zig 会自动链接目标平台对应的 C++ 标准库（如 libc++）；
 2. **C 头文件中的 `static inline` 函数**：
    对于简单的 `static inline` 函数，`translate-c` 可以自动转译为 Zig 内联函数。若函数体内使用了未受支持的编译器扩展宏或内联汇编，转译可能会报错。此时建议在 `.c` 文件中将其重新封装为常规的 `extern` 函数。

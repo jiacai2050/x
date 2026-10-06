@@ -143,9 +143,9 @@ b.installArtifact(lib);
 - **Windows 系统库**：涉及网络和加密时，通常需要链接 Winsock 与安全子系统：
   ```zig
   if (target_is_windows) {
-      lib.linkSystemLibrary("ws2_32");
-      lib.linkSystemLibrary("advapi32");
-      lib.linkSystemLibrary("crypt32");
+      c_module.linkSystemLibrary("ws2_32", .{});
+      c_module.linkSystemLibrary("advapi32", .{});
+      c_module.linkSystemLibrary("crypt32", .{});
   }
   ```
 - **POSIX 系统库**：在部分 Linux/BSD 环境下可能需要链接 `libpthread` 或 `libdl`。若通过 Zig 交叉编译，这些基础 libc 符号由内嵌环境统一管理。
