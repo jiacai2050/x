@@ -31,26 +31,26 @@ Zig 提供了另一种思路：
 2. **核心概念深度解析**（`concepts/`）
    - 配置期（Configuration）与执行期（Execution）生命周期及双进程隔离；
    - 任务计算图抽象：`std.Build.Step` 与 DAG 拓扑；
+   - 惰性路径：`LazyPath` 的设计与数据流驱动；
    - 模块与产物解耦：`Module` vs `Step.Compile`；
-   - 惰性路径：`LazyPath` 的设计与依赖推导；
    - 包管理模型：`build.zig.zon` 与二进制缓存布局。
 3. **核心 API 全景与实战用法**（`api/`）
    - 编译选项解析与顶层 Step 注册；
    - 可执行文件、库与单元测试产物构建（`addPassthruArgs` 等）；
    - 模块命名空间管理与子模块导入（`addImport`）；
    - C/C++ 互操作、头文件包含路径传播与头文件树导出；
-   - 模板替换（`addConfigHeader`）与文件动态生成；
+   - 代码生成、配置常量与源码同步（`ConfigHeader`、`Options`、`WriteFiles`）；
    - 依赖包消费（`b.dependency`）与 Host 工具辅助模式。
-4. **源码级底层运行机制**（`internals/`）
-   - 构建自举与双进程架构：Maker 与 Configurer 源码流转；
-   - `Step.Compile` 到子进程拼装细节；
-   - 单体编译单元 ZCU 与跨模块 comptime 分析机制；
-   - 内置 Clang 前端 C++ FFI 桥接（`ZigClang_main`）与工具链解耦。
-5. **实战工程最佳实践**（`practices/`）
+4. **实战工程最佳实践**（`practices/`）
    - 纯 Zig 应用程序工程范式；
    - Zig 与 C/C++ 混合编程结构；
    - 复杂第三方 C 库的移植实践（以 MariaDB Connector/C 为例）；
    - 跨平台交叉编译与 GitHub Actions CI 流水线。
+5. **源码级底层运行机制**（`internals/`）
+   - 构建自举与双进程架构：Maker 与 Configurer 源码流转；
+   - `Step.Compile` 到子进程拼装细节；
+   - 单体编译单元 ZCU 与跨模块 comptime 分析机制；
+   - 内置 Clang 前端 C++ FFI 桥接（`ZigClang_main`）与工具链解耦。
 6. **附录**（`appendix/`）
    - `std.Build` 常用 API 速查表。
 
@@ -65,7 +65,7 @@ Zig 提供了另一种思路：
   | :--- | :--- | :--- |
   | [examples/01-zig-app](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app) | 标准 Zig CLI 应用、模块拆分与单元测试 | [实战一：标准 Zig CLI 应用与单元测试](practices/practice-zig-app.md) |
   | [examples/02-mixed-c-zig](https://github.com/jiacai2050/x/tree/main/zig-build/examples/02-mixed-c-zig) | Zig 与 C 混合编译、头文件自动转译 | [实战二：Zig 与 C/C++ 混合编程工程结构](practices/practice-mixed-c-zig.md) |
-  | [examples/03-code-generation](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation) | CMake 风格配置头文件与动态代码生成 | [代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles](api/code-generation-api.md) |
+  | [examples/03-code-generation](https://github.com/jiacai2050/x/tree/main/zig-build/examples/03-code-generation) | CMake 风格配置头文件与动态代码生成 | [代码生成与配置注入：ConfigHeader、Options、WriteFiles 与 UpdateSourceFiles](api/code-generation-api.md) |
   | [examples/04-c-library-port](https://github.com/jiacai2050/x/tree/main/zig-build/examples/04-c-library-port) | 复杂第三方 C 静态库封装与导出 | [实战三：复杂第三方 C 库的完整移植实践](practices/practice-porting-c-library.md) |
   | [examples/05-custom-step](https://github.com/jiacai2050/x/tree/main/zig-build/examples/05-custom-step) | 编写辅助构建工具并接入构建 DAG（Host Tool + Run Step） | [编写自定义 Step：扩展构建管线](api/custom-steps.md) |
 

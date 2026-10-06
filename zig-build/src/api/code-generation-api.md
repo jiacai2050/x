@@ -1,4 +1,4 @@
-# 代码生成与源码同步：ConfigHeader、WriteFiles 与 UpdateSourceFiles
+# 代码生成与配置注入：ConfigHeader、Options、WriteFiles 与 UpdateSourceFiles
 
 构建系统除了编译源码，通常还需要动态生成中间代码、渲染平台配置文件（如 CMake 模板）、跨依赖边界共享生成物，以及将 Golden File 回写到版本库中。Zig 标准库提供了一整套基于 DAG 数据流的代码生成与同步 API。
 
@@ -165,11 +165,11 @@ pub fn main() void {
 
 ## 4. 跨包动态生成物共享：`addNamedWriteFiles`
 
-在复杂的微库或模块化工程中，经常存在一种需求：**上游依赖包通过自定义工具动态生成了一批代码（例如 Protocol Buffers、RPC 桩代码、SQL 结构体），下游主项目需要直接导入消费这些生成物**。
+在模块化工程中，经常需要由上游依赖包通过自定义工具生成代码（如 Protocol Buffers、RPC 桩代码或 SQL 结构体），下游项目直接导入这些生成物。
 
-传统构建系统往往要求下游包直接入侵探测上游的磁盘缓存目录，极易产生硬编码路径与并发竞争。Zig 通过 [lib/std/Build.zig:L862-L880](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L862-L880) 的 `addNamedWriteFiles` 与 [lib/std/Build.zig:L1880-L1895](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1880-L1895) 的 `dep.namedWriteFiles` 实现了跨包声明式共享。
+传统做法往往需要下游直接引用上游的磁盘缓存路径，容易出现硬编码和并发读写冲突。Zig 通过 [lib/std/Build.zig:L862-L880](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L862-L880) 的 `addNamedWriteFiles` 与 [lib/std/Build.zig:L1880-L1895](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1880-L1895) 的 `dep.namedWriteFiles` 支持跨包声明式共享生成文件。
 
-### 3.1 跨包命名导出与消费模式
+### 4.1 跨包命名导出与消费模式
 
 ```mermaid
 flowchart LR
@@ -201,7 +201,7 @@ flowchart LR
     style GetWF fill:#d5e8d4,stroke:#009900,stroke-width:2px;
 ```
 
-### 3.2 完整代码实现范式
+### 4.2 完整代码实现范式
 
 **上游库（`proto-generator/build.zig`）命名导出：**
 ```zig
@@ -265,21 +265,21 @@ pub fn build(b: *std.Build) void {
 ```
 
 > 💡 **说明**：
-> 命名写入集合不仅保证了跨包文件引用的干净解耦，还能确保 DAG 拓扑自动感知数据流依赖：下游编译步骤会自动等待上游的代码生成任务执行完毕。
+> 命名写入集合将跨包文件引用收敛为显式导出，同时将依赖关系注册到 DAG 中：下游编译步骤会自动等待上游代码生成完成。
 
 ---
 
 ## 5. 源码树同步回写模式：`b.addUpdateSourceFiles`
 
-### 4.1 适用场景与工程权衡（Golden File 模式）
+### 5.1 适用场景与工程权衡（Golden File 模式）
 
-大多数代码生成操作（如 `addConfigHeader` 或 `addWriteFiles`）生成的都是瞬态中间文件，存放在 `.zig-cache/` 中。然而在以下场景中，工程上更倾向于将生成代码**持久化提交到 Git 源码树**：
+大多数代码生成操作（如 `addConfigHeader` 或 `addWriteFiles`）生成的都是临时中间文件，存放在 `.zig-cache/` 中。但在以下场景中，通常需要将生成代码**提交到 Git 源码树**：
 
-1. **庞大依赖的离线构建**：生成代码需要由复杂的主机工具产出（如从复杂 IDL 解析或调用大型分析库），为了避免所有构建机器和 CI 都必须安装重型工具，通常在提交版本时预生成好；
-2. **源码可读性与 IDE 补全支持**：开发者希望直接在编辑区跳转到生成的代码定义，而不是只能在缓存目录寻找；
-3. **自举编译器构建（Bootstrapping）**：例如 Zig 官方自身在构建阶段一的 WASM 编译器时，就是通过生成产物直接覆盖 `stage1/zig1.wasm` 并提交至版本库。
+1. **避免构建机依赖复杂工具**：生成代码由特定主机工具产出（如复杂 IDL 编译器），预先提交生成文件可免去其他环境安装该工具的负担；
+2. **源码可读性与 IDE 补全**：方便在编辑器中直接跳转到生成代码的定义；
+3. **自举编译器构建（Bootstrapping）**：例如 Zig 自身构建 WASM 编译器时，通过生成产物直接覆盖 `stage1/zig1.wasm` 并提交到版本库。
 
-### 4.2 核心实现范式
+### 5.2 核心实现范式
 
 严禁在 `build(b)` 的配置期直接通过 `std.fs.cwd().writeFile()` 篡改源码，这会引发配置缓存污染和文件竞争。
 
@@ -327,7 +327,7 @@ pub fn build(b: *std.Build) void {
 ```
 
 > 💡 **提示**：
-> 常规执行 `zig build` 时，`update` 步骤不会被触发，保证日常构建纯净极速；只有在协议定义或查找表算法更新时，执行 `zig build update` 显式触发生成并同步提交 Git。
+> 常规执行 `zig build` 时不会触发 `update` 步骤；只有在协议定义或数据表更新时，才执行 `zig build update` 显式生成并提交到版本库。
 
 ---
 
@@ -353,11 +353,11 @@ b.dependOnDirectoryMetadata(b.path("templates/"));   // 仅依赖目录元数据
 
 ## 7. 内置生成机制与局限分析
 
-### 6.1 优势
-1. **基于 LazyPath 的天然增量构建**：所有生成物输出到 `.zig-cache/` 的内容寻址路径下，仅当输入发生改变时才重新执行生成步骤；
-2. **消除外部脚本依赖**：内置模板引擎与 Zig 源码级动态拼接，无需在构建宿主机强制安装 Python、CMake 或 Bash 环境；
-3. **时序与数据流安全**：DAG 调度器在执行期根据路径依赖自动编排拓扑顺序，杜绝了并发构建下的文件读写冲突。
+### 7.1 优势
+1. **基于 LazyPath 的增量构建**：生成文件输出到 `.zig-cache/` 的内容寻址路径中，仅当输入发生改变时才重新执行生成步骤；
+2. **无需外部脚本环境**：内置模板渲染与 Zig 动态拼接，无需在构建机安装 Python、CMake 或 Bash 环境；
+3. **时序与数据流依赖明确**：调度器根据路径依赖自动编排拓扑顺序，避免并发构建下的文件读写冲突。
 
-### 6.2 局限与工程建议
-1. **模板语法支持有限**：`addConfigHeader` 目前主要支持常见 CMake 宏模式（`#cmakedefine` 等），若 C 库采用 Autotools 风格的宏替换（依赖 `#undef`），通常需要先手工将其标准化为 `.h.in` 模板；
-2. **生成代码调试定位**：通过 `write_files.add` 拼装的 Zig 源码在报错时指向缓存目录下的临时文件，排查深层类型错误时排查链路较长；对于核心逻辑，建议优先使用静态编译的 Zig 代码结合编译期泛型（Comptime），减少纯文本拼接。
+### 7.2 局限与工程建议
+1. **模板语法支持有限**：`addConfigHeader` 目前主要支持常见 CMake 宏模式（`#cmakedefine` 等）；若 C 库采用 Autotools 风格的宏替换（依赖 `#undef`），通常需要先整理为 `.h.in` 模板；
+2. **生成代码调试定位**：通过 `write_files.add` 拼装的 Zig 源码在报错时指向缓存目录下的临时文件，排查类型错误时链路较长；对于核心逻辑，建议优先使用静态 Zig 代码结合编译期泛型（Comptime），减少纯文本拼接。

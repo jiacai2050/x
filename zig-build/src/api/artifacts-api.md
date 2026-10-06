@@ -1,4 +1,4 @@
-# 产物构建与测试：Executable、Library、Test 与 ObjCopy
+# 产物构建与测试验证：Executable、Library、Test 与 ObjCopy
 
 在 Zig 构建系统中，生成最终二进制产物（可执行文件、静态库/动态库、测试程序）的任务由 `Step.Compile` 负责，并通过 `Step.Run`、`Step.InstallArtifact` 以及 `Step.ObjCopy` 进行执行验证、安装交付与固件提取。
 

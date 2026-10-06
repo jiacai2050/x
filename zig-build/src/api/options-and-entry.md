@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) void {
 1. **`b.step(name, description)`**：在任务图中注册一个顶层节点（`Step.Tag.top_level`），可通过 `zig build <name>` 调用；
 2. **`b.default_step`**：当命令行未指定具体目标、仅执行 `zig build` 时触发，默认负责安装所有已声明的产物；
 3. **参数透传（`addPassthruArgs`）**：调用 `run_cmd.addPassthruArgs()` 在构建图中记录占位符，由 `Maker` 调度器在执行期动态将命令行 `--` 后面的参数透传给应用程序，避免在配置期直接读取参数破坏配置缓存；
-4. **条件构建的安全防御（`b.addFail`）**：若某个目标在特定平台上不受支持，避免在 `build()` 配置期直接执行 `@panic`（这会导致无关任务甚至 `zig build --help` 一并崩溃）。通过 [lib/std/Build.zig:L941](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L941) 的 `b.addFail` 进行延迟报错：
+4. **平台或条件不支持时的延迟报错（`b.addFail`）**：若某个任务在特定平台上不受支持，避免在 `build()` 配置期直接执行 `@panic`（否则无关任务甚至 `zig build --help` 也会中断退出）。可通过 [lib/std/Build.zig:L941](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L941) 的 `b.addFail` 注册延迟报错步骤：
    ```zig
    if (target.result.os.tag == .windows) {
        // 仅当用户显式请求构建该任务时才报错
