@@ -59,7 +59,7 @@ pub const LazyPath = union(enum) {
 1. **`.src_path`（项目源码树路径）**：
    通过 `b.path("src/main.zig")` 创建，将相对路径绑定在当前项目根目录下；
 2. **`.generated`（动态生成物路径）**：
-   由生成类 Step 输出（如 `config_header.getOutput()`、`write_files.getDirectory()`、`find_program_lazy`），内部持有指向生成该文件的 `Step` 指针；
+   由生成类 Step 输出（如 `config_header.getOutput()`、`write_files.getDirectory()`、`b.findProgramLazy`），内部持有指向生成该文件的 `Step` 指针；
 3. **`.dependency`（依赖包内部路径）**：
    通过 `dep.path("include/foo.h")` 创建，将路径解析到第三方依赖包解压后的物理目录中；
 4. **`.relative` 与 `.cwd_relative`**：

@@ -187,6 +187,7 @@ configure: while (true) {
 ```zig
 if (configuration.unlazy_deps.len != 0) {
     for (configuration.unlazy_deps) |hash_string| {
+        const hash = hash_string.slice(&configuration);
         log.info("fetching lazy dependency {s}", .{hash});
         try unlazy_set.put(arena, .fromSlice(hash), {});
     }
@@ -203,7 +204,7 @@ if (configuration.unlazy_deps.len != 0) {
 
 - **服务端启动**：通过执行 `zig build --listen=-`，构建系统通过标准输入输出作为通信管道，提供基于 JSON-RPC 规范的结构化服务；
 - **能力矩阵**：
-  1. **构建图元数据直读**：IDE（如 ZLS）可直接查询构建图中所有的 Step 拓扑关系、暴露的选项与模块映射，无需触发实际编译；
+  1. **构建图元数据直读**：IDE（如 ZLS）可直接查询构建图中所有的 Step 拓扑关系与暴露的配置选项，无需触发实际编译（注：当前 BSP 协议尚未导出完整的模块名称集合）；
   2. **细粒度进度事件推送**：实时推送每个 Step 的开始、完成、耗时以及详细的 `ErrorBundle` 诊断信息；
   3. **交互式构建控制**：语言服务器可主动下发指令，触发指定 Step 的重编或单元测试。
 

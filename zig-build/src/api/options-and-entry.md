@@ -68,6 +68,7 @@ pub fn build(b: *std.Build) void {
     // 2. 创建可执行文件与运行步骤
     const exe = b.addExecutable(.{ ... });
     const run_cmd = b.addRunArtifact(exe);
+    run_cmd.addPassthruArgs();
 
     // 3. 绑定依赖："zig build run" 会触发 run_cmd
     run_step.dependOn(&run_cmd.step);

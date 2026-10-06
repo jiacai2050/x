@@ -139,7 +139,9 @@ module.addIncludePath(headers_path);
    const d_mod = shared_d.module("d");
 
    const dep_a = b.dependency("dep_a", .{ .target = target, .optimize = optimize });
+   const dep_b = b.dependency("dep_b", .{ .target = target, .optimize = optimize });
    dep_a.module("a").addImport("d", d_mod); // 将统一的 d 模块注入到 dep_a
+   dep_b.module("b").addImport("d", d_mod); // 将同一份 d 模块注入到 dep_b
    ```
 
 ---
@@ -161,9 +163,9 @@ zig build --fork ../my-patched-zlog --fork ../zig-network
 ```
 
 ### 5.2 核心工作原理
-1. **基于 Fingerprint 精准重定向**：`Maker` 扫描当前构建树中所有依赖的 `build.zig.zon`，提取其 `fingerprint` 指纹。当命令行指定 `--fork <dir>` 时，`Maker` 读取该目录下的 `build.zig.zon` 指纹进行匹配。只要指纹一致，便直接将该依赖的根路径重定向为本地目录；
-2. **绕过全局缓存与网络下载**：被分叉的依赖不会写入全局缓存目录，而是直接使用本地目录中的最新代码，支持实时修改、实时重新构建；
-3. **零污染干净退出**：调试完成后，仅需在命令行中移除 `--fork` 参数，系统立即恢复为原始的远程固定版本，代码仓库保持绝对纯净。
+1. **包名与指纹匹配**：`Maker` 读取本地分叉目录的 `build.zig.zon`，提取包名（`name`）与指纹（`fingerprint`），组合为项目标识（`Package.ProjectId`）。当依赖树中某个依赖的包名与指纹完全一致时，将其重定向至该本地目录；若任意一项不匹配，构建系统会报错提示分叉未被使用；
+2. **绕过全局缓存与网络下载**：分叉依赖直接使用本地目录中的最新代码，支持实时修改与增量构建；
+3. **退出调试**：调试完成后，只需在命令行中移除 `--fork` 参数即可恢复使用远程固定版本，无需改动代码仓库中的配置文件。
 
 > 💡 **提示**：
 > 仅当需要将本地相对路径**长期固化**在工程版本中（例如 Monorepo 内部子模块）时，才应在 `build.zig.zon` 中使用 `.path = "../local-pkg"`。日常调试请始终优先使用 `--fork`。
@@ -189,7 +191,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 1. 声明允许通过 --system 命令行选项替换为系统包
+    // 1. 声明允许通过 --system / -fsys=sqlite 命令行选项替换为系统包
     // 运行 "zig build --help" 会自动出现该选项说明
     const sqlite_sys = b.systemIntegrationOption("sqlite", .{});
 
@@ -204,9 +206,9 @@ pub fn build(b: *std.Build) void {
 
     // 2. 根据用户配置动态选择链接策略
     if (sqlite_sys) {
-        // Linux 发行版模式：直接链接系统动态库 libsqlite3.so
-        exe.linkSystemLibrary("sqlite3");
-        exe.linkLibC();
+        // Linux 发行版模式：通过 root_module 直接链接系统动态库 libsqlite3.so
+        exe.root_module.linkSystemLibrary("sqlite3", .{});
+        exe.root_module.link_libc = true;
     } else {
         // 自包含模式：从网络下载 Vendored 源码并静态编译构建
         const sqlite_dep = b.dependency("sqlite", .{
@@ -220,16 +222,22 @@ pub fn build(b: *std.Build) void {
 }
 ```
 
-### 6.3 统一命令行交互体验
+### 6.3 命令行控制选项
 
-通过 `systemIntegrationOption` 声明的选项，会自动集成到 `zig build --help` 帮助界面中：
+与普通项目自定义选项（`-D` 选项）不同，`systemIntegrationOption` 是 Zig 构建系统原生内置的一级系统集成机制，在命令行通过 `-fsys` 与 `--system` 控制，而非 `-D` 选项：
 
 ```bash
 # 1. 默认行为：下载 vendored 源码并静态编译，保证开箱即用
 zig build
 
-# 2. Linux 发行版打包：强制链接系统动态库，完全满足打包规范
-zig build -Dsystem-sqlite=true
+# 2. 单个包启用系统集成：优先链接宿主环境提供的系统库
+zig build -fsys=sqlite
+
+# 3. 单个包显式禁用系统集成：
+zig build -fno-sys=sqlite
+
+# 4. Linux 发行版全局接管：禁用网络包拉取，并自动启用所有已声明的系统集成
+zig build --system
 ```
 
-这种机制兼顾了开源项目的开箱即用体验与 Linux 发行版的打包规范。
+若错误地传入 `-Dsystem-sqlite=true`，构建系统会因未定义该项目选项而报错（`error: invalid option: "system-sqlite"`）。通过 `zig build -h`，可以在专用的 `System Integration Options` 与 `Available System Integrations` 分区中查看所有已声明的集成项及其当前启用状态。

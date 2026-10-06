@@ -4,37 +4,36 @@
 
 ---
 
-## 1. 核心流程：参数序列化与子进程派生
+## 1. 核心流程：参数展开与子进程派生
 
-当调度线程池处理未命中的 `Step.Compile` 节点时，会调用其内部的 `make` 方法（`Step.Compile.make`）：
+`Step.Compile` 自身并不直接派生子进程，而是由主控进程 `Maker` 统一调度。当处理未命中的 `Step.Compile` 节点时，`Maker` 会调用内部的 `lowerZigArgs` 将其配置（根模块树、Target、优化级别及头文件路径等）展开为命令行参数，随后派生编译器子进程执行编译：
 
 ```mermaid
 graph LR
-    subgraph Step_State ["Step.Compile 内存状态"]
-        S_Mod["root_module (源码、宏、Target)"]
+    subgraph Step_State ["Step.Compile 配置描述"]
+        S_Mod["root_module (源码树、宏、Target)"]
         S_Opts["优化级别、链接模式、产物格式"]
     end
 
-    subgraph Serializer ["参数序列化 (Compile.zig)"]
-        G_Args["getZigArgs()<br/>将结构体展开为 CLI 参数数组"]
+    subgraph Maker_Schedule ["Maker 调度与参数展开"]
+        G_Args["lowerZigArgs()<br/>平铺模块树与展开 CLI 参数"]
     end
 
-    subgraph Spawn_Proc ["派生底层编译器 (Step.zig)"]
-        E_Proc["step.evalZigProcess(...)<br/>启动 zig build-exe / build-lib"]
+    subgraph Spawn_Proc ["派生底层编译器"]
+        E_Proc["spawnChild()<br/>启动 zig build-exe / build-lib"]
     end
 
     S_Mod --> G_Args
     S_Opts --> G_Args
     G_Args --> E_Proc
 
-    classDef default stroke:#495057;
-    style Step_State stroke:#ff9900,stroke-width:2px;
-    style Serializer stroke:#0066cc,stroke-width:2px;
-    style Spawn_Proc stroke:#009900,stroke-width:2px;
-    style S_Mod stroke:#ff9900,stroke-width:2px;
-    style S_Opts stroke:#ff9900,stroke-width:2px;
-    style G_Args stroke:#0066cc,stroke-width:2px;
-    style E_Proc stroke:#009900,stroke-width:2px;
+    style Step_State fill:#fff0e6,stroke:#ff9900,stroke-width:2px
+    style Maker_Schedule fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    style Spawn_Proc fill:#e6ffe6,stroke:#009900,stroke-width:2px
+    style S_Mod fill:#fff0e6,stroke:#ff9900
+    style S_Opts fill:#fff0e6,stroke:#ff9900
+    style G_Args fill:#cce5ff,stroke:#0066cc
+    style E_Proc fill:#e6ffe6,stroke:#009900
 ```
 
 ---

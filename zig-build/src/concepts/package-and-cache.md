@@ -361,28 +361,28 @@ zig build --fork=[path]
 
 查看编译器源码 [lib/compiler/Maker/Fetch.zig:L595-L608](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Fetch.zig#L595-L608)：
 
-1. **自动提取项目标识（Project ID）**：
-   启动 `zig build --fork ../my-patched-lib` 时，`Maker` 进程读取目标本地目录下的 `build.zig.zon`，提取其 `fingerprint`（指纹），将其映射为唯一的 `Package.ProjectId` 并注册到全局 `fork_set` 拦截表中；
-2. **依赖图遍历时的透明拦截**：
-   当 `Maker` 遍历解析依赖树时，每当探测到一个依赖声明（无论是顶层直接依赖，还是第 N 层传递依赖），都会通过 `expected_hash.projectId()` 查询 `fork_set`：
+1. **提取项目标识（Project ID）**：
+   执行 `zig build --fork ../my-patched-lib` 时，`Maker` 进程读取目标本地目录下的 `build.zig.zon`，提取包名（`name`）与指纹（`fingerprint`），生成对应的 `Package.ProjectId`（内部由 `padded_name` 和 `fingerprint_id` 构成，见 `lib/compiler/Maker/Package.zig`）并存入全局 `fork_set` 表；
+2. **依赖图遍历与重定向**：
+   当 `Maker` 遍历解析依赖树时，对每个依赖声明通过 `expected_hash.projectId()` 查询 `fork_set`：
    ```zig
    // lib/compiler/Maker/Fetch.zig:L595-L608
    if (remote.hash) |expected_hash| {
        const expected_project_id: Package.ProjectId = expected_hash.projectId();
        if (job_queue.fork_set.getKeyPtrAdapted(expected_project_id, ...)) |fork| {
            log.debug("using fork {f} for {s}", .{ fork.path, fork.manifest.name });
-           f.package_root = fork.path; // 透明重定向为本地目录！
+           f.package_root = fork.path; // 重定向为本地目录
            // ...
        }
    }
    ```
-3. **零侵入与多依赖并行分叉**：
-   - 当命令行带有 `--fork` 时，全局缓存与远程下载被透明绕过，直接使用本地源码执行配置与编译；
-   - 支持同时指定多个 `--fork` 选项进行多库联合调试：
+3. **支持多个分叉选项**：
+   - 命令行传入 `--fork` 时，全局缓存与网络下载被跳过，直接使用本地源码执行配置与编译；
+   - 支持同时指定多个 `--fork` 选项进行联合调试：
      ```bash
      zig build --fork ../zlog --fork ../zig-network
      ```
-   - 调试结束后，只需去掉命令行中的 `--fork` 参数，项目即刻恢复为标准的远程固定版本依赖，**版本库中没有任何脏代码残留**。
+   - 调试结束后，只需移除命令行中的 `--fork` 参数，项目即恢复为远程固定版本依赖，版本库中不会残留临时修改。
 
 > 💡 **提示**：
-> 使用 `--fork` 时，本地分叉项目的 `build.zig.zon` 中必须包含与原依赖一致的 `fingerprint`（指纹）。Zig 依靠指纹来精准匹配依赖树中对应的项目，防止不同依赖包之间发生误替换。
+> 本地分叉项目的 `build.zig.zon` 必须**同时与原依赖的包名（`name`）和指纹（`fingerprint`）一致**。Zig 依靠这两者构成的 `Package.ProjectId` 定位目标依赖；若任一项不一致，`Maker` 会报错提示该分叉未被匹配。

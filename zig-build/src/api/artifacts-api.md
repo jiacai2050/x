@@ -153,7 +153,7 @@ const run_app = b.addRunArtifact(exe);
 run_app.addArgs(&.{ "--config", "test.json", "--verbose" });
 
 // 3. 捕获并断言标准输出 (Stdout)
-run_app.captureStdOut();
+run_app.captureStdOut(.{});
 run_app.expectStdOutMatch("Operation completed successfully");
 
 // 4. 断言异常退出状态码（如错误输入应返回退出码 1）
@@ -167,9 +167,9 @@ test_step.dependOn(&run_app.step);
 ```
 
 > 💡 **提示**：
-> 当使用 `captureStdOut()` 时，进程的标准输出会被管道拦截并在构建引擎内部进行比对。如果输出不匹配，构建过程会以高亮 Diff 报错，非常适合用于 CLI 程序的端到端自动化回归测试。
+> `captureStdOut(.{})` 接收 `CapturedStdIo.Options` 选项（如最大捕获字节数，默认传 `.{}` 即可）。进程的标准输出会被捕获并与预期内容比对；若输出不匹配，构建过程会输出 Diff 报错。
 
-### 3.3 IDE 极速诊断模式：`check` 步骤
+### 3.3 用于 IDE 语法检查的 `check` 步骤
 
 在日常开发与 IDE 编码中，ZLS（Zig Language Server）每次保存文件都需要触发构建系统获取语法和类型检查报错。如果每次都执行全量编译、链接与落盘，会带来显著延迟。
 

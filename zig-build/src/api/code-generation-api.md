@@ -218,9 +218,13 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_protoc = b.addRunArtifact(protoc_exe);
-    const generated_msg = run_protoc.addOutputFileArg("messages.zig");
+    // 推荐使用 addOutputFileArg2 声明产物
+    const generated_msg = run_protoc.addOutputFileArg2("messages.zig", .{});
 
-    // 2. 将生成的文件放入具有全局命名标识的 WriteFiles 步骤中
+    // 2. 方式一：导出单个命名文件 LazyPath
+    b.addNamedLazyPath("proto_messages", generated_msg);
+
+    // 方式二：导出包含多个生成文件的 WriteFiles 目录
     const named_files = b.addNamedWriteFiles("proto_bindings");
     _ = named_files.addCopyFile(generated_msg, "messages.zig");
 }
@@ -237,9 +241,11 @@ pub fn build(b: *std.Build) void {
     // 1. 获取上游依赖
     const proto_dep = b.dependency("proto-generator", .{});
 
-    // 2. 声明式获取上游导出的命名集合
-    const proto_files = proto_dep.namedWriteFiles("proto_bindings");
-    const msg_zig = proto_files.files.get("messages.zig").?;
+    // 2. 获取上游导出的命名 LazyPath
+    const msg_zig = proto_dep.namedLazyPath("proto_messages");
+    // （若消费上游导出的整个 WriteFiles 目录，则使用：
+    //  const proto_dir = proto_dep.namedWriteFiles("proto_bindings").getDirectory();
+    //  const msg_zig = b.pathJoin(&.{ proto_dir, "messages.zig" });）
 
     // 3. 基于上游动态产物组装模块
     const msg_module = b.createModule(.{
@@ -302,7 +308,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_gen = b.addRunArtifact(generator);
-    const generated_table = run_gen.addOutputFileArg("lookup_table.zig");
+    const generated_table = run_gen.addOutputFileArg2("lookup_table.zig", .{});
 
     // 2. 声明专用回写步骤：Step.UpdateSourceFiles
     const update_source = b.addUpdateSourceFiles();
@@ -343,8 +349,12 @@ b.dependOnFileContents(version_path);
 
 // 2. 其它细粒度声明 API
 b.dependOnFileMetadata(b.path("assets/logo.png"));    // 仅依赖文件元数据 (inode/mtime/size)
-b.dependOnDirectoryContents(b.path("plugins/"));     // 依赖目录下所有文件内容
-b.dependOnDirectoryMetadata(b.path("templates/"));   // 仅依赖目录元数据 (增删文件)
+b.dependOnDirectoryContents(b.path("plugins/"));     // 依赖目录条目（新增、删除或重命名文件）
+b.dependOnDirectoryMetadata(b.path("templates/"));   // 仅依赖目录修改时间
+
+// 注意：若配置期扫描 plugins/ 目录并读取具体文件内容，
+// 应针对每个文件调用 dependOnFileContents()，
+// 这样在已有文件内容改动时，配置缓存也能准确失效重编。
 ```
 
 通过显式声明，`Maker` 会将这些文件或目录的哈希纳入配置缓存凭据（Configure Cache Digest）。只要外部文件未发生修改，配置缓存继续命中，直接跳过 `configurer` 进程。

@@ -34,6 +34,25 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // 3. 通过独立工具动态生成源码文件（addOutputFileArg2）
+    const table_gen = b.addExecutable(.{
+        .name = "table_gen",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/table_gen.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseSafe,
+        }),
+    });
+    const run_table_gen = b.addRunArtifact(table_gen);
+    const table_zig = run_table_gen.addOutputFileArg2("table.zig", .{});
+
+    const table_mod = b.createModule(.{
+        .root_source_file = table_zig,
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 4. 组装主程序
     const exe = b.addExecutable(.{
         .name = "codegen_app",
         .root_module = b.createModule(.{
@@ -42,6 +61,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "version", .module = version_mod },
+                .{ .name = "table", .module = table_mod },
             },
         }),
     });
@@ -53,4 +73,13 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // 5. 端到端测试：捕获输出并进行断言验证
+    const run_test = b.addRunArtifact(exe);
+    _ = run_test.captureStdErr(.{});
+    run_test.expectStdErrMatch("03-code-generation result: App=CodegenDemo");
+    run_test.expectStdErrMatch("Multiplier=10");
+
+    const test_step = b.step("test", "Run tests and assertions");
+    test_step.dependOn(&run_test.step);
 }

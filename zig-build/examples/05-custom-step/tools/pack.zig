@@ -44,8 +44,15 @@ pub fn main(init: std.process.Init) !void {
 
     const bin_name = std.fs.path.basename(input_path);
     const tar_entry_path = try std.fmt.allocPrint(allocator, "bin/{s}", .{bin_name});
+    const bin_size = try bin_reader.getSize();
 
-    try tar_writer.writeFile(tar_entry_path, &bin_reader, 0);
+    // Explicitly record executable permission mode (0o755: rwxr-xr-x)
+    try tar_writer.writeFileStream(
+        tar_entry_path,
+        bin_size,
+        &bin_reader.interface,
+        .{ .mode = 0o755 },
+    );
     try tar_writer.finishPedantically();
 
     // 6. 结束压缩并刷新缓冲区
