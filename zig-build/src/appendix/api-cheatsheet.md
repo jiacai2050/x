@@ -34,7 +34,7 @@
 | [`b.addNamedWriteFiles(name)`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L862) | 创建并向外部跨包公开导出的命名 WriteFiles 步骤 |
 | [`b.addNamedLazyPath(name, lp)`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L879) | 向外部跨包公开暴露命名的生成路径或文件 |
 | [`b.addUpdateSourceFiles()`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L937) | 创建将生成物安全回写同步至 `src/` 源码树（Git 仓库）的专用步骤 |
-| [`b.systemIntegrationOption(name, .{})`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2552) | 声明发行版系统包集成选项，支持源码 vendored 与系统动态库模式无缝切换 |
+| [`b.systemIntegrationOption(name, .{})`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2552) | 声明发行版系统包集成选项，支持源码 vendored 与系统动态库模式按需切换 |
 | [`b.addObjCopy(source, opts)`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1492) | 从 ELF 产物中提取裸机固件镜像（`.bin` / `.hex`）或剥离符号 |
 | [`b.addFail(error_msg)`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L941) | 创建条件构建下的防御性延迟报错步骤（`*Step.Fail`） |
 

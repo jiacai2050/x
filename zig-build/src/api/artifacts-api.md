@@ -69,7 +69,7 @@ b.getInstallStep().dependOn(&install_bin.step);
 
 ### 1.3 链接脚本与符号导出控制：`setLinkerScript` 与 `setVersionScript`
 
-在系统级与嵌入式编程中，控制内存布局与导出符号至关重要：
+系统级与嵌入式编程中，常需要精确指定内存布局与导出符号：
 - **指定链接脚本（`setLinkerScript`）**：在无操作系统（Freestanding）裸机开发中，通过 [lib/std/Build/Step/Compile.zig:L571](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L571) 指定自定义的 `linker.ld`，精确规划 Flash、RAM 区域及中断向量表的物理地址：
   ```zig
   kernel_elf.setLinkerScript(b.path("src/linker.ld"));
@@ -193,11 +193,11 @@ ZLS 默认会调用 `zig build check`，仅触发编译器前端语义分析（S
 
 ## 4. 辅助产物与静态资源交付：文档生成与 `installDirectory`
 
-在工业级项目中，最终交付的产物不仅包含二进制可执行文件，往往还包括 API 参考文档与静态资源文件（如 Web 前端资源、着色器、配置文件等）。
+除了二进制可执行文件与库文件，构建输出还常包含 API 参考文档与静态资源（如 Web 前端资源、着色器、配置文件等）。
 
 ### 4.1 自动化 HTML API 文档生成：`compile.getEmittedDocs()`
 
-Zig 编译器内置了自动化文档生成系统，能够直接从源码注释（`//!` 与 `///`）中提取并渲染生成现代化的单页 HTML API 参考文档。
+Zig 编译器能够直接从源码注释（`//!` 与 `///`）中提取并生成单页 HTML API 参考文档。
 
 通过 [lib/std/Build/Step/Compile.zig:L723](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L723) 的 `getEmittedDocs()` 获取文档输出的 `LazyPath`，并接入安装步骤：
 
@@ -241,7 +241,7 @@ b.installDirectory(.{
 
 在开发机上交叉编译目标架构（如在 x86_64 上测试 ARM64 或 RISC-V 产物）时，执行期需要仿真器支持：
 - **命令行自动调度仿真器**：Zig 原生集成了外部执行器探测（如 Linux 的 `binfmt_misc` 或 macOS 的 Rosetta）。用户也可在命令行直接传入 `-fqemu` 或 `-fwasmtime`，让构建系统自动挂载仿真环境；
-- **配置跨平台执行容错**：在构建脚本中，可以通过 `failing_to_execute_foreign_is_an_error` 声明策略。当缺少目标架构仿真器时优雅跳过运行，避免打断构建流水线：
+- **配置跨平台执行容错**：在构建脚本中，可以通过 `failing_to_execute_foreign_is_an_error` 声明策略。缺少目标架构仿真器时可跳过运行，避免中断构建流程：
   ```zig
   // 遇到非宿主架构（Foreign Binary）时，若无可用仿真器则跳过而不是直接失败
   run_unit_tests.failing_to_execute_foreign_is_an_error = false;

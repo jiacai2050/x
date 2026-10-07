@@ -116,12 +116,12 @@ const root_path = b.path(""); // 推荐：直接获取工程根目录 LazyPath
 
 ---
 
-### 2.6 C 头文件转译：`@cImport` 彻底移除与 `addTranslateC` 替代
+### 2.6 C 头文件转译：`@cImport` 移除与 `addTranslateC` 替代
 
-0.17 彻底移除了语言内置的 `@cImport` 原语。业务源码中不再支持通过内联 `@cImport({ @cInclude(...) })` 转译 C 头文件，所有转译工作统一交由构建系统完成：
+0.17 移除了语言内置的 `@cImport` 原语。业务源码中不再支持通过内联 `@cImport({ @cInclude(...) })` 转译 C 头文件，转译工作统一交由构建系统完成：
 
 ```zig
-// 0.16 早期源码内联写法（0.17 已彻底移除）
+// 0.16 早期源码内联写法（0.17 已移除）
 // const c = @cImport({
 //     @cInclude("my_header.h");
 // });

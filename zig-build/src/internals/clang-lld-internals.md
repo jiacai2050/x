@@ -114,7 +114,7 @@ Zig 生成的目标文件与 Clang 编译出的 C 目标文件之所以能直接
 ### 5.1 内置工具链的交叉编译优势
 
 Zig 静态内嵌了 Clang 与 LLD，减少了交叉编译对外部环境的依赖：
-- **开箱即用的交叉编译**：下载单一 `zig` 二进制后，即可为 Linux musl、Windows MinGW 或 macOS 等目标编译 C/C++ 代码，无需在宿主机额外配置 `toolchain.cmake` 或安装特定架构的 GCC 工具链；
+- **无需额外工具链的交叉编译**：下载单一 `zig` 二进制后，即可为 Linux musl、Windows MinGW 或 macOS 等目标编译 C/C++ 代码，无需在宿主机额外配置 `toolchain.cmake` 或安装特定架构的 GCC 工具链；
 - **兼容现有项目**：内置的 C/C++ 编译器也可以作为 `zig cc` / `zig c++` 单独调用，直接用于编译现有的纯 C/C++ 项目。
 
 ### 5.2 局限与不足

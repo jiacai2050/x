@@ -181,7 +181,7 @@ zig build --fork ../my-patched-zlog --fork ../zig-network
 ### 6.1 Vendored vs System Package 矛盾
 
 在开源软件分发中，经常存在两种冲突的诉求：
-- **应用程序开发者与跨平台构建**：希望 `zig build` 零配置一键下载并静态编译所有 C/C++ 依赖（Vendored 模式），实现真正的自包含和开箱即用；
+- **应用程序开发者与跨平台构建**：希望 `zig build` 自动下载并静态编译所有 C/C++ 依赖（Vendored 模式），实现自包含与跨平台一致构建；
 - **Linux 发行版维护者（Debian / Arch / Fedora / Alpine）**：打包规范**严格禁止使用内嵌第三方源码**，所有动态库（如 SQLite、zlib、OpenSSL）必须链接操作系统原生提供的系统包（System Library）。
 
 ### 6.2 声明式双模切换机制
@@ -231,7 +231,7 @@ pub fn build(b: *std.Build) void {
 与普通项目自定义选项（`-D` 选项）不同，`systemIntegrationOption` 是 Zig 构建系统原生内置的一级系统集成机制，在命令行通过 `-fsys` 与 `--system` 控制，而非 `-D` 选项：
 
 ```bash
-# 1. 默认行为：下载 vendored 源码并静态编译，保证开箱即用
+# 1. 默认行为：下载 vendored 源码并静态编译
 zig build
 
 # 2. 单个包启用系统集成：优先链接宿主环境提供的系统库

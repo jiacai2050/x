@@ -7,7 +7,7 @@
 - [构建系统的演进与痛点](philosophy/history-and-pain-points.md)
 - [Zig 构建系统的哲学与愿景](philosophy/zig-build-philosophy.md)
 
-# 核心概念深度解析
+# 核心概念解析
 
 - [两阶段生命周期：配置期与执行期](concepts/phases-and-lifecycle.md)
 - [计算图抽象：Step 与有向无环图 (DAG)](concepts/step-and-dag.md)
@@ -15,7 +15,7 @@
 - [编译单元与产物解耦：Module vs Step.Compile](concepts/module-vs-artifact.md)
 - [包管理与确定性缓存：build.zig.zon 与缓存布局](concepts/package-and-cache.md)
 
-# 核心 API 全景与实战用法
+# 核心 API 与用法
 
 - [标准选项与顶层入口：b.standardTargetOptions 与 b.step](api/options-and-entry.md)
 - [产物构建与测试验证：Executable、Library、Test 与 ObjCopy](api/artifacts-api.md)
@@ -25,14 +25,14 @@
 - [第三方依赖引入与消费：b.dependency、--fork 与系统包集成](api/dependency-api.md)
 - [编写自定义 Step：扩展构建管线](api/custom-steps.md)
 
-# 实战工程最佳实践
+# 工程实践
 
 - [实战一：标准 Zig CLI 应用与单元测试](practices/practice-zig-app.md)
 - [实战二：Zig 与 C/C++ 混合编程工程结构](practices/practice-mixed-c-zig.md)
-- [实战三：复杂第三方 C 库的完整移植实践（以 MariaDB Connector 为例）](practices/practice-porting-c-library.md)
+- [实战三：复杂第三方 C 库的移植（以 MariaDB Connector 为例）](practices/practice-porting-c-library.md)
 - [实战四：跨平台交叉编译与 Makefile/CI 自动化](practices/practice-cross-compile-ci.md)
 
-# 源码级底层运行机制
+# 底层运行机制
 
 - [构建自举与双进程：Maker 与 Configurer 架构流转](internals/build-runner-internals.md)
 - [编译器交接：Step.Compile 到子进程拼装](internals/step-compile-internals.md)

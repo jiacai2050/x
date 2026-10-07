@@ -1,4 +1,4 @@
-# 实战三：复杂第三方 C 库的完整移植实践（以 MariaDB Connector 为例）
+# 实战三：复杂第三方 C 库的移植（以 MariaDB Connector 为例）
 
 移植单文件 C 代码通常较为直接，但主流 C 库（如 MariaDB Connector/C、SQLite、OpenSSL 等）通常包含较多源码文件、CMake 配置探测、平台条件编译分支以及第三方依赖。
 
@@ -14,9 +14,9 @@
 
 ---
 
-## 1. 移植面临的核心挑战
+## 1. 移植面临的问题
 
-大型 C 库的构建通常需要处理以下常见问题：
+大型 C 库的构建通常涉及以下几个方面：
 
 ```mermaid
 graph TD

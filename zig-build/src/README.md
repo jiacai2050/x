@@ -28,25 +28,26 @@ Zig 提供了另一种思路：
 1. **来龙去脉与设计哲学**（`philosophy/`）
    - 梳理构建工具的演进过程与痛点；
    - 介绍 Zig 构建系统的设计哲学与自包含工具链。
-2. **核心概念深度解析**（`concepts/`）
+2. **核心概念解析**（`concepts/`）
    - 配置期（Configuration）与执行期（Execution）生命周期及双进程隔离；
    - 任务计算图抽象：`std.Build.Step` 与 DAG 拓扑；
    - 惰性路径：`LazyPath` 的设计与数据流驱动；
    - 模块与产物解耦：`Module` vs `Step.Compile`；
    - 包管理模型：`build.zig.zon` 与二进制缓存布局。
-3. **核心 API 全景与实战用法**（`api/`）
-   - 编译选项解析与顶层 Step 注册；
-   - 可执行文件、库与单元测试产物构建（`addPassthruArgs` 等）；
-   - 模块命名空间管理与子模块导入（`addImport`）；
-   - C/C++ 互操作、头文件包含路径传播与头文件树导出；
-   - 代码生成、配置常量与源码同步（`ConfigHeader`、`Options`、`WriteFiles`）；
-   - 依赖包消费（`b.dependency`）与 Host 工具辅助模式。
-4. **实战工程最佳实践**（`practices/`）
+3. **核心 API 与实战用法**（`api/`）
+   - 编译选项解析与顶层 Step 注册（`b.standardTargetOptions` 与 `b.step`）；
+   - 可执行文件、库与单元测试产物构建（`addExecutable`、`addLibrary`、`addTest`、`addObjCopy`）；
+   - 模块命名空间管理与子模块导入（`createModule`、`addModule`、`addImport`）；
+   - C/C++ 互操作、头文件包含路径传播与头文件树导出（`addTranslateC`、`linkLibrary`）；
+   - 代码生成、配置常量与源码同步（`ConfigHeader`、`Options`、`WriteFiles`、`UpdateSourceFiles`）；
+   - 第三方依赖引入与消费（`b.dependency`、`--fork` 与系统包集成）；
+   - 编写自定义 Step 与扩展构建管线（Host Tool 辅助模式与系统命令调用）。
+4. **工程实践**（`practices/`）
    - 纯 Zig 应用程序工程范式；
    - Zig 与 C/C++ 混合编程结构；
    - 复杂第三方 C 库的移植实践（以 MariaDB Connector/C 为例）；
    - 跨平台交叉编译与 GitHub Actions CI 流水线。
-5. **源码级底层运行机制**（`internals/`）
+5. **底层运行机制**（`internals/`）
    - 构建自举与双进程架构：Maker 与 Configurer 源码流转；
    - `Step.Compile` 到子进程拼装细节；
    - 单体编译单元 ZCU 与跨模块 comptime 分析机制；

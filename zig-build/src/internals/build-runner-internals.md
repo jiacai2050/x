@@ -77,7 +77,7 @@ flowchart TD
 
 ---
 
-## 2. 阶段一：进程自举与 JIT (`jitCmd`)
+## 2. 进程自举与 JIT：从 `zig build` 到 `Maker`
 
 构建与包管理相关的子命令均通过 JIT 自举入口收敛：
 
@@ -109,12 +109,12 @@ flowchart TD
    });
    ```
    只要 Zig 版本与标准库未变动，该编译直接命中缓存；
-3. **进程无缝替换（`process.replace`）**：
-   在支持 `execve` 的现代操作系统上，Zig 进程直接调用 `process.replace` 将当前进程镜像原子替换为编译好的 `maker`，消除常驻父进程的内存与管理开销。
+3. **进程就地替换（`process.replace`）**：
+   在支持 `execve` 的操作系统上，Zig 进程直接调用 `process.replace` 将当前进程镜像替换为编译好的 `maker`，消除父进程的常驻内存与管理开销。
 
 ---
 
-## 3. 阶段二：`Maker` 主控会话与双循环架构
+## 3. `Maker` 主控会话与双循环调度架构
 
 启动 `maker` 进程后，其核心调度骨架由内外两层嵌套循环构成（提炼自 [lib/compiler/Maker.zig:L737-L1040](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L737-L1040)）：
 
@@ -142,11 +142,11 @@ configure: while (true) {
         // 会话模式（--watch / --listen）：等待文件变更或 RPC 请求
         switch (try watch.wait(timeout)) {
             error.MustReconfigure => {
-                // build.zig / build.zig.zon 发生变更：回流至阶段一重新执行 configurer
+                // build.zig / build.zig.zon 发生变更：回流至外层循环重新执行 configurer
                 continue :configure;
             },
             .timeout => {
-                // 普通源文件（src/*.zig）发生变更：回流至阶段二增量重跑脏 Step
+                // 普通源文件（src/*.zig）发生变更：回流至内层循环增量重跑脏 Step
                 markFailedStepsDirty(&maker);
                 continue :rebuild;
             },
@@ -156,12 +156,12 @@ configure: while (true) {
 ```
 
 ### 事件分级回流机制：
-- **常规源码修改（`src/*.zig`）**：触发 `continue :rebuild;`，`Maker` 实例与内存构建图继续复用，直接回到**阶段三（ExecSteps）**，仅增量重跑被标记为脏的 Step；
-- **构建配置文件修改（`build.zig` / `build.zig.zon`）**：抛出 `error.MustReconfigure`，触发 `continue :configure;`，跳出内层循环并触发 `defer maker.deinit()`，回到**阶段二（Check）**重新探测配置并重建 `Maker` 实例。
+- **常规源码修改（`src/*.zig`）**：触发 `continue :rebuild;`，`Maker` 实例与内存构建图继续复用，直接回到**任务调度执行（rebuild 循环）**，仅增量重跑被标记为脏的 Step；
+- **构建配置文件修改（`build.zig` / `build.zig.zon`）**：抛出 `error.MustReconfigure`，触发 `continue :configure;`，跳出内层循环并触发 `defer maker.deinit()`，回到**配置探测（configure 循环）**重新探测配置并重建 `Maker` 实例。
 
 ---
 
-## 4. 阶段三：`Configurer` 进程派生与二进制序列化
+## 4. `Configurer` 临时子进程派生与二进制序列化
 
 当 `Maker` 判定配置缓存未命中时，会派生一个极短生命周期的子进程 `configurer`：
 
@@ -182,7 +182,7 @@ configure: while (true) {
 
 ## 5. 惰性依赖的自动重试机制
 
-当构建配置中使用了尚未下载的惰性依赖时，双进程架构提供了高度优雅的自动重试支持：
+当构建配置中使用了尚未下载的惰性依赖时，系统支持自动拉取并重新执行配置：
 在 [lib/compiler/Maker.zig:L1530-L1542](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L1530-L1542) 中：
 ```zig
 if (configuration.unlazy_deps.len != 0) {
@@ -194,7 +194,7 @@ if (configuration.unlazy_deps.len != 0) {
     // Maker 在后台并发拉取缺失的依赖包，拉取完成后重试配置循环
 }
 ```
-`configurer` 仅需在输出的二进制配置流中包含 `unlazy_deps` 列表。`Maker` 作为常驻主控进程，在后台并发拉取缺失的依赖包解压至全局缓存，随后直接在双循环架构的外层重新执行 `configure` 探测，整个过程**无需重启主进程**，对用户完全透明。
+`configurer` 仅需在输出的二进制配置流中包含 `unlazy_deps` 列表。`Maker` 作为常驻主控进程，在后台并发拉取缺失的依赖包解压至全局缓存，随后直接在双循环架构的外层重新执行 `configure` 探测，整个过程无需重启主进程。
 
 ---
 
@@ -208,4 +208,4 @@ if (configuration.unlazy_deps.len != 0) {
   2. **细粒度进度事件推送**：实时推送每个 Step 的开始、完成、耗时以及详细的 `ErrorBundle` 诊断信息；
   3. **交互式构建控制**：语言服务器可主动下发指令，触发指定 Step 的重编或单元测试。
 
-这标志着 IDE 与 Zig 构建系统的交互从以往的黑盒猜测与 Hack，转向了官方标准化的协议通信通道。
+通过这一协议，语言服务器可以直接向构建系统查询结构化元数据，避免了解析文本输出或自行猜测构建配置。

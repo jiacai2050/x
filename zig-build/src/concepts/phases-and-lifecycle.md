@@ -1,8 +1,8 @@
 # 两阶段生命周期：配置期与执行期
 
-编写 `build.zig` 时，理解配置期（Configuration Phase）与执行期（Execution Phase）的分界是掌握 Zig 构建系统的基石。
+编写 `build.zig` 时，需要区分配置期（Configuration Phase）与执行期（Execution Phase）。
 
-在现代 Zig 构建体系中，两阶段被赋予了**严格的物理进程隔离**，并依托**配置缓存（Configure Cache）** 与 **缓存污染追踪（Cache Poisoning）** 机制实现极低开销的增量评估与执行。
+构建系统在两个阶段使用独立的进程，并结合配置缓存（Configure Cache）与缓存污染追踪（Cache Poisoning）实现增量评估与执行。
 
 ---
 
@@ -140,7 +140,7 @@ pub fn build(b: *std.Build) void {
 
 ## 4. 配置缓存与污染追踪机制
 
-构建图具备持久化配置缓存能力，旨在消除重复执行 `build()` 的开销：
+构建系统通过持久化配置缓存避免重复执行 `build()`：
 
 ### 4.1 纯函数配置与高速路径（Fast Path）
 
@@ -200,4 +200,4 @@ const file = try std.fs.cwd().openFile("zig-out/include/config.h", .{});
 var child = std.process.Child.init(&.{ "git", "rev-parse", "HEAD" }, b.allocator);
 const output = try child.spawnAndWait();
 ```
-**问题**：这不仅会显著拖慢每次 `zig build` 的冷启动速度，而且如果引入了外部环境变量变动还会污染配置缓存。推荐使用 `b.addSystemCommand` 创建 `Step.Run`，由 DAG 自动参与并发调度与增量缓存。
+**问题**：这会增加 `zig build` 的启动时间；若调用了外部环境变量，还会导致配置缓存被标记为污染。应使用 `b.addSystemCommand` 创建 `Step.Run`，由构建图统一调度与缓存。

@@ -84,12 +84,12 @@ fn linkLibraryOrObject(m: *Module, other: *Step.Compile) void {
 
 ---
 
-## 3. 模块级 C/C++ 与多平台高级配置
+## 3. 模块级 C/C++ 与平台配置
 
-除了基础的 C 源码挂载与头文件包含，`std.Build.Module` 还内置了一系列常用且细粒度的编译配置 API：
+除了基础的 C 源码挂载与头文件包含，`std.Build.Module` 还内置了一系列细粒度的编译配置 API：
 
 ### 3.1 预处理宏直接注入：`addCMacro`
-当只需要配置几个简单的编译宏，而无需大动干戈生成 CMake 风格的 `config.h` 时，直接通过 [lib/std/Build/Module.zig:L530](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L530) 注入预处理宏：
+当只需配置少量编译宏，无需生成 CMake 风格的 `config.h` 时，可通过 [lib/std/Build/Module.zig:L530](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L530) 注入预处理宏：
 
 ```zig
 module.addCMacro("SQLITE_ENABLE_JSON1", "1");

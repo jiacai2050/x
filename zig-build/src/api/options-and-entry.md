@@ -6,7 +6,7 @@
 
 ## 1. 目标平台与优化级别
 
-Zig 提供了开箱即用的标准选项解析方法：
+Zig 提供了标准的目标平台与优化级别解析方法：
 
 ```zig
 pub fn build(b: *std.Build) void {
@@ -104,7 +104,7 @@ pub fn build(b: *std.Build) void {
 ### 4.1 细粒度的 Target 表达能力
 
 Zig 的 `standardTargetOptions` 支持较为细致的目标平台定义：
-- **指定微架构（CPU Features）**：不仅支持架构名，还支持按微架构层级编译（如 `-Dtarget=x86_64_v3-linux-gnu`）或指定指令集开关（如 `+avx512f`、`-sse4.1`）；
+- **指定微架构（CPU Features）**：支持基础架构名，也支持按微架构层级编译（如 `-Dtarget=x86_64_v3-linux-gnu`）或指定指令集开关（如 `+avx512f`、`-sse4.1`）；
 - **指定 glibc 最低兼容版本**：例如传入 `-Dtarget=x86_64-linux-gnu.2.28`，Zig 内置的 libc 符号表会将符号绑定至 2.28 版本的导出，有助于解决高版本开发机编译出的程序在旧版 Linux 服务器上报 `GLIBC_2.34 not found` 的兼容性问题。
 
 ### 4.2 局限与不足
