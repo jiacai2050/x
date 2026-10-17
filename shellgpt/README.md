@@ -116,8 +116,12 @@ Usage:
 sg --list
 
 # Use a specific role
-sg -s typo I is a enginer
-git diff | sg -s commit
+sg -r typo I is a enginer
+git diff | sg -r commit
+
+# Directly configure system prompt
+sg --system "You are a translator. Translate to Japanese." Hello world
+sg --system-file prompt.txt Hello world
 ```
 
 ### Custom Roles
@@ -129,7 +133,7 @@ Add your own roles to `config.toml`:
 translator = "You are a professional translator. Translate everything to Japanese."
 ```
 
-Then use it with `sg -s translator Hello world`.
+Then use it with `sg -r translator Hello world`.
 
 ## TUI
 

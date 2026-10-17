@@ -116,8 +116,12 @@ temperature = 0.8
 sg --list
 
 # 使用特定角色
-sg -s typo I is a enginer
-git diff | sg -s commit
+sg -r typo I is a enginer
+git diff | sg -r commit
+
+# 直接指定 system 提示词
+sg --system "你是一位翻译官，请将所有输入翻译成日语。" 你好，世界
+sg --system-file prompt.txt 你好，世界
 ```
 
 ### 自定义角色
@@ -129,7 +133,7 @@ git diff | sg -s commit
 translator = "你是一位专业的翻译官，请将所有输入翻译成日语。"
 ```
 
-然后使用 `sg -s translator 你好，世界`。
+然后使用 `sg -r translator 你好，世界`。
 
 ## TUI 模式
 

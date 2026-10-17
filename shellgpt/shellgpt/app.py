@@ -299,6 +299,15 @@ def main():
         help='Predefined role name (see [roles] in config.toml)',
     )
     parser.add_argument(
+        '-s',
+        '--system',
+        help='Directly configure system prompt content',
+    )
+    parser.add_argument(
+        '--system-file',
+        help='Configure system prompt from a file path',
+    )
+    parser.add_argument(
         '-t',
         '--timeout',
         type=int,
@@ -331,6 +340,18 @@ def main():
     args = parser.parse_args()
     set_verbose(args.verbose)
 
+    system_sources = [
+        bool(args.role),
+        bool(args.system),
+        bool(args.system_file),
+    ]
+    if sum(system_sources) > 1:
+        print(
+            'Error: --role, --system, and --system-file cannot be used together.',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if args.init:
         init_app()
         sys.exit(0)
@@ -358,7 +379,24 @@ def main():
     else:
         app_mode = AppMode.REPL if len(prompt) == 0 else AppMode.Direct
 
-    role_name = args.role or params.get('role', 'default')
+    if args.system:
+        role_name = 'system'
+        params['roles']['system'] = args.system
+    elif args.system_file:
+        try:
+            with open(args.system_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            print(
+                f"Error: Failed to read system file '{args.system_file}': {e}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        role_name = 'system'
+        params['roles']['system'] = content
+    else:
+        role_name = args.role or params.get('role', 'default')
+
     if app_mode == AppMode.TUI:
         role_name = 'shell'
 

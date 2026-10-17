@@ -1,6 +1,6 @@
 [project]
 name = "shgpt"
-version = "0.7.1"
+version = "0.7.2"
 authors = [{name = "Jiacai Liu", email="dev@liujiacai.net"}]
 description = "Chat with LLM in your terminal, be it shell generator, story teller, linux-terminal, etc."
 readme = "README.md"
