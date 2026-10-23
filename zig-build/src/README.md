@@ -3,19 +3,22 @@
 ## 为什么写这本书？
 
 系统级编程中的构建流程通常比较繁琐：
+
 - C/C++ 依赖 Autotools、Make、CMake 等工具，跨平台配置和交叉编译环境搭建成本较高；
 - 现代语言（如 Rust Cargo、Go）统一了语言内的包管理，但遇到 C/C++ 依赖混编、代码生成或交叉编译时，仍需通过 `build.rs` 或 CGo 脚本调用外部工具链。
 
 Zig 提供了另一种思路：
+
 1. **直接用 Zig 编写构建逻辑（No DSL, Just Zig）**：不再引入专用的构建脚本语言，构建逻辑直接在 `build.zig` 中使用标准 Zig 编写；
 2. **自包含工具链**：Zig 二进制内嵌了 Clang 编译器、LLD 链接器以及主流平台的 libc 符号库，无需额外安装目标平台的外部交叉编译环境；
 3. **Maker 与 Configurer 双进程架构**：将构建图的配置生成（短命 `configurer` 进程）与任务调度执行（`maker` 进程）解耦；
 4. **配置缓存与污染追踪（Cache Poisoning）**：构建配置支持二进制缓存；只有当脚本检测外部非受控环境时才标记污染降级，兼顾性能与纯函数确定性；
 5. **增量二进制缓存与 BSP 标准**：缓存 Manifest 采用紧凑二进制格式（提供 `zig cache-cat` 诊断），并确立官方 Build Server Protocol 规范 IDE 交互。
 
-由于 Zig 处于快速迭代期，网络上较多旧版本的代码片段已无法直接使用。本书梳理 Zig 构建系统的核心抽象、常用 API 以及底层执行机制，帮助读者系统掌握现代 Zig 构建实践。
+由于 Zig 处于快速迭代期，网络上较多旧版本的代码片段已无法直接使用。本书梳理 Zig 构建系统的核心抽象、常用 API 以及底层执行机制，帮助读者系统掌握现代 Zig 构建实践。为方便读者离线阅读，提供 pdf、epub 版本。
 
-> 🌐 网站：<https://jiacai2050.github.io/x/zig-build/>
+> - 🌐 在线阅读：<https://jiacai2050.github.io/x/zig-build/>
+> - 📖 离线阅读：支持 [PDF](https://fs.liujiacai.net/public/book/zig-build.pdf) 与 [EPUB](https://fs.liujiacai.net/public/book/zig-build.epub) 格式下载
 
 ![](cover.svg)
 
@@ -63,6 +66,7 @@ Zig 提供了另一种思路：
 - **Zig 版本**：基于 **Zig 0.17.0**。0.16 的版本见[这里](https://jiacai2050.github.io/zig-build-0.16/)。
 - **实战示例代码**：
   本书配套了 5 个完全独立的 Zig 0.17.0 示例工程，源码均位于项目的 `examples/` 目录，读者可直接点击链接浏览源码或在本地运行：
+
   | 示例项目 | 核心验证场景 | 对应章节 |
   | :--- | :--- | :--- |
   | [examples/01-zig-app](https://github.com/jiacai2050/x/tree/main/zig-build/examples/01-zig-app) | 标准 Zig CLI 应用、模块拆分与单元测试 | [实战一：标准 Zig CLI 应用与单元测试](practices/practice-zig-app.md) |
@@ -81,5 +85,6 @@ Zig 提供了另一种思路：
 书中的所有代码均经过了本地与 CI 测试，并利用 AI 润色，但 AI 存在幻觉，再加上 Zig 及其构建系统演进较快，个人精力与水平有限，书中难免会有疏漏或理解偏差。
 
 如果你在阅读或实战中发现任何错误（代码无法运行、原理解释有误、文字错漏等），欢迎反馈与交流：
+
 - 在 GitHub 提交 Issue 或 PR：<https://github.com/jiacai2050/x>
 - 加入 [ZigCC 微信群](https://github.com/orgs/zigcc/discussions/134)，与更多人一起讨论、交流 Zig

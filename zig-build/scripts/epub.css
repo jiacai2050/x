@@ -1,0 +1,25 @@
+/* scripts/epub.css */
+
+/* 修复 Pandoc EPUB 默认样式导致章节首多出一页空白的问题 */
+h1 {
+  page-break-before: auto !important;
+  break-before: auto !important;
+  margin-top: 1.5em !important;
+}
+
+/* 链接样式区分：
+   1. 使用 !important 避免被阅读器内置主题样式覆盖；
+   2. 保留下划线，确保触屏设备和墨水屏上能够一眼识别为超链接；
+*/
+a, a:link, a:visited {
+  color: #0969da !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+
+/* 暗色模式下提高链接对比度（GitHub Dark 风格） */
+@media (prefers-color-scheme: dark) {
+  a, a:link, a:visited {
+    color: #58a6ff !important;
+  }
+}

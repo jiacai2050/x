@@ -3,7 +3,7 @@ ZIG ?= zig
 
 .DEFAULT_GOAL := test
 
-.PHONY: book-build serve test clean test-examples
+.PHONY: book-build serve test clean test-examples pdf epub
 
 book-build:
 	$(MDBOOK) build
@@ -28,3 +28,9 @@ test: book-build test-examples
 
 clean:
 	$(MDBOOK) clean
+
+pdf:
+	./scripts/build-pdf.sh
+
+epub:
+	./scripts/build-epub.sh
