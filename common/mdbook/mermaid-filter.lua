@@ -1,4 +1,4 @@
--- scripts/mermaid-filter.lua
+-- common/mdbook/mermaid-filter.lua
 -- Pandoc Lua Filter: 将 mermaid 代码块调用本地 mmdc 转换为 3x 高清图片并嵌入文档
 
 local system = pandoc.system
@@ -18,10 +18,13 @@ end
 -- 判断当前输出格式是否为 typst
 local is_typst = (FORMAT == "typst")
 
+local src_dir = os.getenv("MDBOOK_SRC_DIR") or "src"
+local book_dir = os.getenv("MDBOOK_BUILD_DIR") or "book"
+
 function CodeBlock(block)
   if block.classes:includes("mermaid") then
     local hash = sha1(block.text)
-    local out_dir = "book/mermaid-images"
+    local out_dir = book_dir .. "/mermaid-images"
     local local_file = out_dir .. "/" .. hash .. ".png"
     -- Typst 中以 / 开头的路径表示相对于 --root 的路径；EPUB 等其他格式使用相对路径
     local img_ref = is_typst and ("/" .. local_file) or local_file
@@ -51,8 +54,9 @@ end
 function Image(img)
   -- 规范化相对图片路径
   if not img.src:match("^/") and not img.src:match("^https?://") then
-    if img.src == "cover.svg" or io.open("src/" .. img.src, "r") then
-      img.src = is_typst and ("/src/" .. img.src) or ("src/" .. img.src)
+    local candidate = src_dir .. "/" .. img.src
+    if img.src == "cover.svg" or io.open(candidate, "r") then
+      img.src = is_typst and ("/" .. candidate) or candidate
     end
   end
   return img

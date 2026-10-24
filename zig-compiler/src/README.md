@@ -1,4 +1,4 @@
-# Zig 编译器设计与源码深度剖析
+# Zig 编译器源码分析
 
 > 面向编译初学者的系统级编译器架构全景书
 
@@ -6,7 +6,8 @@
 
 全书从基础概念讲起，结合对传统面向对象编译器（如 GCC、Clang、Rustc）常见瓶颈的分析，逐步展开 Zig 的核心设计：**数据导向设计（Data-Oriented Design）**、**无指针 AST**、**双层 IR（ZIR 与 AIR）**、**Comptime 编译期求值与语义分析的统一**、**细粒度增量依赖追踪**以及**内置增量链接器**。
 
-> 🌐 网站：<https://jiacai2050.github.io/x/zig-compiler/>
+> - 🌐 在线阅读：<https://jiacai2050.github.io/x/zig-compiler/>
+> - 📖 离线阅读：支持 [PDF](https://fs.liujiacai.net/public/book/zig-compiler.pdf) 与 [EPUB](https://fs.liujiacai.net/public/book/zig-compiler.epub) 格式下载
 
 ---
 

@@ -30,7 +30,7 @@ clean:
 	$(MDBOOK) clean
 
 pdf:
-	./scripts/build-pdf.sh
+	../common/mdbook/build-pdf.sh
 
 epub:
-	./scripts/build-epub.sh
+	../common/mdbook/build-epub.sh
