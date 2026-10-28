@@ -1,0 +1,12 @@
+# mdBook output
+book/
+
+# Zig cache & output
+.zig-cache/
+zig-out/
+
+# Local temporary intermediate artifacts
+.tmp/
+
+# OS specific
+.DS_Store

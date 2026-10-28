@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
@@ -37,11 +37,15 @@ jobs:
       - name: Build zig-compiler
         run: cd zig-compiler && mdbook build
 
+      - name: Build zig-io
+        run: cd zig-io && mdbook build
+
       - name: Build all
         run: |
           mkdir public
           cp -r zig-build/book/ public/zig-build
           cp -r zig-compiler/book/ public/zig-compiler
+          cp -r zig-io/book/ public/zig-io
           cp -r docs/* public/
 
       - name: Upload artifact
