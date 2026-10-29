@@ -3,9 +3,7 @@ const Io = std.Io;
 const file_io = @import("file_io");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    const allocator = std.heap.smp_allocator;
 
     // 初始化通用的多线程调度后端
     var threaded = Io.Threaded.init(allocator, .{

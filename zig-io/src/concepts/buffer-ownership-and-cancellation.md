@@ -1,94 +1,131 @@
-# 内存借出与取消安全：CancelRegion 与生命周期追踪
+# 内存借出与取消安全：CancelProtection 与生命周期底层追踪
 
-在完成型（Completion-based）I/O 模型中，缓冲区生命周期管理是影响系统安全性的关键环节。
+在完成型（Completion-based / Proactor）I/O 架构中，**缓冲区内存生命周期**与**异步任务取消（Cancellation）**直接影响内存安全。
+
+若缺乏底层的时序约束，在途的内核 I/O 可能会在用户缓冲区释放后继续写入，引发 Use-After-Free（UAF）或内存破坏。
 
 ---
 
-## 核心隐患：在途操作与 Use-After-Free
+## 在途操作（In-flight I/O）与栈复用问题
 
-在就绪型（Readiness-based）模型中，`read` 是一个同步执行的系统调用：在发起调用前，内存尚未写入；在调用返回后，数据拷贝已经结束。如果应用程序在等待就绪期间取消了任务，内核尚未接触到用户态缓冲区，因此不存在内存非法写入的问题。
+在就绪模型（Linux `epoll`）下，内存由用户态直接控制：
+`read(fd, buf, len)` 是一个同步系统调用。调用前内核不持有缓冲区，调用返回后数据拷贝已结束。若协程在等待就绪期间被取消，内核未曾接触过该内存地址，直接释放栈内存是安全的。
 
-而在 Linux `io_uring` 等完成型模型中：
-1. 应用程序准备一段内存切片，将其指针 `&buffer` 写入提交队列条目（SQE）并递交内核；
-2. 系统调用立即返回，**该内存区域已被实质借出给内核**；
-3. 内核在后台等待硬件数据就绪，并直接通过内存访问将数据写入该地址；
-4. 写入完成后，内核向完成队列（CQ）写入完成条目（CQE）。
+但在完成模型（Linux `io_uring` 或 Windows IOCP）中，操作时序不同：
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Fiber as 纤程 / 任务
-    participant Kernel as 内核 (io_uring)
+    actor Fiber as 应用程序 Fiber
+    participant Kernel as 内核 (io_uring / DMA)
+    actor Other as 其他并发 Fiber
 
-    Fiber->>Kernel: 1. 提交异步读: SQE(buf_ptr)
-    Note over Kernel: 内核正在等待数据就绪，准备直接写入 buf_ptr
-    Note over Fiber: 任务发生超时控制或异常，函数直接 return 退出栈帧！
-    Fiber--x Fiber: 2. 栈内存失效，随后被其他子函数复用
-    Kernel->>Fiber: 3. 数据到达，内核向已失效的 buf_ptr 强制写入数据
-    Note over Fiber: 发生内存脏写与 Use-After-Free (UAF)
+    Fiber->>Kernel: 1. 提交异步读取: SQE(addr = 0x7fff0010, len = 4096)
+    Note over Kernel: 内核等待硬件数据就绪
+    Note over Fiber: 2. 超时发生，函数提前 return 退出
+    Fiber--x Fiber: 3. Fiber 局部调用栈弹出，0x7fff0010 内存被标记为空闲
+    Other->>Other: 4. 其他 Fiber 压栈，局部变量分配在 0x7fff0010
+    Kernel->>Other: 5. 硬件数据就绪，内核向 0x7fff0010 写入 4KB 数据
+    Note over Other: 内存破坏，原有数据被意外覆盖
 ```
 
-如果在操作在途（In-flight）期间，发起请求的协程或函数由于超时、错误返回或外部主动取消，提前退出了包含该缓冲区的栈帧，该内存块就可能被重新分配。随后内核完成写入时，就会覆盖无关的内存数据，导致内存破坏。
+### 过程拆解：
+1. **内存质押**：Fiber 在栈上分配局部缓冲区 `var buf: [4096]u8 = undefined`，将其地址写入 SQE 提交给内核；
+2. **外部取消与提前展开**：若触发超时控制，函数提前退出当前栈帧；
+3. **栈空间复用**：该段内存被系统重新分配给其他逻辑；
+4. **内核延迟写入**：随后网络数据到达，内核直接将报文写入该物理地址，覆盖了其他函数的数据。
 
 ---
 
-## 各语言对完成型内存生命周期的取舍
+## 跨语言方案取舍
 
-针对这一底层限制，主流系统编程语言采取了不同的应对策略：
+针对该问题，不同语言采取了不同的权衡：
 
-### 1. Go 的处理策略
-Go 主要依赖基于就绪通知的 `epoll`，数据拷贝始终在同步上下文中执行。即使开启 `io_uring` 实验支持，由于 Go 具备垃圾回收器（GC），数据通常分配在受管堆上。但如果内核 DMA 直接写入尚未固定（Pinner）的 Go 内存，仍可能破坏 GC 的内存屏障与连续栈调整。因此 Go 官方网络库依然选择维持在就绪模型上。
-
-### 2. Rust 的所有权转移取舍
-在 Rust 标准生态中，异步 I/O 的核心 trait 是 `AsyncRead`：
+### 1. Rust 的妥协：所有权转移（Owned Buffer）
+在 Rust 的同步接口中，读写操作通常使用借用：
 ```rust
-fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>>;
+async fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>;
 ```
-这里接收的是可变借用 `&mut [u8]`。然而在 Rust 中，任何 `Future` 都可以被随时 `drop` 丢弃。如果在 `poll_read` 提交内核操作后，Future 被外部执行器直接销毁，借出的内存引用就会提前失效。
+但 Rust 的 `Future` 可以被外部随时丢弃（Drop）。Rust 的 `drop(&mut self)` 是同步调用的，无法在析构中进行异步等待。
+若在 `poll_read` 提交内核操作后 `Future` 被销毁，借出的内存引用就会提前失效。
 
-为了在完成模型（`io_uring`）下保证安全，Rust 的针对性运行时（如 `tokio-uring`、`monoio`）被迫放弃了经典的借用模型，改为**强制转移缓冲区所有权（Buffer Ownership Transfer）**：
+因此，面向 `io_uring` 的 Rust 运行时（如 `tokio-uring`、`monoio`）改为**要求转移缓冲区所有权（Buffer Ownership Transfer）**：
 ```rust
-// 必须将整个 Buffer 的所有权（如 Vec<u8>）移交给读写接口
+// 要求将拥有独立堆内存的 Buffer（如 Vec<u8>）的所有权移入函数
 pub async fn read<T: BoundedBufMut>(&self, buf: T) -> (io::Result<usize>, T);
 ```
-用户在发起 I/O 时必须将缓冲区移动进去，待底层返回时再随元组归还。如果操作中途被中断，底层运行时必须强行让该缓冲区泄漏或放入特定的全局延迟回收池，避免内存在内核操作未完结前被释放。
+每次发起 I/O 需移入缓冲区，操作完成后随元组返回。若操作中途被丢弃，运行时通常将该缓冲区泄漏或放入全局延迟回收池，直到内核完成事件返回后再释放。
 
-### 3. Zig 的方案：保留切片借用与取消握手机制
-Zig 既没有垃圾回收器，也没有 Rust 的编译期生命周期机制。为了在保持简洁切片语法（`[]u8`）的同时保证安全性，`std.Io` 在运行时层面建立了**取消确认握手（Cancel Handshake）**与**取消保护屏障**。
+### 2. Zig 的方案：保留切片借用与取消握手
+
+Zig 保留了切片借用语法（直接传递 `[]u8`），其安全性依赖标准库层面的**取消确认握手（Cancel Handshake）**。
 
 ---
 
-## Zig 的取消安全实现细节
+## Zig std.Io 取消安全机制实现
+
+在 Zig 的设计中：**当内核仍在访问某段内存切片时，发起请求的 Fiber 不能提前退出并释放栈帧。**
 
 ### 1. 取消保护屏障：`CancelProtection`
-在 [`lib/std/Io.zig#L1451`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1451) 中，每个上下文都具备取消保护状态：
-
+查阅源码 [`lib/std/Io.zig#L1451`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1451)：
 ```zig
-pub const CancelProtection = enum {
-    cancelable,   // 允许响应取消
-    uncancelable, // 临界区保护，禁止突发中断
+pub const CancelProtection = enum(u1) {
+    unblocked = 0, // 允许响应外部取消信号
+    blocked = 1,   // 阻断取消信号，处于保护状态
 };
 ```
-
-在执行关键资源交接或析构清理逻辑时，开发者可通过 [`swapCancelProtection`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L137) 进入保护区：
+在执行状态提交、资源释放等关键操作时，可以通过 `io.swapCancelProtection` 将保护等级设为 `.blocked`：
 
 ```zig
-// 进入不可取消的临界区
-const prev = io.swapCancelProtection(.uncancelable);
+// 进入阻断取消的保护状态
+const prev = io.swapCancelProtection(.blocked);
 defer _ = io.swapCancelProtection(prev);
 
-// 此区间内的执行保证不会被外部取消打断，避免半更新状态
+// 此区间内即使收到取消请求，也会被暂扣，不抛出 error.Canceled
 ```
 
-### 2. 取消握手机制
-当一个在途操作收到取消请求时，Zig 运行时不会直接销毁栈帧，而是执行握手流程：
-1. **下发内核取消命令**：向 `io_uring` 提交针对该操作的取消描述符（`IORING_OP_ASYNC_CANCEL`）；
-2. **挂起等待确认**：当前纤程暂停执行，等待内核返回取消成功的完成事件；
-3. **安全退栈**：只有在内核确认已经停止对该切片的读写后，当前任务才被允许继续展开并退出。
+### 2. 取消握手流程（Cancel Handshake）
 
+当一个持有局部缓冲区的 Fiber 接收到取消信号时，底层驱动执行以下步骤：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Controller as 取消控制方
+    participant Fiber as 目标 Fiber (执行读操作中)
+    participant Backend as 驱动后端 (Io.Uring)
+    participant Kernel as Linux 内核
+
+    Controller->>Fiber: 1. 发起 cancel，设置 Fiber 的取消标志
+    Fiber->>Backend: 2. 检测到取消状态，发起撤回
+    Backend->>Kernel: 3. 提交 IORING_OP_ASYNC_CANCEL
+    Note over Fiber: Fiber 保持挂起状态，等待内核确认
+    Kernel-->>Backend: 4. 内核完成撤回，写入完成条目
+    Backend->>Fiber: 5. 收到完成条目，确认内核停止访问切片
+    Fiber-->>Fiber: 6. 恢复执行并抛出 error.Canceled 退出栈帧
+```
+
+- **第一步：标记状态**：外部调用 `future.cancel(io)` 时，将目标任务标记为已请求取消；
+- **第二步：下发内核撤回指令**：驱动向内核提交 `IORING_OP_ASYNC_CANCEL` 请求，指定要撤回的原请求上下文；
+- **第三步：等待确认**：
+  **目标 Fiber 保持挂起状态**，在调度器中等待内核响应；
+- **第四步：安全退栈**：
+  内核完成取消处理并写入完成队列（结果通常为 `-ECANCELED`）后，驱动确认内核已终止对该内存切片的访问，此时才唤醒 Fiber 抛出 `error.Canceled` 并展开栈帧。
+
+### 3. 主动检查取消点：`io.checkCancel()`
+查阅源码 [`lib/std/Io.zig#L1457`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1457)：
 ```zig
-// 在耗时循环中主动检查是否收到取消请求
-try io.checkCancel();
+pub fn checkCancel(io: Io) Cancelable!void {
+    return io.vtable.checkCancel(io.userdata);
+}
 ```
+对于纯计算密集型循环，Fiber 不会主动发生 I/O 挂起。可在循环体内调用 `checkCancel()` 检查状态：
+```zig
+while (hasMoreData()) {
+    processChunk();
 
-通过这一握手机制，Zig 在不破坏切片借用体验的前提下，防范了完成型 I/O 下的非法内存写入风险。
+    // 检查是否收到取消请求；若已取消则抛出 error.Canceled
+    try io.checkCancel();
+}
+```
+该函数仅包含标志位读取与条件判断，开销较低。

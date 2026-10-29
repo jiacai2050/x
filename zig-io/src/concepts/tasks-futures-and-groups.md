@@ -1,83 +1,110 @@
-# 并发基石：Task、Future 与 Group 协同
+# 并发基石：Task、Future 与 Group 结构化生命周期底层剖析
 
-在并发编程中，如何管理并发任务的生命周期、收集执行结果并防止资源泄漏，是并发抽象设计的核心目标。
+在并发编程中，任务生命周期管理与异常退出时的资源清理是并发抽象的核心关注点。
+
+非结构化并发（如没有关联父作用域的后台派生）容易在主函数退出后遗留运行中的子任务，引发资源泄漏。
+
+Zig 0.17 在标准库层面支持结构化并发（Structured Concurrency），主要依托 `AnyFuture` 与 `Io.Group` 管理任务生命周期。
 
 ---
 
-## 跨语言并发生命周期管理对比
+## 跨语言并发生命周期与内存模型对比
 
 ```mermaid
 graph TB
     subgraph GoModel ["Go：非结构化派生与外部协同"]
-        G_Go["go func() (语法级非结构化启动)"]
-        G_WG["需显式引入 sync.WaitGroup 或 errgroup 协同"]
-        G_Leak["若调用方未阻塞等待，容易产生孤儿 Goroutine 泄漏"]
-        G_Go --> G_WG --> G_Leak
+        G_Go["go worker() (语法级派发)"]
+        G_WG["sync.WaitGroup / errgroup 外部协调"]
+        G_Escape["局部变量逃逸至堆"]
+        G_Leak["父函数退出后，子 Goroutine 可能仍在运行"]
+        G_Go --> G_WG
+        G_Go --> G_Escape
+        G_WG -.->|未处理异常| G_Leak
     end
 
-    subgraph RustModel ["Rust：运行时 Task 与 JoinSet"]
-        R_Spawn["tokio::spawn (要求 'static 生命周期，无法直接借用本地栈)"]
-        R_Join["JoinHandle / JoinSet (通过容器追踪任务句柄)"]
-        R_Cancel["丢弃 JoinHandle 并不自动终止任务，需显式 abort"]
-        R_Spawn --> R_Join --> R_Cancel
+    subgraph RustTokio ["Rust Tokio：'static 生命周期与 JoinSet"]
+        R_Spawn["tokio::spawn(async move { ... })"]
+        R_Static["要求 'static 生命周期 (无法直接借用本地栈)"]
+        R_Arc["通常需借助 Arc<Mutex<T>> 跨任务共享"]
+        R_Abort["丢弃 JoinHandle 不终止任务，需显式 abort()"]
+        R_Spawn --> R_Static --> R_Arc
+        R_Spawn --> R_Abort
     end
 
-    subgraph ZigModel ["Zig：结构化并发 (Io.Group)"]
-        Z_Group["Io.Group 结构体 (明确的作用域边界)"]
-        Z_Await["group.await(io) 强保证所有子任务彻底退出"]
-        Z_EarlyFree["子任务结束后即时释放自身纤程资源"]
-        Z_Group --> Z_Await --> Z_EarlyFree
+    subgraph ZigGroup ["Zig：结构化并发 (Io.Group)"]
+        Z_Group["var group: Io.Group = .init"]
+        Z_Stack["支持借用当前父函数栈内存"]
+        Z_Await["group.await(io) 等待所有子任务结束"]
+        Z_AutoCancel["单任务异常时可广播终止其他任务"]
+        Z_Group --> Z_Stack
+        Z_Group --> Z_Await
+        Z_Group --> Z_AutoCancel
     end
 ```
 
-- **Go**：通过 `go` 关键字派生任务，本身是非结构化的。如果未显式使用 `sync.WaitGroup` 或 `errgroup` 协同，派生的 Goroutine 可能在主函数退出后仍在后台运行，导致“孤儿协程泄漏”。
-- **Rust**：通过 `tokio::spawn` 提交任务。由于任务可以在后台独立运行，Rust 类型系统强制要求闭包具有 `'static` 生命周期，无法直接借用当前函数的局部栈变量。若要批量汇聚任务，需要使用 `tokio::task::JoinSet` 容器管理。
-- **Zig**：在标准库层面引入了结构化并发容器 `Io.Group`，将任务生命周期显式绑定在具体作用域中。
+### 1. 差异分析
+
+- **Go 的非结构化派生**：
+  `go` 关键字不返回任务句柄。若未配合 `sync.WaitGroup` 或 context，子协程可能脱离调用方生命周期继续运行。由于子协程可能比父函数存活更久，被其引用的局部变量通常会逃逸到堆中。
+- **Rust 的 `'static` 约束**：
+  `tokio::spawn` 提交的任务可在后台独立运行，因此类型系统要求传入的闭包满足 `'static` 生命周期，不能直接借用父函数的局部栈变量，跨任务共享通常需使用 `Arc<Mutex<T>>`。
+- **Zig 的结构化约束**：
+  `Io.Group` 将子任务的生命周期绑定在声明它的作用域中。在调用 `group.await(io)` 之前，父函数不会退出，子任务可以安全借用父函数的局部栈内存。
 
 ---
 
-## 异步（async）与并行（concurrent）语义区分
+## 异步派生（`async`）与并行调度（`concurrent`）
 
-在 `std.Io` 中，任务启动分为两个语义不同的入口：
-- **`io.async`**（[`lib/std/Io.zig#L630`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L630)）：将任务包装为轻量有栈纤程（Fiber），在当前线程的事件环上协作调度。适用于 I/O 密集型操作，发生等待时自动让出 CPU，无线程切换开销；
-- **`io.concurrent`**（[`lib/std/Io.zig#L673`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L673)）：将任务提交给底层工作线程池，在物理 CPU 核心上并行执行。适用于 CPU 密集型任务，避免长时间占用事件环。
+在 `std.Io` 中，任务派发分为两个不同路径的入口：
+
+### 1. 事件环内纤程派生：`io.async`
+查阅源码 [`lib/std/Io.zig#L2526`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L2526)：
+- **执行方式**：在当前线程绑定的事件环上派生轻量有栈纤程（Fiber）；
+- **内存行为**：从纤程预分配池中获取栈内存，将上下文数据拷贝至栈顶，将该 Fiber 加入就绪链表；
+- **适用场景**：I/O 密集型操作。等待 I/O 时通过汇编切出 CPU，无需操作系统线程上下文切换。
+
+### 2. 跨核心并行派发：`io.concurrent`
+查阅源码 [`lib/std/Io.zig#L2565`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L2565)：
+- **执行方式**：将任务提交给底层工作线程池；
+- **内存行为**：使用带 Release 内存序的原子操作将任务压入队列，必要时通过 Futex 唤醒休眠的物理线程；
+- **适用场景**：CPU 密集型计算任务，避免长时间占用事件环。
 
 ---
 
-## 任务组：`Io.Group` 的运行机制
+## `Io.Group` 状态机与收敛机制
 
-在源码 [`lib/std/Io.zig#L1338`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1338) 中，`Io.Group` 专用于管理一组协同并发子任务：
+查阅源码 [`lib/std/Io.zig#L1338-L1380`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1338-L1380)，`Io.Group` 的运转流程如下：
 
-```zig
-const std = @import("std");
-const Io = std.Io;
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Parent as 父级调用栈 (Parent Fiber)
+    participant Group as Io.Group 控制块
+    participant W1 as 子任务 1 (Worker 1)
+    participant W2 as 子任务 2 (Worker 2)
 
-fn worker(id: usize, count: usize) Io.Cancelable!void {
-    var i: usize = 0;
-    while (i < count) : (i += 1) {
-        // 执行计算或受控 I/O
-    }
-    _ = id;
-}
-
-pub fn runBatch(io: Io) !void {
-    // 1. 初始化结构化任务组
-    var group: Io.Group = .init;
-
-    // 2. 将并发任务注册进组中
-    try group.concurrent(io, worker, .{ 1, 1000 });
-    try group.concurrent(io, worker, .{ 2, 2000 });
-
-    // 3. 阻塞等待组内所有任务收敛执行完毕
-    try group.await(io);
-}
+    Parent->>Group: 1. var group: Io.Group = .init
+    Parent->>Group: 2. group.concurrent(io, task1) -> active_count.fetchAdd(1)
+    Parent->>Group: 3. group.concurrent(io, task2) -> active_count.fetchAdd(1)
+    
+    Parent->>Group: 4. group.await(io): 检查 active_count > 0，父 Fiber 挂起
+    
+    W1->>W1: 执行任务 1... 正常结束
+    W1->>Group: 5. 释放 W1 纤程栈，active_count.fetchSub(1)
+    
+    W2->>W2: 执行任务 2... 遇到错误 error.DiskFull
+    W2->>Group: 6. 写入 group.error_slot，广播取消信号
+    W2->>Group: 7. 释放 W2 纤程栈，active_count.fetchSub(1)
+    
+    Note over Group: active_count 归零
+    Group-->>Parent: 8. 唤醒父 Fiber，返回 error.DiskFull
 ```
 
-### 核心机制保障
+### 1. 即时资源释放
+在 `Io.Group` 中，每个子任务执行完毕时，其运行外壳会立即释放该任务占用的独立栈空间，随后执行原子计数器 `active_count` 的递减，无需等到组内全部任务结束才释放内存。
 
-1. **即时资源释放**：
-   在 `Io.Group` 中，每个独立子任务在执行结束返回时，其占用的纤程栈和元数据会被**立即回收**，而不需要等待整个组的所有任务都完成。因此，在一个长生命周期的任务组中反复添加任务，不会引发无谓的内存累积。
-2. **确定性收敛**：
-   调用 `group.await(io)` 可以确保在当前函数退出之前，组内所有派生出的子任务均已执行完毕，不会遗留后台游离任务。
-3. **级联取消**：
-   若某项任务遇到错误或外部触发中断，调用 `group.cancel(io)` 会向组内全部成员统一广播取消信号，驱动整体安全收敛。
+### 2. 错误记录与级联取消
+当组内子任务并发执行时：
+- **捕获首个错误**：子任务出现错误时，通过原子的 CAS 操作写入 `group.error_slot`，记录第一个异常错误码；
+- **广播取消**：任务出错时，Group 向登记的兄弟 Fiber 广播取消信号，驱动在途 I/O 撤回；
+- **收敛退出**：父 Fiber 阻塞在 `group.await(io)` 处，待所有派生子任务退出并释放内存后，调度器将错误码返回给上层调用栈。

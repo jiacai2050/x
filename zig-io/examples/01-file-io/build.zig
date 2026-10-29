@@ -24,6 +24,12 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
+    // 运行命令
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    const run_step = b.step("run", "运行文件 I/O 示例主程序");
+    run_step.dependOn(&run_cmd.step);
+
     // 测试命令
     const unit_tests = b.addTest(.{
         .root_module = mod,

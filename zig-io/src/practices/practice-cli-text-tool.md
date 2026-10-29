@@ -1,14 +1,16 @@
-# 实战一：高性能 CLI 文本统计工具（wc 与 grep）
+# 实战一：高性能 CLI 文本统计引擎底层实现与 CPU 缓存优化
 
-在命令行工具开发中，行数、单词数与字节数的统计（类似 Unix `wc` 工具）属于典型的数据流处理场景。
+在命令行工具开发中，行数、单词数与字节数的统计（类似 Unix `wc -lwc`）是典型的数据流处理场景。
 
-本章利用 `std.Io.File` 与带缓冲的 `Reader`，构建一个内存占用固定且支持流式处理的文本分析模块。
+实现时常见的开销来源包括：
+1. **频繁小内存分配**：如使用高级语言的 `readLine()`，单行切分带来较多内存分配与回收；
+2. **读取粒度过小**：单字节读取会增加系统调用频次。
+
+本章利用 `std.Io.File` 与 `Io.Reader` 的滑动窗口短读机制，构建一个固定栈内存分配的文本分析工具。
 
 ---
 
-## 核心实现：流式逐块消费
-
-为了防止读取超大文件时占用过多内存，代码采用固定容量的读缓冲区：
+## 逐块扫描与固定缓冲区实现
 
 ```zig
 const std = @import("std");
@@ -24,16 +26,17 @@ pub fn countStream(r: *Io.Reader) !TextStats {
     var stats = TextStats{};
     var in_word = false;
 
-    // 栈上分配 16KB 的固定块缓冲区
+    // 在当前线程栈上开辟 16KB 缓冲区
     var chunk: [16 * 1024]u8 = undefined;
 
     while (true) {
-        // 使用 readSliceShort 进行切片短读
+        // 短读：填满 chunk，无需中间中继
         const n = try r.readSliceShort(&chunk);
         if (n == 0) break; // 到达流末尾 EOF
 
         stats.bytes += n;
 
+        // 内层循环：逐字节统计
         for (chunk[0..n]) |byte| {
             if (byte == '\n') {
                 stats.lines += 1;
@@ -57,25 +60,40 @@ pub fn countStream(r: *Io.Reader) !TextStats {
 }
 ```
 
+```mermaid
+graph TB
+    subgraph MemoryHierarchy ["CPU 缓存与 16KB 栈缓冲"]
+        L1["L1 Data Cache (通常 32KB ~ 64KB)"]
+        L2["L2 Cache"]
+        L3["L3 Cache"]
+        RAM["物理内存"]
+        
+        ChunkBuf["chunk: [16 * 1024]u8 栈数组"]
+        ChunkBuf ===>|位于 L1 范围内| L1
+    end
+```
+
 ---
 
-## 跨语言对比与实现权衡
+## 实现细节说明
 
-- **Go 方案**：
-  通常使用 `bufio.NewScanner(file)` 或 `bufio.NewReader(file)`。`Scanner` 默认按行切分，单行超长时需显式调整缓冲区上限；同时 `bufio` 内部通常会在堆上分配一个切片，接口调用也会产生轻微的逃逸分析开销。
-- **Rust 方案**：
-  通常使用 `std::io::BufReader::new(file)` 配合 `bytes()` 迭代器或手工维护 `read(&mut chunk)`。Rust 的编译期内联能够优化掉绝大多数虚表开销，但泛型结构会增加编译单态化成本。
-- **Zig 方案**：
-  直接在当前函数栈上开辟 16KB 数组 `var chunk: [16 * 1024]u8 = undefined;`，零堆内存分配。通过 `*Io.Reader` 虚表驱动，接口保持统一。
+### 1. 缓冲区大小选择
+现代处理器的单核心 L1 数据缓存通常在 32KB 到 64KB 之间。将缓冲区设定为 16KB，有助于使其常驻在 L1 缓存中，循环扫描时的访存延迟较低。
+
+### 2. `readSliceShort` 向量直读
+当 Reader 内部就绪数据耗尽时，`readSliceShort` 将栈上的 `chunk[i..]` 包装为 I/O 向量 `data[0]` 传给底层的 `readVec`，系统调用直接将数据写入栈上的 `chunk` 内存中，无需二次拷贝。
+
+### 3. 内存占用确定性
+整个函数在栈上运行，堆内存分配为 0，内存占用相对稳定。
 
 ---
 
-## 单元测试验证
+## 单元测试验证（内存切片驱动）
 
-使用内存数据构造虚拟流进行测试：
+得益于 `Io.Reader` 的统一接口设计，可以使用内存切片构造纯内存流进行单元测试：
 
 ```zig
-test "统计简单文本的指标" {
+test "统计纯内存文本流的指标" {
     const sample = "Zig is a modern systems programming language.\nSimple, fast and safe.\n";
 
     var stream: Io.Reader = .fixed(sample);
@@ -86,3 +104,4 @@ test "统计简单文本的指标" {
     try std.testing.expectEqual(sample.len, stats.bytes);
 }
 ```
+测试完全在内存中执行，无需依赖外部文件。

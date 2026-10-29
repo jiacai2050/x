@@ -28,6 +28,22 @@ pub fn readTextFile(allocator: std.mem.Allocator, io: Io, dir: Io.Dir, filename:
     return try r.allocRemaining(allocator, .limited(10 * 1024 * 1024));
 }
 
+/// 零拷贝流式复制文件
+pub fn copyFileZeroCopy(io: Io, src_file: Io.File, dst_file: Io.File) !u64 {
+    const total_size = try src_file.length(io);
+
+    var read_buffer: [4096]u8 = undefined;
+    var file_reader = src_file.reader(io, &read_buffer);
+
+    var write_buffer: [4096]u8 = undefined;
+    var file_writer = dst_file.writer(io, &write_buffer);
+    const w = &file_writer.interface;
+
+    const copied = try w.sendFileAll(&file_reader, .limited(total_size));
+    try w.flush();
+    return copied;
+}
+
 test "文件写入与读取完整性验证" {
     const io = std.testing.io;
     const allocator = std.testing.allocator;
@@ -44,4 +60,33 @@ test "文件写入与读取完整性验证" {
     defer allocator.free(actual_content);
 
     try std.testing.expectEqualStrings(expected_content, actual_content);
+}
+
+test "零拷贝文件传输管道验证" {
+    const io = std.testing.io;
+    const allocator = std.testing.allocator;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const src_name = "src.bin";
+    const dst_name = "dst.bin";
+    const data = "Pipeline zero-copy validation test payload.";
+
+    try writeTextFile(io, tmp.dir, src_name, data);
+
+    {
+        var src = try tmp.dir.openFile(io, src_name, .{});
+        defer src.close(io);
+
+        var dst = try tmp.dir.createFile(io, dst_name, .{});
+        defer dst.close(io);
+
+        const copied = try copyFileZeroCopy(io, src, dst);
+        try std.testing.expectEqual(data.len, copied);
+    }
+
+    const copied_content = try readTextFile(allocator, io, tmp.dir, dst_name);
+    defer allocator.free(copied_content);
+    try std.testing.expectEqualStrings(data, copied_content);
 }

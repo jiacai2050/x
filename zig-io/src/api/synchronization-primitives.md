@@ -1,35 +1,73 @@
-# 并发同步原语：Mutex、RwLock、Semaphore 与 Futex
+# 并发同步原语：协作型 Mutex、RwLock 与 Futex 状态机底层剖析
 
-在多纤程（Fiber）与多工作线程共存的并发系统中，传统的操作系统级线程锁（如 `pthread_mutex_t` 或 Win32 CriticalSection）存在致命缺陷：**一旦在纤程内部阻塞在 OS 锁上，将直接冻结整个宿主物理线程，导致同一线程上的其他就绪纤程全部陷入饥饿**。
+在由纤程（Fiber）与事件环驱动的并发程序中，直接使用操作系统级线程锁（如 POSIX `pthread_mutex_t` 或 Win32 `CRITICAL_SECTION`）可能引起其他就绪任务的停滞。
 
-因此，`std.Io` 内置了专门为异步/纤程协作体系量身定制的**协作型同步原语族**。
+Zig 0.17 在 `std.Io` 中提供了专门为用户态纤程设计的**协作型同步原语族**。
 
 ---
 
-## 协作互斥锁：`Io.Mutex`
+## 协作锁与线程锁的区别
 
-`Io.Mutex` 在争用未发生时以原子指令（CAS）直接极速获取；而在遭遇锁冲突时，**挂起的是当前纤程而非阻塞整个物理操作系统线程**：
+```mermaid
+graph TB
+    subgraph BadPthread ["在 Fiber 中调用 pthread_mutex_lock"]
+        OS_Thread["宿主 OS 物理线程 (Worker Thread)"]
+        F1["Fiber 1 (正在执行)"]
+        F2["Fiber 2 (就绪态)"]
+        F3["Fiber 3 (就绪态)"]
+        
+        OS_Thread --> F1
+        OS_Thread -.-> F2
+        OS_Thread -.-> F3
+        
+        F1 -->|争用锁失败| Syscall["陷入内核系统调用: futex_wait / mutex_lock"]
+        Syscall --> BlockOS["操作系统挂起整个物理线程"]
+        BlockOS -.->|连带停滞| Starve["同一线程上的 F2 与 F3 随之停滞"]
+    end
+
+    subgraph GoodIoMutex ["使用 Zig Io.Mutex"]
+        Z_Thread["宿主 OS 物理线程"]
+        ZF1["Fiber 1"]
+        ZF2["Fiber 2"]
+        Z_Thread --> ZF1
+        
+        ZF1 -->|争用锁失败| Yield["将 ZF1 挂入互斥锁的 Waiter 双向链表"]
+        Yield --> Switch["内联汇编 contextSwitch 切走 CPU"]
+        Switch --> ZF2
+        ZF2 --> Exec["物理线程继续执行就绪的 ZF2"]
+    end
+```
+
+- **阻塞影响**：单条 OS 线程上通常承载多个并发 Fiber。若 Fiber 1 调用阻塞式线程锁被操作系统挂起，整条宿主操作系统线程会进入阻塞态，导致其他已就绪的 Fiber 无法继续运行。
+- **协作原则**：遭遇锁争用时，**挂起当前 Fiber，而底层的 OS 物理线程保持运行**，切换执行下一个就绪任务。
+
+---
+
+## `Io.Mutex` 底层状态机
+
+查看标准库中 `Io.Mutex` 的实现，其内部围绕原子状态字与等待队列构建：
 
 ```zig
 const std = @import("std");
 const Io = std.Io;
 
-pub const SharedState = struct {
+pub const Counter = struct {
     mutex: Io.Mutex = .init,
-    counter: usize = 0,
+    value: usize = 0,
 
-    pub fn increment(self: *SharedState, io: Io) !void {
-        // 尝试获取锁；若锁被占用，当前纤程挂起，调度器自动切换执行其他任务
+    pub fn increment(self: *Counter, io: Io) !void {
+        // 获取协作锁：遭遇争用时让出 CPU 挂起当前 Fiber
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
 
-        self.counter += 1;
+        self.value += 1;
     }
 
-    pub fn tryIncrement(self: *SharedState, io: Io) bool {
-        if (self.mutex.tryLock(io)) {
+    pub fn tryIncrement(self: *Counter, io: Io) bool {
+        // 非阻塞尝试：纯 CPU 原子 CAS 指令，不需要 io 参数
+        if (self.mutex.tryLock()) {
             defer self.mutex.unlock(io);
-            self.counter += 1;
+            self.value += 1;
             return true;
         }
         return false;
@@ -37,62 +75,66 @@ pub const SharedState = struct {
 };
 ```
 
----
-
-## 读写锁：`Io.RwLock`
-
-在典型的“读多写少”场景（例如路由表缓存、配置参数查找）下，[`Io.RwLock`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/RwLock.zig) 允许多个并发读纤程并行访问，仅在写者更新时排他互斥：
-
-```zig
-pub const ConfigCache = struct {
-    rwlock: Io.RwLock = .init,
-    data: [128]u8 = undefined,
-
-    pub fn readData(self: *ConfigCache, io: Io, out: []u8) !void {
-        try self.rwlock.lockShared(io);
-        defer self.rwlock.unlockShared(io);
-
-        @memcpy(out, self.data[0..out.len]);
-    }
-
-    pub fn updateData(self: *ConfigCache, io: Io, new_data: []const u8) !void {
-        try self.rwlock.lock(io);
-        defer self.rwlock.unlock(io);
-
-        @memcpy(self.data[0..new_data.len], new_data);
-    }
-};
+```mermaid
+flowchart TD
+    Start["调用 mutex.lock(io)"] --> FastPath{"1. 快路径 (Fast Path)<br/>CAS 原子操作 0 -> 1 ?"}
+    
+    FastPath -- 成功 (无竞争) --> Locked["成功持有锁"]
+    
+    FastPath -- 失败 (发生冲突) --> SlowPath["2. 慢路径 (Slow Path)"]
+    SlowPath --> Enqueue["将当前 Fiber 上下文插入 mutex.waiters 双向链表"]
+    Enqueue --> Yield["调用 io.vtable 触发汇编切换，让出 CPU"]
+    
+    Yield --> Sleeping["当前 Fiber 在等待队列中休眠..."]
+    
+    subgraph UnlockPhase ["锁释放阶段: mutex.unlock(io)"]
+        UnlockCall["调用 mutex.unlock(io)"] --> CheckWaiters{"waiters 链表非空 ?"}
+        CheckWaiters -- 否 --> Reset["原子将锁状态置为 0"]
+        CheckWaiters -- 是 --> Pop["从链表头部摘除一个挂起的 Fiber"]
+        Pop --> Wake["将该 Fiber 重新塞入调度器就绪队列 (Ready Queue)"]
+    end
+    
+    Wake -.->|被唤醒| Resume["Fiber 被重新载入 CPU，成功获取锁继续执行"]
 ```
 
+### 为什么 `tryLock()` 不需要 `io`，而 `unlock(io)` 必须传入 `io`？
+- **`tryLock()`**：仅包含单条原子 CAS 指令（如 x86 `LOCK CMPXCHG`）。它尝试更新锁状态并立刻返回布尔值，不触发协程挂起或调度，因此无需驱动上下文；
+- **`unlock(io)`**：释放锁时若发现等待队列中有休眠的 Fiber，需要通知底层事件驱动将其重新加入就绪队列，因此需传入 `io`。
+
 ---
 
-## 信号量与并发度限流：`Io.Semaphore`
+## 读写锁：`Io.RwLock` 的写防饥饿策略
 
-当需要对有限的物理资源（如数据库连接池上限、外部 API 请求速率）实施精确并发限制时，使用 [`Io.Semaphore`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Semaphore.zig)：
+在读多写少的场景下，[`Io.RwLock`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/RwLock.zig) 在原子字中同时维护了读者数量与写者等待标记：
 
 ```zig
-pub fn throttledWorker(io: Io, sem: *Io.Semaphore, job_id: usize) !void {
-    // 消费一个可用许可；若当前无许可，纤程进入等待队列挂起
-    try sem.wait(io);
-    defer sem.post(io);
+pub fn accessConfig(cache: *ConfigCache, io: Io) !void {
+    // 共享读锁：多个 Fiber 可并行读取
+    try cache.rwlock.lockShared(io);
+    defer cache.rwlock.unlockShared(io);
 
-    // 真正执行资源受限的工作
-    std.debug.print("Job {d} is executing with acquired slot\n", .{job_id});
+    // 读取缓存...
 }
 ```
 
+- **读者写者隔离**：若仅有读操作，原子读者计数累加，读 Fiber 并发执行；
+- **防写饥饿**：若持续有新读者涌入，可能导致排他写者长时间等待。`Io.RwLock` 支持写优先策略：写者尝试获取锁时立起等待标志，后续新读者排队等待，待现有读者退出后由写者优先更新。
+
 ---
 
-## 底层同步基石：Futex
+## 底层同步基石：Futex（Fast Userspace Mutex）
 
-在 Linux 等系统上，`std.Io` 的虚表直接暴露了 Futex 原语（见 [`Io.zig#L140-L142`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L140-L142)）：
+跨物理线程交互中，`std.Io` 的虚表直接对接操作系统的 Futex 接口（源码见 [`lib/std/Io.zig#L140`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L140)）：
 
 ```zig
-// 等待某个 32 位内存地址的值是否发生变化
-try io.vtable.futexWait(io.userdata, &atomic_val, expected_val, .unlimited);
+// 等待某个 32 位整型地址的值，若当前内存值 == expected_val 则挂起，超时为 .none
+try io.vtable.futexWait(io.userdata, &atomic_word, expected_val, .none);
 
-// 唤醒指定数量在某个地址上休眠的等待者
-io.vtable.futexWake(io.userdata, &atomic_val, 1);
+// 唤醒最多 1 个在该地址上休眠的物理等待者
+io.vtable.futexWake(io.userdata, &atomic_word, 1);
 ```
 
-通过这套完备的协作同步原语，开发者可以在构建复杂并发拓扑时，享受纯粹的顺序锁编写体验，同时保持整个事件驱动系统极致的 CPU 利用率与零线程停滞。
+### Futex 分工机制：
+1. **无争用时（用户态）**：加锁与解锁在用户态通过原子 CAS 完成，无需系统调用；
+2. **发生争用时（内核态）**：仅在状态不满足且需要休眠时，才调用 `sys_futex` 将当前线程挂入内核等待队列。
+结合了原子指令与操作系统的精准休眠唤醒。

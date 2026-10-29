@@ -1,100 +1,124 @@
-# 纤程调度机制：fiber.zig 与用户态上下文切换
+# 纤程调度机制：fiber.zig 与用户态上下文切换底层剖析
 
-在不引入庞大语言运行时和后台线程的情况下，Zig 借助轻量用户态有栈纤程实现了同步写法的异步并发。其调度基础位于 [`lib/std/Io/fiber.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig)。
+在不依赖垃圾回收（GC）与复杂并发运行时的前提下，Zig 通过轻量有栈纤程（Fiber）实现了同步语法的并发。
+
+其核心支撑组件位于源码 [`lib/std/Io/fiber.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig)。本章分析其内联汇编上下文切换、栈内存页保护以及与 Go `gogo` 调度的差异。
 
 ---
 
-## 纤程上下文定义：`Context`
+## 寄存器快照：`Context` 与 ABI 约定
 
-在用户态切换两个独立的执行流，本质是在 CPU 架构层面保存并置换三个关键寄存器：
-- **栈指针（Stack Pointer, SP）**：指向当前纤程分配的独立调用栈栈顶；
-- **基址指针（Frame Pointer, FP）**：维护函数调用链与局部变量寻址；
-- **指令指针（Program Counter, PC / Instruction Pointer, IP）**：指向下一次恢复执行时的机器码跳转地址。
-
-查阅 [`lib/std/Io/fiber.zig#L7-L24`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L7-L24) 源码：
+查看源码 [`lib/std/Io/fiber.zig#L7-L24`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L7-L24)：
 
 ```zig
 pub const Context = switch (builtin.cpu.arch) {
     .aarch64 => extern struct {
-        sp: u64,
-        fp: u64,
-        pc: u64,
-    },
-    .riscv64 => extern struct {
-        sp: u64,
-        fp: u64,
-        pc: u64,
+        sp: u64, // 硬件栈指针 (Stack Pointer)
+        fp: u64, // 帧基址指针 (Frame Pointer: x29)
+        pc: u64, // 程序计数器 (Program Counter)
     },
     .x86_64 => extern struct {
-        rsp: u64,
-        rbp: u64,
-        rip: u64,
+        rsp: u64, // 硬件栈指针
+        rbp: u64, // 栈基址指针
+        rip: u64, // 指令指针 (Instruction Pointer)
     },
-    else => |arch| @compileError("unimplemented architecture: " ++ @tagName(arch)),
+    ...
 };
 ```
 
-该结构体在 64 位体系下固定为 24 字节。
+### 为什么上下文只包含 3 个寄存器？
+x86-64 拥有 16 个通用寄存器以及向量寄存器，Zig 的纤程上下文只保存 `rsp`、`rbp`、`rip` 三个字段（共 24 字节），原因在于其对 **调用约定（Calling Convention）与编译器 Clobber 列表** 的配合：
+1. **调用者保存（Caller-saved）寄存器**：
+   `contextSwitch` 是作为一个内联函数被调用的。根据 System V AMD64 ABI 约定，调用者保存的寄存器（如 `RAX`, `RCX`, `RDX`, `RSI`, `RDI`, `R8`~`R11`）在发起调用前，若包含活跃数据，已由编译器在外部压入当前栈；
+2. **Clobber 寄存器污染声明**：
+   在 [`fiber.zig#L63-L126`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L63-L126) 中，内联汇编通过破坏列表（Clobber List）告知编译器所有可能被修改的寄存器，编译器在生成外围代码时会自动处理必要数据的暂存；
+3. **切换动作**：
+   因此，硬件层面的切换动作仅需替换栈指针、帧指针并将指令计数器跳转到恢复点。
 
 ---
 
-## 上下文切换的汇编实现：`contextSwitch`
+## 汇编级上下文切换：机器指令拆解
 
-当纤程需要挂起让出执行权时，调度器会调用 `contextSwitch`（源码见 [`lib/std/Io/fiber.zig#L29`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L29)）。
+### 1. x86_64 内联汇编分析
+查看源码 [`lib/std/Io/fiber.zig#L244-L255`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L244-L255)：
 
-以 x86_64 架构为例，其内联汇编实现如下：
+```x86asm
+# 寄存器输入: RSI 指向 Switch 结构体 { old: *Context, new: *Context }
 
-```zig
-pub inline fn contextSwitch(s: *const Switch) *const Switch {
-    return switch (builtin.cpu.arch) {
-        .x86_64 => asm volatile (
-            \\ movq 0(%%rsi), %%rax       // 1. 获取旧纤程 Context 指针 (old)
-            \\ movq 8(%%rsi), %%rcx       // 2. 获取新纤程 Context 指针 (new)
-            \\ leaq 0f(%%rip), %%rdx      // 3. 计算恢复点地址 (标签 0:)
-            \\ movq %%rsp, 0(%%rax)       // 4. 保存当前 RSP 寄存器至 old.rsp
-            \\ movq %%rbp, 8(%%rax)       // 5. 保存当前 RBP 寄存器至 old.rbp
-            \\ movq %%rdx, 16(%%rax)      // 6. 保存恢复地址至 old.rip
-            \\ movq 0(%%rcx), %%rsp       // 7. 将物理 RSP 切换为 new.rsp
-            \\ movq 8(%%rcx), %%rbp       // 8. 将物理 RBP 切换为 new.rbp
-            \\ jmpq *16(%%rcx)            // 9. 跳转至 new.rip 开始执行新纤程
-            \\0:                          // 恢复点：未来该纤程被切回时从此处继续
-            : [received_message] "={rsi}" (-> *const Switch),
-            : [message_to_send] "{rsi}" (s),
-            : ... // 标记破坏寄存器
-        ),
-        ...
-    };
-}
+movq 0(%rsi), %rax       # 1. RAX = s.old 指针
+movq 8(%rsi), %rcx       # 2. RCX = s.new 指针
+leaq 0f(%rip), %rdx      # 3. 将标签 0: 的地址载入 RDX (恢复点)
+movq %rsp, 0(%rax)       # 4. 保存当前 RSP 到 old.rsp
+movq %rbp, 8(%rax)       # 5. 保存当前 RBP 到 old.rbp
+movq %rdx, 16(%rax)      # 6. 保存恢复地址 RDX 到 old.rip
+
+movq 0(%rcx), %rsp       # 7. 切换为 new.rsp
+movq 8(%rcx), %rbp       # 8. 切换为 new.rbp
+jmpq *16(%rcx)           # 9. 跳转至 new.rip 执行新 Fiber
+
+0:                       # 10. 未来该 Fiber 被恢复时的执行入口
 ```
+
+### 2. AArch64 (ARM64) 内联汇编分析
+查看源码 [`lib/std/Io/fiber.zig#L31-L41`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L31-L41)：
+
+```armasm
+# 寄存器输入: X1 指向 Switch { old: *Context, new: *Context }
+
+ldp x0, x2, [x1]         # 1. 成对加载: X0 = s.old, X2 = s.new
+ldr x3, [x2, #16]        # 2. 读取新 Fiber 入口: X3 = new.pc
+mov x4, sp               # 3. 读取当前栈指针到 X4
+stp x4, fp, [x0]         # 4. 成对存储: 将当前 SP 与 FP 存入 old.sp 和 old.fp
+adr x5, 0f               # 5. 读取恢复标签 0: 的地址到 X5
+ldp x4, fp, [x2]         # 6. 从 new 恢复新的 SP 与 FP
+str x5, [x0, #16]        # 7. 保存恢复地址 X5 到 old.pc
+mov sp, x4               # 8. 更新栈指针 SP
+br x3                    # 9. 跳转至 X3 (new.pc)
+
+0:                       # 10. 恢复点
+```
+
+切换过程在用户态执行，由数条 CPU 指令完成。
+
+---
+
+## 纤程栈内存管理与保护页（Guard Page）
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor CPU as CPU 物理核心
-    participant FA as Fiber A (当前执行)
-    participant FB as Fiber B (等待唤醒)
-
-    FA->>CPU: 遇到 I/O 等待，调用 contextSwitch
-    CPU->>FA: 1. 将当前物理 RSP/RBP 及返回地址保存至 Context A (24 字节)
-    CPU->>FB: 2. 将 CPU 寄存器置换为 Context B 的数值
-    CPU->>FB: 3. 执行 jmp 指令跳转至 Fiber B 保存的断点
-    Note over FB: 控制流切换至 Fiber B，继续执行其业务代码
+graph TB
+    subgraph FiberStack ["纤程栈物理内存布局"]
+        direction TB
+        High["高地址 (Top of Stack)"]
+        Frame1["当前函数栈帧"]
+        Frame2["父函数栈帧"]
+        StackSpace["剩余可用栈空间"]
+        GuardPage["栈底保护页: 4KB Guard Page (PROT_NONE)"]
+        Low["低地址 (Bottom of Stack)"]
+        
+        High --- Frame1
+        Frame1 --- Frame2
+        Frame2 --- StackSpace
+        StackSpace --- GuardPage
+        GuardPage --- Low
+    end
+    
+    StackSpace -.->|栈溢出越界| GuardPage
+    GuardPage -.->|触发页保护错误| Crash["内核产生 SIGSEGV 终止进程"]
 ```
+
+### 保护页机制：
+1. **栈向下生长**：在 x86-64 与 ARM64 架构中，函数压栈向低地址生长；
+2. **设置 `PROT_NONE`**：分配纤程栈时，通常将栈底部的 4KB 页面通过 `mprotect` 标记为不可读写访问；
+3. **防止越界踩踏**：
+   若 Fiber 递归过深或分配了过大的局部数组导致栈指针越界触碰该保护页，硬件 MMU 触发缺页异常（Page Fault），操作系统向进程发送 `SIGSEGV`，便于及时定位栈溢出问题。
 
 ---
 
-## 跨语言协程/纤程切换机制对比
+## 上下文切换对比（Zig vs Go）
 
-下表分析了不同语言在任务切换时的底层动作与资源消耗：
-
-| 对比维度 | 操作系统物理线程 | Go 语言 Goroutine (`runtime.gogo`) | Zig 纤程 (`std.Io.fiber`) |
-| :--- | :--- | :--- | :--- |
-| **切换耗时** | 约 1,000 ~ 2,500 ns | 约 100 ~ 250 ns | **约 5 ~ 15 ns** |
-| **执行路径** | 陷入操作系统内核态 | 用户态汇编 + 调度器协作循环 | **纯用户态（数条内联汇编）** |
-| **附加检查开销** | 涉及内核级 TLB 与 Cache 切换 | 需维护 GMP 结构、检查抢占标记、连续栈边界（`morestack`） | **无附加检查**，仅置换寄存器 |
-| **内存开销** | 默认 1MB ~ 8MB | 初始 2KB（不足时倍增扩容并拷贝数据） | **显式 Allocator 分配**（通常 16KB ~ 64KB） |
-| **调试支持** | 系统调试器原生完整支持 | 依赖 Go 专用调试工具（Delve）解析栈 | LLDB / GDB 可通过符号解析普通栈帧 |
-
-Go 的上下文切换除了保存寄存器外，还需配合调度器维护 M 与 G 的状态流转，且每个函数入口都有针对栈溢出的探测指令。
-
-Zig 的纤程切换则属于最小化的寄存器保存与恢复，不包含额外的运行时逻辑，因此开销较低。
+| 对比项 | Go 语言 Goroutine (`runtime.gogo`) | Zig 纤程 (`Io.fiber.contextSwitch`) |
+| :--- | :--- | :--- |
+| **执行路径** | 用户态调度循环 | 内联汇编 |
+| **寄存器处理** | 保存 Callee-saved 寄存器及 TLS 指针 | 置换 `SP`、`FP`、`PC`，其余由编译器调度管理 |
+| **运行时结构体** | 维护 `g`、`m`、`p` 状态及栈边界信息 | 仅进行寄存器状态切换 |
+| **栈溢出检查** | 函数序言包含 `morestack` 探测指令 | 依赖硬件保护页（Guard Page）捕获越界 |
