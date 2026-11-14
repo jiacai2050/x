@@ -8,7 +8,7 @@
 
 ## 分析起点：分析根（Analysis Roots）的设定
 
-在 [`src/Zcu/PerThread.zig#L303-L325`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu/PerThread.zig#L303-L325) 中，整个编译器的语义分析过程是由特定的**“分析根（Analysis Roots）”**触发的：
+在 [`src/Zcu/PerThread.zig#L303-L325`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu/PerThread.zig#L303-L325) 中，整个编译器的语义分析过程是由特定的**“分析根（Analysis Roots）”**触发的：
 
 ```zig
 // 仅从少数几个确定的入口开始播种：
@@ -82,4 +82,4 @@ fn unusedFunction() void {
 2. **降低引入大型标准库时的编译成本**：
    当源文件使用 `@import("std")` 引入包含数十万行代码的标准库时，若程序仅调用了少数几个打印函数，由于惰性分析的存在，编译器仅对实际调用的函数链路进行类型推导与代码生成，未使用的模块不会带来语义分析开销。
 
-下一节我们将探讨类型与常量的全局管理容器——[`src/InternPool.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig)。
+下一节我们将探讨类型与常量的全局管理容器——[`src/InternPool.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig)。

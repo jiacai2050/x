@@ -40,7 +40,7 @@ graph LR
 
 ## 2. 核心机制：编译命令组装（`lowerZigArgs`）
 
-在 [lib/compiler/Maker/Step/Compile.zig:L160-L938](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Step/Compile.zig#L160-L938)（函数 `lowerZigArgs`）中，`Maker` 调度该节点时负责组装底层编译命令：
+在 [lib/compiler/Maker/Step/Compile.zig:L160-L938](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/Maker/Step/Compile.zig#L160-L938)（函数 `lowerZigArgs`）中，`Maker` 调度该节点时负责组装底层编译命令：
 
 1. **确定子命令类别**：
    根据产物类型（可执行文件、库、测试）确定底层的 Zig CLI 命令：

@@ -40,7 +40,7 @@ run_step.dependOn(&run_cmd.step);
 
 在嵌入式开发、操作系统内核或微控制器（MCU）固件构建中，编译器输出的标准可执行文件为 ELF 格式，包含头部信息、段符号表与重定位表，无法直接烧录到 Flash 中执行。
 
-通过 [lib/std/Build.zig:L1492-L1505](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1492-L1505) 的 `addObjCopy` 步骤，可以从 ELF 编译产物中直接剥离出纯平铺二进制（`.bin`）或 Intel 十六进制镜像（`.hex`）：
+通过 [lib/std/Build.zig:L1492-L1505](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L1492-L1505) 的 `addObjCopy` 步骤，可以从 ELF 编译产物中直接剥离出纯平铺二进制（`.bin`）或 Intel 十六进制镜像（`.hex`）：
 
 ```zig
 // 1. 编译目标为嵌入式无操作系统裸机（如 ARM Cortex-M4）
@@ -70,11 +70,11 @@ b.getInstallStep().dependOn(&install_bin.step);
 ### 1.3 链接脚本与符号导出控制：`setLinkerScript` 与 `setVersionScript`
 
 系统级与嵌入式编程中，常需要精确指定内存布局与导出符号：
-- **指定链接脚本（`setLinkerScript`）**：在无操作系统（Freestanding）裸机开发中，通过 [lib/std/Build/Step/Compile.zig:L571](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L571) 指定自定义的 `linker.ld`，精确规划 Flash、RAM 区域及中断向量表的物理地址：
+- **指定链接脚本（`setLinkerScript`）**：在无操作系统（Freestanding）裸机开发中，通过 [lib/std/Build/Step/Compile.zig:L571](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/Compile.zig#L571) 指定自定义的 `linker.ld`，精确规划 Flash、RAM 区域及中断向量表的物理地址：
   ```zig
   kernel_elf.setLinkerScript(b.path("src/linker.ld"));
   ```
-- **版本符号控制脚本（`setVersionScript`）**：在构建 Linux 动态共享库时，通过 [lib/std/Build/Step/Compile.zig:L577](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L577) 传入 GNU 链接器版本脚本（Version Script / Symbol Map），精确控制对外公开的导出符号，隐藏内部符号：
+- **版本符号控制脚本（`setVersionScript`）**：在构建 Linux 动态共享库时，通过 [lib/std/Build/Step/Compile.zig:L577](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/Compile.zig#L577) 传入 GNU 链接器版本脚本（Version Script / Symbol Map），精确控制对外公开的导出符号，隐藏内部符号：
   ```zig
   shared_lib.setVersionScript(b.path("src/exports.map"));
   ```
@@ -199,7 +199,7 @@ ZLS 默认会调用 `zig build check`，仅触发编译器前端语义分析（S
 
 Zig 编译器能够直接从源码注释（`//!` 与 `///`）中提取并生成单页 HTML API 参考文档。
 
-通过 [lib/std/Build/Step/Compile.zig:L723](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Compile.zig#L723) 的 `getEmittedDocs()` 获取文档输出的 `LazyPath`，并接入安装步骤：
+通过 [lib/std/Build/Step/Compile.zig:L723](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/Compile.zig#L723) 的 `getEmittedDocs()` 获取文档输出的 `LazyPath`，并接入安装步骤：
 
 ```zig
 // 1. 从编译产物中提取 HTML 文档树 (LazyPath)
@@ -221,7 +221,7 @@ docs_step.dependOn(&install_docs.step);
 
 ### 4.2 静态资源目录打包交付：`b.installDirectory`
 
-当应用程序需要打包随行资源（例如游戏中的纹理模型、GUI 客户端中的图标着色器、Web 服务的静态前端 HTML/JS 资源）时，使用 [lib/std/Build.zig:L1478](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1478) 的 `installDirectory` 将整个物理目录复制到交付目录：
+当应用程序需要打包随行资源（例如游戏中的纹理模型、GUI 客户端中的图标着色器、Web 服务的静态前端 HTML/JS 资源）时，使用 [lib/std/Build.zig:L1478](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L1478) 的 `installDirectory` 将整个物理目录复制到交付目录：
 
 ```zig
 b.installDirectory(.{

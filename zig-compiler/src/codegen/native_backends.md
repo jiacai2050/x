@@ -2,7 +2,7 @@
 
 为了减少对体积庞大的外部 LLVM 依赖，并在 Debug 模式下获得更快的构建反馈，Zig 0.17 在源码中实现了针对主流 CPU 架构的**原生机器码生成后端（Self-hosted Backends）**。
 
-本节我们将以 **x86_64 后端**（[`src/codegen/x86_64/`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64)）与 **AArch64 后端**（[`src/codegen/aarch64/`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64)）为例，解析其代码生成流程。
+本节我们将以 **x86_64 后端**（[`src/codegen/x86_64/`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64)）与 **AArch64 后端**（[`src/codegen/aarch64/`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64)）为例，解析其代码生成流程。
 
 ---
 
@@ -44,7 +44,7 @@ graph LR
 
 ## AArch64 原生后端（ARM64）分析
 
-AArch64 采用 32 位定长指令集，结构规整。查看 [`src/codegen/aarch64.zig#L16-L40`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64.zig#L16-L40) 中的入口实现：
+AArch64 采用 32 位定长指令集，结构规整。查看 [`src/codegen/aarch64.zig#L16-L40`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64.zig#L16-L40) 中的入口实现：
 
 ```zig
 pub fn generate(
@@ -69,10 +69,10 @@ pub fn generate(
 
 ### 1. 指令选择（`Select.zig`）
 - 遍历传入的 `Air` 强类型指令；
-- 根据平台 ABI（如 Darwin ARM64 ABI 或标准 System V ABI，参见 [`aarch64/abi.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64/abi.zig)）将函数参数分配至 `x0` ~ `x7` 等通用寄存器；
+- 根据平台 ABI（如 Darwin ARM64 ABI 或标准 System V ABI，参见 [`aarch64/abi.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64/abi.zig)）将函数参数分配至 `x0` ~ `x7` 等通用寄存器；
 - 将 AIR 逻辑映射为底层架构的 `Mir.Inst`。
 
-### 2. 机器码编码与发射（[`aarch64/Assemble.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64/Assemble.zig) 与 [`encoding.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64/encoding.zig)）
+### 2. 机器码编码与发射（[`aarch64/Assemble.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64/Assemble.zig) 与 [`encoding.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64/encoding.zig)）
 `Assemble.zig` 依据 ARMv8 指令编码规范，通过位运算直接组装出 32 位定长指令：
 ```zig
 // 组装 AArch64 ADD 寄存器指令示例
@@ -86,10 +86,10 @@ try writer.writeInt(u32, opcode, .little);
 
 与 ARM 架构不同，x86-64 属于变长复杂指令集（CISC），单条指令长度从 1 字节到 15 字节不等，包含 REX 前缀、ModR/M 字节、SIB 比例因子以及偏移量等字段。
 
-在 [`src/codegen/x86_64/`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64) 中：
-1. **多 ABI 支持（[`x86_64/abi.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64/abi.zig)）**：
+在 [`src/codegen/x86_64/`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64) 中：
+1. **多 ABI 支持（[`x86_64/abi.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64/abi.zig)）**：
    支持 Linux/macOS 的 System V AMD64 ABI（`rdi, rsi, rdx, rcx, r8, r9` 传参）与 Windows 的 Microsoft x64 调用约定（`rcx, rdx, r8, r9` 传参并预留 32 字节 Shadow Space）；
-2. **高效指令发射（[`x86_64/Emit.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64/Emit.zig) 与 [`encoder.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64/encoder.zig)）**：
+2. **高效指令发射（[`x86_64/Emit.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64/Emit.zig) 与 [`encoder.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64/encoder.zig)）**：
    基于紧凑的编码查找逻辑，将 MIR 指令直接编码为机器码，并记录跨函数的符号重定位位置（`nav_relocs`）。
 
 ---

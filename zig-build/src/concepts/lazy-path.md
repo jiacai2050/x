@@ -19,7 +19,7 @@ Zig 引入 `std.Build.LazyPath`（惰性路径）来统一抽象路径来源，�
 
 ## 2. LazyPath 源码定义与变体
 
-在 [lib/std/Build.zig:L2192-L2260](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2192-L2260) 中，`LazyPath` 被定义为一个联合枚举体（Tagged Union）：
+在 [lib/std/Build.zig:L2192-L2260](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L2192-L2260) 中，`LazyPath` 被定义为一个联合枚举体（Tagged Union）：
 
 ```zig
 // 摘自 lib/std/Build.zig:L2192-L2260

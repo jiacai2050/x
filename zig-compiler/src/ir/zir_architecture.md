@@ -1,6 +1,6 @@
 # 3.2 ZIR 架构与指令体系
 
-在 Zig 0.17 编译器中，ZIR（Zig Intermediate Representation）承担着“语法与语义分析隔离”的角色，其定义位于 [`lib/std/zig/Zir.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig)。
+在 Zig 0.17 编译器中，ZIR（Zig Intermediate Representation）承担着“语法与语义分析隔离”的角色，其定义位于 [`lib/std/zig/Zir.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig)。
 
 本节我们将分析 ZIR 的内存组织、指令结构以及其在并发分析下的只读特性。
 
@@ -8,7 +8,7 @@
 
 ## ZIR 的数据结构顶层组织
 
-查看 [`lib/std/zig/Zir.zig#L26-L37`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L26-L37)：
+查看 [`lib/std/zig/Zir.zig#L26-L37`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig#L26-L37)：
 
 ```zig
 pub const Zir = struct {
@@ -34,7 +34,7 @@ pub const Zir = struct {
 ## 基础单元：`Inst` 与 `Inst.Ref`
 
 ### 1. 指令单体结构
-在 [`lib/std/zig/Zir.zig#L161-L164`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L161-L164) 中：
+在 [`lib/std/zig/Zir.zig#L161-L164`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig#L161-L164) 中：
 
 ```zig
 pub const Inst = struct {
@@ -55,7 +55,7 @@ pub const Inst = struct {
 
 ## ZIR 指令体系分类
 
-ZIR 包含百余种指令（`Inst.Tag`），覆盖声明、控制流与操作符等分类（参见 [`lib/std/zig/Zir.zig#L167-L250`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L167-L250)）：
+ZIR 包含百余种指令（`Inst.Tag`），覆盖声明、控制流与操作符等分类（参见 [`lib/std/zig/Zir.zig#L167-L250`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig#L167-L250)）：
 
 ```mermaid
 graph TD
@@ -108,7 +108,7 @@ graph TD
 
 ## 并发访问安全：ZIR 的不可变性（Immutability）
 
-在源码 [`lib/std/zig/Zir.zig#L158-L160`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L158-L160) 中明确注明：
+在源码 [`lib/std/zig/Zir.zig#L158-L160`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig#L158-L160) 中明确注明：
 
 > *"These are untyped instructions generated from an Abstract Syntax Tree. **The data here is immutable** because it is possible to have multiple analyses on the same ZIR happening at the same time."*
 

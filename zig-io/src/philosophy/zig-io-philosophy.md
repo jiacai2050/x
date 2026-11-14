@@ -20,7 +20,7 @@ graph TB
         Old_Fail1["局限 1: 遇动态函数指针/递归无法确定 Frame 尺寸"]
         Old_Fail2["局限 2: 跨 C ABI 调用时无法分析外部栈深度"]
         Old_Fail3["局限 3: 编译器前端复杂度增加"]
-        
+
         Old_Code --> Old_Infer
         Old_Infer -.->|推导失败| Old_Fail1
         Old_Infer -.->|推导失败| Old_Fail2
@@ -32,7 +32,7 @@ graph TB
         New_Fiber["Io.fiber (汇编寄存器切换: RSP/RIP)"]
         New_Alloc["显式 Allocator 分配栈空间"]
         New_ABI["兼容 C ABI 与动态函数调用"]
-        
+
         New_Io --> New_Fiber
         New_Fiber --> New_Alloc
         New_Fiber --> New_ABI
@@ -137,6 +137,6 @@ pub fn syncLocalDatabase(allocator: std.mem.Allocator, io: std.Io, path: []const
 ### 3. 有栈纤程与顺序语法
 
 为了保持异步并发能力并避免函数颜色传染，Zig 在标准库实现了轻量有栈纤程：
-- **汇编切换**：底层使用内联汇编保存并载入 CPU 寄存器（[`lib/std/Io/fiber.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig)）；
+- **汇编切换**：底层使用内联汇编保存并载入 CPU 寄存器（[`lib/std/Io/fiber.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig)）；
 - **显式栈管理**：栈内存由调用方传入的 `Allocator` 分配，不依赖后台垃圾回收；
 - **顺序书写**：在 Fiber 内部，代码按顺序方式编写，遇到 I/O 等待时由标准库自动切出 CPU。

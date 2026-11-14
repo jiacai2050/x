@@ -1,6 +1,6 @@
 # 4.2 统一语义分析与解释器：Sema.zig 剖析
 
-在 Zig 0.17 编译器中，[`src/Sema.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Sema.zig) 是处理类型推断、合法性校验与编译期计算的核心枢纽。
+在 Zig 0.17 编译器中，[`src/Sema.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Sema.zig) 是处理类型推断、合法性校验与编译期计算的核心枢纽。
 
 `Sema.zig` 的核心职责为：**读取无类型的 ZIR 指令，结合当前上下文推导类型与约束，直接解释执行 Comptime 表达式，并将需要在运行期计算的代码生成为全类型的 AIR 指令。**
 
@@ -8,7 +8,7 @@
 
 ## `Sema` 的核心状态机
 
-查看 [`src/Sema.zig#L40-L115`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Sema.zig#L40-L115)，Sema 结构体包含以下关键运行字段：
+查看 [`src/Sema.zig#L40-L115`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Sema.zig#L40-L115)，Sema 结构体包含以下关键运行字段：
 
 ```zig
 const Sema = @This();

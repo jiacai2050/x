@@ -2,7 +2,7 @@
 
 尽管 Zig 实现了原生机器码后端与 C 后端，但在面向生产环境的高性能构建（如 `-O ReleaseFast`、`-O ReleaseSmall`、`-O ReleaseSafe`）时，**LLVM 依然是实现高级优化的关键组成部分**。
 
-在 [`src/codegen/llvm.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/llvm.zig) 与 [`src/codegen/llvm/FuncGen.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/llvm/FuncGen.zig) 中，Zig 实现了从 AIR 到 LLVM IR 的转译接口。
+在 [`src/codegen/llvm.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/llvm.zig) 与 [`src/codegen/llvm/FuncGen.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/llvm/FuncGen.zig) 中，Zig 实现了从 AIR 到 LLVM IR 的转译接口。
 
 ---
 
@@ -54,7 +54,7 @@ graph LR
 
 ## AIR 到 LLVM IR 的映射实现
 
-查看 [`src/codegen/llvm/FuncGen.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/llvm/FuncGen.zig)：
+查看 [`src/codegen/llvm/FuncGen.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/llvm/FuncGen.zig)：
 `FuncGen` 的核心功能是将强类型的 `Air.Inst` 映射至 LLVM 的指令构建调用：
 
 | AIR 指令 | 映射的 LLVM IR 结构 | 优化考量 |
@@ -71,6 +71,6 @@ graph LR
 1. **按需调用，兼顾体验与性能**：
    日常开发调试时优先使用原生自研后端以缩短等待时间；生产发布时指定 `-O ReleaseFast`，利用 LLVM 成熟的自动向量化与跨过程分析提升运行效率。
 2. **调试信息支持**：
-   在 [`src/codegen/llvm.zig#L98-L100`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/llvm.zig#L98-L100) 中，Zig 将自身语义符号与 LLVM 的 `DIBuilder` 对接，确保生成的目标文件能够与 GDB/LLDB 等标准调试器兼容。
+   在 [`src/codegen/llvm.zig#L98-L100`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/llvm.zig#L98-L100) 中，Zig 将自身语义符号与 LLVM 的 `DIBuilder` 对接，确保生成的目标文件能够与 GDB/LLDB 等标准调试器兼容。
 
 下一节我们将分析原生后端的核心抽象——**机器中间表示（MIR）与合法化（Legalize）**。

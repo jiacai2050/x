@@ -2,7 +2,7 @@
 
 在 BSD 系列（FreeBSD, NetBSD, OpenBSD）以及 Apple 体系（macOS, iOS, Darwin）中，系统提供了 **`kqueue`** 以及 Apple 的 **`libdispatch` (GCD / Grand Central Dispatch)**。
 
-由于此类内核原生基于就绪通知模型，Zig 0.17 在标准库层面实现了适配驱动：[`Io.Kqueue`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Kqueue.zig) 与 [`Io.Dispatch`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Dispatch.zig)。
+由于此类内核原生基于就绪通知模型，Zig 0.17 在标准库层面实现了适配驱动：[`Io.Kqueue`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Kqueue.zig) 与 [`Io.Dispatch`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Dispatch.zig)。
 
 本章分析标准库如何在就绪型（Readiness）内核机制上提供完成型（Proactor）接口。
 
@@ -12,7 +12,7 @@
 
 `kqueue` 将网络套接字、文件系统变更、子进程状态、定时器、系统信号等统一抽象为 **过滤器（Filters）**。
 
-查看源码 [`lib/std/Io/Kqueue.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Kqueue.zig)：
+查看源码 [`lib/std/Io/Kqueue.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Kqueue.zig)：
 
 ```zig
 pub const kevent = extern struct {
@@ -34,7 +34,7 @@ graph TB
         F_Vnode["EVFILT_VNODE: 文件修改 / 删除 / 重命名"]
         F_Proc["EVFILT_PROC: 子进程状态变更"]
         F_Timer["EVFILT_TIMER: 高精定时器"]
-        
+
         KQ --> F_Read
         KQ --> F_Write
         KQ --> F_Vnode
@@ -66,14 +66,14 @@ sequenceDiagram
 
     Fiber->>Adapter: 1. read(dest_buf): 提交读取指令
     Adapter->>Kernel: 2. 尝试执行 nonblocking read()
-    
+
     alt 成功读取数据
         Kernel-->>Adapter: 返回读取字节数
         Adapter-->>Fiber: 立即返回
     else 接收队列暂无数据 (返回 EAGAIN / EWOULDBLOCK)
         Adapter->>Kernel: 3. kevent 提交: EVFILT_READ (udata = @intFromPtr(fiber))
         Adapter->>Fiber: 4. 切出 CPU，Fiber 挂起
-        
+
         Kernel-->>Adapter: 5. 就绪事件触发返回 (携带 udata)
         Adapter->>Kernel: 6. 适配层调用 read(dest_buf) 拷贝数据
         Adapter->>Fiber: 7. 数据就位，唤醒 Fiber
@@ -90,7 +90,7 @@ sequenceDiagram
 
 在 macOS 与 iOS 等 Darwin 平台上，系统提供了 `libdispatch`。
 
-源码见 [`lib/std/Io/Dispatch.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Dispatch.zig)：
+源码见 [`lib/std/Io/Dispatch.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Dispatch.zig)：
 
 ```mermaid
 graph TB
@@ -99,7 +99,7 @@ graph TB
         Dispatch["Io.Dispatch (Darwin 驱动)"]
         XNU_WorkQueue["XNU 内核线程池: pthread_workqueue"]
         EnergyCore["系统调度分配至对应 CPU 核心"]
-        
+
         Z_Task --> Dispatch
         Dispatch -->|投递至 GCD 队列| XNU_WorkQueue
         XNU_WorkQueue --> EnergyCore

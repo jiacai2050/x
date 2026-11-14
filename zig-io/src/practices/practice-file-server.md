@@ -32,7 +32,7 @@ graph LR
 
 ## 传输实现代码
 
-查看源码 [`lib/std/Io/Writer.zig#L1074`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Writer.zig#L1074)，传输实现如下：
+查看源码 [`lib/std/Io/Writer.zig#L1074`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Writer.zig#L1074)，传输实现如下：
 
 ```zig
 const std = @import("std");
@@ -72,7 +72,7 @@ pub fn copyFileZeroCopy(io: Io, src_file: Io.File, dst_file: Io.File) !u64 {
 
 ### `sendFileAll` 的降级流程：
 1. **底层调用返回错误**：
-   查阅源码 [`lib/std/Io/Writer.zig#L1100`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Writer.zig#L1100)，底层的 `w.vtable.sendFile` 在内核不支持时返回 `error.Unimplemented`；
+   查阅源码 [`lib/std/Io/Writer.zig#L1100`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Writer.zig#L1100)，底层的 `w.vtable.sendFile` 在内核不支持时返回 `error.Unimplemented`；
 2. **上层拦截与降级**：
    高层方法 `w.sendFileAll` 捕获该错误后，调用备用方法 `sendFileReadingAll`：
    ```zig

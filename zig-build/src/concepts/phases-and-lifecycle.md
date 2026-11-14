@@ -110,7 +110,7 @@ pub fn build(b: *std.Build) void {
 1. **纯内存图拓扑声明**：
    在 `build(b)` 函数中调用的 `b.addExecutable`、`b.addLibrary` 或 `b.addConfigHeader` 等 API，**不会立即启动编译器**，也不会向磁盘输出生成文件。这些 API 仅仅在堆内存中分配 `Step` 描述结构，记录编译选项并连接输入输出依赖边；
 2. **二进制序列化（Serialization）**：
-   在 `build(b)` 执行完毕后，`configurer` 会调用 [`builder.serializeConfigurationExiting()`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2710-L2736)，将整张内存构建图序列化为紧凑二进制字节流，直接通过管道写入 `Maker` 进程，随后 `configurer` 进程立即调用 `process.exit(0)` 退出销毁；
+   在 `build(b)` 执行完毕后，`configurer` 会调用 [`builder.serializeConfigurationExiting()`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L2710-L2736)，将整张内存构建图序列化为紧凑二进制字节流，直接通过管道写入 `Maker` 进程，随后 `configurer` 进程立即调用 `process.exit(0)` 退出销毁；
 3. **不能直接读取或依赖未生成物**：
    在配置期，目标文件在磁盘上尚未生成，严禁通过普通文件 API 直接读取：
    ```zig
@@ -190,7 +190,7 @@ const python_path = b.findProgram(.{ .names = &.{"python3", "python"} });
 ```zig
 // ❌ 反模式：在配置期尝试打开生成物
 const config_h = b.addConfigHeader(...);
-const file = try std.fs.cwd().openFile("zig-out/include/config.h", .{}); 
+const file = try std.fs.cwd().openFile("zig-out/include/config.h", .{});
 ```
 **原因**：`b.addConfigHeader` 只在内存中记录了一个配置节点。直到配置期结束、`Maker` 调度执行该 Step 时，文件才会被写入磁盘。应始终通过 `LazyPath` 传递文件关系。
 

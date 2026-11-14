@@ -30,7 +30,7 @@ sequenceDiagram
 在检查权限（Check）与实际操作（Use）之间存在时间差。在此期间若路径被替换为符号链接，可能导致操作偏离预期目标。
 
 ### 2. 基于句柄的 `*at` 系统调用
-在源码 [`lib/std/Io/Dir.zig#L13`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Dir.zig#L13) 中，相对路径操作需通过已打开的 `Dir` 句柄进行：
+在源码 [`lib/std/Io/Dir.zig#L13`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Dir.zig#L13) 中，相对路径操作需通过已打开的 `Dir` 句柄进行：
 
 ```zig
 const std = @import("std");
@@ -65,7 +65,7 @@ pub fn exploreDirectories(io: Io) !void {
 
 ## Positional I/O 与游标并发行为
 
-查看源码 [`lib/std/Io/File.zig#L12-L26`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/File.zig#L12-L26)：
+查看源码 [`lib/std/Io/File.zig#L12-L26`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/File.zig#L12-L26)：
 
 ```zig
 pub const Handle = std.posix.fd_t;
@@ -98,20 +98,20 @@ graph TB
     subgraph PositionalArch ["Positional I/O 分发链路"]
         API["file.writePositional(io, buffers, offset)"]
         VTable["io.vtable.fileWritePositional"]
-        
+
         API --> VTable
-        
+
         subgraph LinuxKernel ["Linux 内核"]
             PWrite["系统调用: pwritev(fd, iov, iovcnt, offset)"]
             UringSQE["io_uring: IORING_OP_WRITEV (设置 sqe.off)"]
         end
-        
+
         subgraph WindowsKernel ["Windows 内核"]
             WinSys["WriteFileGather / WriteFile"]
             Overlapped["设置 OVERLAPPED { Offset, OffsetHigh }"]
             WinSys --> Overlapped
         end
-        
+
         VTable -->|Threaded 模式| PWrite
         VTable -->|Uring 模式| UringSQE
         VTable -->|Windows 模式| WinSys
@@ -148,7 +148,7 @@ pub fn persistToStorage(io: Io, file: Io.File) !void {
 
 随机读取大型文件（如只读索引或字典）时，可通过内存映射减少系统调用频次。
 
-源码见 [`lib/std/Io/File/MemoryMap.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/File/MemoryMap.zig)：
+源码见 [`lib/std/Io/File/MemoryMap.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/File/MemoryMap.zig)：
 
 ```zig
 pub fn mapEntireFile(io: Io, file: Io.File) !void {

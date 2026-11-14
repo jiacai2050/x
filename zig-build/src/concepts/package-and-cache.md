@@ -359,7 +359,7 @@ zig build --fork=[path]
 
 #### 底层匹配与拦截机制（源码解析）
 
-查看编译器源码 [lib/compiler/Maker/Fetch.zig:L595-L608](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker/Fetch.zig#L595-L608)：
+查看编译器源码 [lib/compiler/Maker/Fetch.zig:L595-L608](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/Maker/Fetch.zig#L595-L608)：
 
 1. **提取项目标识（Project ID）**：
    执行 `zig build --fork ../my-patched-lib` 时，`Maker` 进程读取目标本地目录下的 `build.zig.zon`，提取包名（`name`）与指纹（`fingerprint`），生成对应的 `Package.ProjectId`（内部由 `padded_name` 和 `fingerprint_id` 构成，见 `lib/compiler/Maker/Package.zig`）并存入全局 `fork_set` 表；

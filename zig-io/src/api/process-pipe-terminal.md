@@ -42,7 +42,7 @@ Zig 标准库通过 `STARTUPINFOEXW` 结构体中的 `PROC_THREAD_ATTRIBUTE_HAND
 
 ## 跨进程管道（Pipe）与死锁防范
 
-查看源码 [`lib/std/process.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/process.zig)，高层提供了便捷的 `std.process.run`：
+查看源码 [`lib/std/process.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/process.zig)，高层提供了便捷的 `std.process.run`：
 
 ```zig
 const std = @import("std");
@@ -74,7 +74,7 @@ sequenceDiagram
     Parent->>Child: 启动子进程并设置 stdout = .pipe
     Child->>Pipe: 输出大量数据，填满管道缓冲区
     Child->>Pipe: 再次写入，缓冲区已满，子进程陷入等待
-    
+
     alt 串行等待引起的死锁
         Parent->>Child: 父进程直接调用 child.wait(io) 阻塞等待子进程退出
         Note over Parent,Child: 父进程等子进程退出，子进程等父进程读管道，相互等待

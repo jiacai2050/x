@@ -2,7 +2,7 @@
 
 在语法树（AST）构建完成之后，编译器需要将树状嵌套结构转换为便于线性分析的指令流。
 
-在 Zig 0.17 中，负责这一转换的模块为 [`lib/std/zig/AstGen.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/AstGen.zig)。
+在 Zig 0.17 中，负责这一转换的模块为 [`lib/std/zig/AstGen.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/AstGen.zig)。
 
 ---
 
@@ -71,7 +71,7 @@ graph TD
 
 ## AstGen 的关键机制
 
-查看 [`lib/std/zig/AstGen.zig#L19-L73`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/AstGen.zig#L19-L73)，可以观察到 AstGen 内部包含几项关键优化机制：
+查看 [`lib/std/zig/AstGen.zig#L19-L73`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/AstGen.zig#L19-L73)，可以观察到 AstGen 内部包含几项关键优化机制：
 
 ### 1. 结果位置标注（Result Location Annotation, `AstRlAnnotate`）
 ```zig

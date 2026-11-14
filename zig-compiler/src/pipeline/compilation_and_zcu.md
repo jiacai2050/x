@@ -5,14 +5,14 @@
 在编译器顶层，需要相应的控制结构来协调命令行参数、目标输出格式、多模块依赖关系以及 C 与 Zig 源码的混合编译。
 
 在 Zig 0.17 中，宏观调度的职责主要由以下两个模块承担：
-1. **[`src/Compilation.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Compilation.zig)**：负责全局构建任务调度、输出目标管理与外部工具链抽象；
-2. **[`src/Zcu.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu.zig)**：专门管理 Zig 源码编译单元的状态机与语义依赖。
+1. **[`src/Compilation.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Compilation.zig)**：负责全局构建任务调度、输出目标管理与外部工具链抽象；
+2. **[`src/Zcu.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu.zig)**：专门管理 Zig 源码编译单元的状态机与语义依赖。
 
 ---
 
 ## 全局构建管理器：`Compilation.zig`
 
-查看 [`src/Compilation.zig#L49-L80`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Compilation.zig#L49-L80)：
+查看 [`src/Compilation.zig#L49-L80`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Compilation.zig#L49-L80)：
 
 ```zig
 const Compilation = @This();
@@ -55,7 +55,7 @@ zig build-exe obj1.o obj2.o
 
 当编译任务包含 Zig 源码时，`Compilation` 将挂载专用的 `Zcu` 实例。
 
-查看 [`src/Zcu.zig#L1-L6`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu.zig#L1-L6)：
+查看 [`src/Zcu.zig#L1-L6`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu.zig#L1-L6)：
 
 > *"Zig Compilation Unit. Compilation of all Zig source code is represented by one `Zcu`. Each `Compilation` has exactly one or zero `Zcu`."*
 

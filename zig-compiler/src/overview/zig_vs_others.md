@@ -54,7 +54,7 @@ Zig 则采用了 **`comptime`（编译期求值）** 体系：
 多数现代编译器选择在生成目标代码（Object File）后调用操作系统的外部链接器（如 `/usr/bin/ld`）。这种分工割裂了编译器中端与链接器之间的数据连通，导致增量编译通常只能停留在“目标文件级别”，每次改动依然需要调用外部链接器重新解析所有目标符号并重写最终二进制。
 
 Zig 选择在语言内部**全套自研原生链接器**：
-- Zig 在源码中直接实现了原生 ELF 链接器（[`src/link/Elf2.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Elf2.zig)）、Mach-O 链接器（[`src/link/MachO.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/MachO.zig)）、COFF 链接器（[`src/link/Coff.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Coff.zig)）以及 WebAssembly 链接器（[`src/link/Wasm.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Wasm.zig)）。
+- Zig 在源码中直接实现了原生 ELF 链接器（[`src/link/Elf2.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Elf2.zig)）、Mach-O 链接器（[`src/link/MachO.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/MachO.zig)）、COFF 链接器（[`src/link/Coff.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Coff.zig)）以及 WebAssembly 链接器（[`src/link/Wasm.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Wasm.zig)）。
 - 链接器状态由 `Compilation.bin_file` 在编译器常驻内存中统一管理，直接参与编译管线协调。
 - 在增量构建或 `-fincremental --watch` 模式下，前端向链接器反馈变更的函数或符号范围后，链接器能够在已映射的输出二进制中执行原位补丁修改，显著降低了全量重新链接的耗时。
 

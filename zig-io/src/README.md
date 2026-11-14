@@ -63,5 +63,5 @@ graph TB
 
 ## 约定
 
-- 正文的技术解析基于 Zig 官方标准库实现（[`lib/std/Io.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig) 及其关联模块）。
+- 正文的技术解析基于 Zig 官方标准库实现（[`lib/std/Io.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig) 及其关联模块）。
 - 配套代码示例位于 `examples/` 目录下，均可通过自动化测试。

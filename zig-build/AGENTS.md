@@ -19,7 +19,7 @@
 - **严禁捏造虚构 API**：全书所有构建 API 必须与 Zig 官方源码严格一致，严禁臆测不存在的方法或签名。遇到不确定的 API 或签名问题，必须直接查阅源码确认。
 - **源码核对位置**：
   - 本地源码：`~/code/zig-0.17.0`（构建系统核心在 `lib/std/Build.zig` 与 `lib/std/Build/`，如 `Module.zig`、`Step/`）；
-  - 远端源码：`https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig`。
+  - 远端源码：`https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig`。
 - **禁止已废弃 API**：全部使用官方最新推荐 API（例如动态输出参数使用 `addOutputFileArg2`、库链接使用模块级 `linkLibrary`、启用 C++ 使用 `mod.link_libcpp = true` 等）。
 - **源码外链锚点**：速查表与源码引用的外链必须使用指向官方源码不可变 Tag 锚点的精确行号链接，确保永久可访问。
 

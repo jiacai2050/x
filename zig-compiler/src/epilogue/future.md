@@ -42,7 +42,7 @@ graph TD
 
 ## 演进方向与未来规划
 
-随着 0.17 版本的发布，Zig 正在向 1.0 稳定版本推进。从当前源码（如 [`src/dev.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/dev.zig) 与 [`src/IncrementalDebugServer.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/IncrementalDebugServer.zig)）中可以看出未来的主要演进方向：
+随着 0.17 版本的发布，Zig 正在向 1.0 稳定版本推进。从当前源码（如 [`src/dev.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/dev.zig) 与 [`src/IncrementalDebugServer.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/IncrementalDebugServer.zig)）中可以看出未来的主要演进方向：
 
 1. **自研原生后端的优化器拓展**：
    目前原生自研后端主要服务于 Debug 与快速迭代模式。后续规划在原生后端中逐步引入通用的局部与全局优化通道，在不显著牺牲编译耗时的前提下提升生成代码的质量，减少日常构建对外部 LLVM 运行时的依赖。

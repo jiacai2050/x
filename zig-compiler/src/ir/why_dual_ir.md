@@ -99,7 +99,7 @@ graph LR
 
 ## 双层 IR 核心特征横向对比
 
-| 对比维度 | 第一层 IR：ZIR ([`Zir.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig)) | 第二层 IR：AIR ([`src/Air.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Air.zig)) |
+| 对比维度 | 第一层 IR：ZIR ([`Zir.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig)) | 第二层 IR：AIR ([`src/Air.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Air.zig)) |
 | :--- | :--- | :--- |
 | **类型状态** | **完全无类型（Untyped）**。尚未区分整型、浮点型或编译期常量 | **全强类型（Fully-typed）**。每个指令和操作数的类型均已固定并完成合法性检查 |
 | **作用域范围** | **单源文件维度（Per-File）**。每个 `.zig` 文件对应独立的 ZIR 实例 | **单函数维度（Per-Function）**。仅对最终需要进入二进制的运行时函数生成 AIR |

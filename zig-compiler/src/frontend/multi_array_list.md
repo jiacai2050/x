@@ -90,7 +90,7 @@ graph TD
 
 ## 源码实现：`MultiArrayList` 的设计细节
 
-查看标准库源码 [`lib/std/multi_array_list.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/multi_array_list.zig#L9-L34)：
+查看标准库源码 [`lib/std/multi_array_list.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/multi_array_list.zig#L9-L34)：
 
 ```zig
 /// A MultiArrayList stores a list of a struct or tagged union type.

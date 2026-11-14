@@ -10,7 +10,7 @@ Zig 0.17 凭借 ZIR 的**无类型（Untyped）与单文件独立（Context-free
 
 ## 紧凑的二进制镜像文件头（`Zir.Header`）
 
-查看 [`lib/std/zig/Zir.zig#L39-L51`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Zir.zig#L39-L51)：
+查看 [`lib/std/zig/Zir.zig#L39-L51`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Zir.zig#L39-L51)：
 
 ```zig
 /// The data stored at byte offset 0 when ZIR is stored in a file.
@@ -29,7 +29,7 @@ pub const Header = extern struct {
 由于 ZIR 本身是由三个连续数组（`instructions`, `string_bytes`, `extra`）构成的一维数据体，其序列化过程非常直接。
 
 ### 磁盘缓存的写入流程（`saveZirCache`）
-查看 [`src/Zcu.zig#L3099-L3140`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu.zig#L3099-L3140)：
+查看 [`src/Zcu.zig#L3099-L3140`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu.zig#L3099-L3140)：
 当源文件完成 `AstGen` 后，序列化主要包括以下步骤：
 1. 写入 `Header`，记录指令数量、字符串池长度、额外数据长度，以及源文件的 `inode`、`size` 和修改时间 `mtime`；
 2. 直接将内存中的 `instructions` 数组二进制数据顺序写出；
@@ -68,7 +68,7 @@ graph LR
 
 ## 缓存命中校验与快速加载（`loadZirCache`）
 
-当发起后续构建，或编译线程需要加载被 `@import` 引用的模块时（参见 [`src/Zcu/PerThread.zig#L480-L500`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu/PerThread.zig#L480-L500)）：
+当发起后续构建，或编译线程需要加载被 `@import` 引用的模块时（参见 [`src/Zcu/PerThread.zig#L480-L500`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu/PerThread.zig#L480-L500)）：
 
 1. **计算缓存哈希键**：
    ```zig

@@ -10,7 +10,7 @@
 
 为了减少特权级切换开销，`io_uring` 初始化时通过共享虚拟内存建立数据通道。
 
-查看源码 [`lib/std/Io/Uring.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Uring.zig)：
+查看源码 [`lib/std/Io/Uring.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Uring.zig)：
 
 ```mermaid
 graph TB
@@ -63,12 +63,12 @@ sequenceDiagram
     Fiber->>SQ: 3. 更新 array 索引: sq.array[tail & mask] = index
     Fiber->>SQ: 4. 原子释放写: @atomicStore(sq.ktail, tail + 1, .release)
     Fiber->>Scheduler: 5. 汇编切出 CPU，Fiber 进入挂起
-    
+
     Kernel->>SQ: 6. 原子读取: @atomicLoad(sq.khead, .acquire) 消费 SQE
     Kernel->>Kernel: 7. 执行 I/O (DMA / 磁盘扇区读取 / Socket 传输)
     Kernel->>CQ: 8. 写入 CQE: 保留 user_data，设置 res = 实际字节数
     Kernel->>CQ: 9. 原子更新 cq.ktail
-    
+
     Scheduler->>CQ: 10. 读取 CQE: 获取 user_data
     Scheduler->>Fiber: 11. 恢复 Fiber，载入返回值继续执行
 ```

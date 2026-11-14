@@ -186,7 +186,7 @@ zig build --fork ../my-patched-zlog --fork ../zig-network
 
 ### 6.2 声明式双模切换机制
 
-Zig 通过 [lib/std/Build.zig:L2552-L2581](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L2552-L2581) 的 `systemIntegrationOption` 提供了标准解决方案：
+Zig 通过 [lib/std/Build.zig:L2552-L2581](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L2552-L2581) 的 `systemIntegrationOption` 提供了标准解决方案：
 
 ```zig
 const std = @import("std");

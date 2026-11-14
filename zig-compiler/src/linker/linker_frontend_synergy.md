@@ -14,7 +14,7 @@ Zig 提供了细致的错误追踪能力：当函数返回错误时，控制台�
 
 在传统编译环境中，类似功能通常需要依赖重型的异常处理展开表（如 DWARF `.eh_frame`、Itanium C++ ABI）或引入外部回溯库（如 `libunwind`）。
 
-而在 Zig 中（查看 [`src/Compilation.zig#L3001`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Compilation.zig#L3001)）：
+而在 Zig 中（查看 [`src/Compilation.zig#L3001`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Compilation.zig#L3001)）：
 ```zig
 link.updateErrorData(pt);
 ```
@@ -32,7 +32,7 @@ link.updateErrorData(pt);
 3. 生成一个临时的 `main()` 入口测试驱动源码；
 4. 再次编译驱动文件并调用链接器合成测试程序。
 
-而在 Zig 中（查看 [`src/Compilation.zig#L2994-L3000`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Compilation.zig#L2994-L3000)）：
+而在 Zig 中（查看 [`src/Compilation.zig#L2994-L3000`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Compilation.zig#L2994-L3000)）：
 ```zig
 if (comp.config.is_test) {
     // 延迟搜集所有未被过滤的测试函数列表

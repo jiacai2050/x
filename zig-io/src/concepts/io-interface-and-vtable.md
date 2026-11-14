@@ -52,7 +52,7 @@ graph TB
   Rust 的 Trait Object 由两个指针宽的“胖指针”构成：一个指向具体实例的数据指针，另一个指向编译期静态生成的虚函数表。
   - **指针体积翻倍**：胖指针不能当作单一普通指针直接通过 C ABI 传递，无法直接做平实的值类型传递。
 - **Zig 的 `std.Io`**：
-  查阅源码 [`lib/std/Io.zig#L25-L26`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L25-L26)：
+  查阅源码 [`lib/std/Io.zig#L25-L26`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L25-L26)：
   ```zig
   userdata: ?*anyopaque,
   vtable: *const VTable,
@@ -66,7 +66,7 @@ graph TB
 
 ## 核心虚表 `Io.VTable` 物理定义拆解
 
-在源码 [`lib/std/Io.zig#L51-L300`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L51-L300) 中，`Io.VTable` 定义了操作系统抽象层实现的接口入口。
+在源码 [`lib/std/Io.zig#L51-L300`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L51-L300) 中，`Io.VTable` 定义了操作系统抽象层实现的接口入口。
 
 主要分为四大功能部分：
 
@@ -149,7 +149,7 @@ sequenceDiagram
     FileObj->>IoObj: 2. io.vtable.fileWritePositional(io.userdata, file, &.{}, buffer, 1, offset)
     IoObj->>VTab: 3. 从全局常量表读取函数指针偏移
     VTab->>Backend: 4. 间接调用具体处理函数
-    
+
     alt Linux io_uring 环境
         Backend->>Backend: 从 SQ 环分配空闲 io_uring_sqe
         Backend->>Backend: 填写 opcode = IORING_OP_WRITEV, addr, len, offset
@@ -160,12 +160,12 @@ sequenceDiagram
         Backend->>Backend: 将 header 与 chunk 填入 iovec 向量
         Backend->>Kernel: 执行系统调用 pwritev(file.handle, &iovecs, len, offset)
     end
-    
+
     Kernel-->>App: 5. 传输完成，返回写入字节数
 ```
 
 ### 1. 高层入口：句柄转发
-查看 [`lib/std/Io/File.zig#L537-L539`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/File.zig#L537-L539)：
+查看 [`lib/std/Io/File.zig#L537-L539`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/File.zig#L537-L539)：
 ```zig
 pub fn writePositional(file: File, io: Io, buffer: []const []const u8, offset: u64) WritePositionalError!usize {
     return io.vtable.fileWritePositional(io.userdata, file, &.{}, buffer, 1, offset);
@@ -187,7 +187,7 @@ call *%rax                # 执行间接跳转
 ```
 
 ### 3. 具体后端的实现差异
-- **`Io.Threaded` 后端**（[`lib/std/Io/Threaded.zig#L10776`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Threaded.zig#L10776)）：
+- **`Io.Threaded` 后端**（[`lib/std/Io/Threaded.zig#L10776`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Threaded.zig#L10776)）：
   在当前线程栈上分配 `iovecs` 数组，组装为 `posix.iovec_const`，调用操作系统的 `pwritev` 系统调用；
-- **`Io.Uring` 后端**（[`lib/std/Io/Uring.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Uring.zig)）：
+- **`Io.Uring` 后端**（[`lib/std/Io/Uring.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Uring.zig)）：
   从 `io_uring` 提交环中获取一个 64 字节的 `io_uring_sqe`，填写操作码、文件描述符、内存地址与偏移量，将当前 Fiber 指针写入 `sqe.user_data`，随后调用 `fiber.contextSwitch` 切出 CPU。内核在 CQ 环写入完成条目后，调度器唤醒该 Fiber 继续执行。

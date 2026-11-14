@@ -81,7 +81,7 @@ flowchart TD
 
 构建与包管理相关的子命令均通过 JIT 自举入口收敛：
 
-查看 [src/main.zig:L352-L363](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/main.zig#L352-L363)：
+查看 [src/main.zig:L352-L363](https://github.com/jiacai2050/zig/blob/0.17.0/src/main.zig#L352-L363)：
 
 ```zig
 .build, .fetch, .init, .libc, .@"cache-cat" => {
@@ -116,7 +116,7 @@ flowchart TD
 
 ## 3. `Maker` 主控会话与双循环调度架构
 
-启动 `maker` 进程后，其核心调度骨架由内外两层嵌套循环构成（提炼自 [lib/compiler/Maker.zig:L737-L1040](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L737-L1040)）：
+启动 `maker` 进程后，其核心调度骨架由内外两层嵌套循环构成（提炼自 [lib/compiler/Maker.zig:L737-L1040](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/Maker.zig#L737-L1040)）：
 
 ```zig
 // lib/compiler/Maker.zig: 双循环调度会话骨架
@@ -166,13 +166,13 @@ configure: while (true) {
 当 `Maker` 判定配置缓存未命中时，会派生一个极短生命周期的子进程 `configurer`：
 
 ### 4.1 编译 Configurer
-在 [lib/compiler/Maker.zig:L1151-L1182](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L1151-L1182) 中，`Maker` 组装参数并调用 `std.zig.buildExeSubprocess` 编译临时 `configurer`：
+在 [lib/compiler/Maker.zig:L1151-L1182](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/Maker.zig#L1151-L1182) 中，`Maker` 组装参数并调用 `std.zig.buildExeSubprocess` 编译临时 `configurer`：
 - `lib/compiler/configurer.zig` 映射为主模块；
 - 用户项目的 `build.zig` 映射为 `@build` 模块；
 - 包管理器生成的依赖元数据映射为 `@dependencies` 模块。
 
 ### 4.2 执行与二进制序列化
-在 `configurer` 内部（见 [lib/compiler/configurer.zig:L138-L164](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/configurer.zig#L138-L164)）：
+在 `configurer` 内部（见 [lib/compiler/configurer.zig:L138-L164](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/configurer.zig#L138-L164)）：
 1. 调用 `builder.runPackageScript(root)` 执行用户的 `build(b)` 函数；
 2. 收集所有的 Step、Module、Artifact 及编译选项；
 3. 调用 `builder.serializeConfigurationExiting()` 将整张构建图序列化为紧凑二进制字节流输出到标准输出管道，随后立刻调用 `process.exit(0)` 退出销毁；
@@ -183,7 +183,7 @@ configure: while (true) {
 ## 5. 惰性依赖的自动重试机制
 
 当构建配置中使用了尚未下载的惰性依赖时，系统支持自动拉取并重新执行配置：
-在 [lib/compiler/Maker.zig:L1530-L1542](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/compiler/Maker.zig#L1530-L1542) 中：
+在 [lib/compiler/Maker.zig:L1530-L1542](https://github.com/jiacai2050/zig/blob/0.17.0/lib/compiler/Maker.zig#L1530-L1542) 中：
 ```zig
 if (configuration.unlazy_deps.len != 0) {
     for (configuration.unlazy_deps) |hash_string| {

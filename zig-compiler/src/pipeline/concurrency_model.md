@@ -15,7 +15,7 @@ Zig 0.17 在单一进程地址空间内设计了一套以**密集线程 ID（Den
 Zig 0.17 采用了密集线程编号策略：
 在编译器初始化阶段，根据可用的 CPU 核心数分配一组范围在 `0` 到 `N - 1` 的连续整数 `PerThread.Id`。
 
-查看 [`src/Zcu.zig#L5564-L5583`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu.zig#L5564-L5583)：
+查看 [`src/Zcu.zig#L5564-L5583`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu.zig#L5564-L5583)：
 
 ```zig
 pub const Active = struct {

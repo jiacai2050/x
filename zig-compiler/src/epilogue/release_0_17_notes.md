@@ -95,7 +95,7 @@ graph LR
 
 ## 变革 5：后端生态的新生力量
 
-1. **LoongArch64 自研后端贡献**：在 [`src/codegen/loongarch/`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/loongarch) 中合入了原生机器码生成的初步实现；
+1. **LoongArch64 自研后端贡献**：在 [`src/codegen/loongarch/`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/loongarch) 中合入了原生机器码生成的初步实现；
 2. **WebAssembly 后端达到 100% 行为测试通过**：自研 WASM 后端已通过全部 2060 项官方测试，与 LLVM 后端达成功能对齐；
 3. **SPIR-V 后端多线程化**：与 x86/ARM 后端一样，全面接入并发任务池调度，并引入了 `spirv_task` 和 `spirv_mesh` 调用约定以支持现代网格着色器。
 

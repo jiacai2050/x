@@ -58,7 +58,7 @@ graph TD
 
 ## 源码实现：函数分析完成后的即时链接流转
 
-查看核心驱动代码：[`src/Zcu/PerThread.zig#L2310-L2324`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Zcu/PerThread.zig#L2310-L2324)：
+查看核心驱动代码：[`src/Zcu/PerThread.zig#L2310-L2324`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Zcu/PerThread.zig#L2310-L2324)：
 
 ```zig
 // 当 Sema 刚刚完成某个函数体 (func_index) 的分析并产出 air 时：

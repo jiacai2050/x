@@ -1,6 +1,6 @@
 # 2.3 零指针 AST：13 字节紧凑节点与 extra_data
 
-在了解了 `MultiArrayList` 的原理后，我们可以深入分析 Zig 编译器的语法树核心实现：[`lib/std/zig/Ast.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Ast.zig)。
+在了解了 `MultiArrayList` 的原理后，我们可以深入分析 Zig 编译器的语法树核心实现：[`lib/std/zig/Ast.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Ast.zig)。
 
 与 Clang 或 GCC 中基于指针互连的多态对象 AST 不同，Zig 的 AST **完全不包含任何指向子节点的物理内存指针**。整棵语法树被紧凑地编码为平行的扁平整型数组。
 
@@ -8,7 +8,7 @@
 
 ## `Ast` 的结构体顶层定义
 
-在 [`lib/std/zig/Ast.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Ast.zig#L17-L26) 中，整个语法树定义如下：
+在 [`lib/std/zig/Ast.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Ast.zig#L17-L26) 中，整个语法树定义如下：
 
 ```zig
 pub const Ast = struct {
@@ -34,7 +34,7 @@ pub const Ast = struct {
 
 ## 13 字节节点（`Node`）结构剖析
 
-查看 AST 节点结构体的定义（参见 [`lib/std/zig/Ast.zig#L2914-L2985`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Ast.zig#L2914-L2985)）：
+查看 AST 节点结构体的定义（参见 [`lib/std/zig/Ast.zig#L2914-L2985`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Ast.zig#L2914-L2985)）：
 
 ```zig
 pub const Node = struct {

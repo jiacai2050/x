@@ -5,13 +5,13 @@
 
 若以源文件为追踪粒度，头文件或公共模块的轻微改动往往导致下游所有文件重新编译；若追踪粒度过细，构建和维护依赖图本身的内存与遍历开销可能会抵消增量带来的收益。
 
-Zig 0.17 在 [`src/InternPool.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig) 中设计了以 **`AnalUnit`** 为基础单元的紧凑依赖追踪体系。
+Zig 0.17 在 [`src/InternPool.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig) 中设计了以 **`AnalUnit`** 为基础单元的紧凑依赖追踪体系。
 
 ---
 
 ## 最小分析实体：`AnalUnit`（Analysis Unit）
 
-查看 [`src/InternPool.zig#L420-L452`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig#L420-L452)：
+查看 [`src/InternPool.zig#L420-L452`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig#L420-L452)：
 
 ```zig
 /// Analysis Unit. Represents a single entity which undergoes semantic analysis.
@@ -41,7 +41,7 @@ pub const AnalUnit = packed struct(u64) {
 
 ## 依赖关系分类
 
-在 [`src/InternPool.zig#L44-L95`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig#L44-L95) 中，`InternPool` 维护了细分领域的依赖映射表：
+在 [`src/InternPool.zig#L44-L95`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig#L44-L95) 中，`InternPool` 维护了细分领域的依赖映射表：
 
 ```mermaid
 graph TD

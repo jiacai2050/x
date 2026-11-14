@@ -10,7 +10,7 @@
 
 ## 硬件能力规整：合法化处理（`Legalize.zig`）
 
-在 [`src/Air/Legalize.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Air/Legalize.zig) 中，定义了硬件平台特性描述 `Features`：
+在 [`src/Air/Legalize.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Air/Legalize.zig) 中，定义了硬件平台特性描述 `Features`：
 
 ```zig
 pub const Features = packed struct {
@@ -36,7 +36,7 @@ pub const Features = packed struct {
 
 AIR 经过合法化后，后端将其映射为针对具体 CPU 架构的 **MIR（Machine Intermediate Representation）**。
 
-每个自研后端拥有独立的 `Mir.zig`（例如 [`src/codegen/aarch64/Mir.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/aarch64/Mir.zig) 或 [`src/codegen/x86_64/Mir.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen/x86_64/Mir.zig)）。
+每个自研后端拥有独立的 `Mir.zig`（例如 [`src/codegen/aarch64/Mir.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/aarch64/Mir.zig) 或 [`src/codegen/x86_64/Mir.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen/x86_64/Mir.zig)）。
 
 ```mermaid
 graph TD
@@ -71,7 +71,7 @@ MIR 指令与目标处理器的汇编指令结构基本对应（如 `MOV`, `ADD`
 
 传统编译器通常采用基于图着色（Graph Coloring）的寄存器分配算法。该算法能够较好地利用寄存器，但在大函数下分析开销相对较高。
 
-Zig 0.17 在 [`src/register_manager.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/register_manager.zig) 中实现了**线性扫描寄存器分配器**：
+Zig 0.17 在 [`src/register_manager.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/register_manager.zig) 中实现了**线性扫描寄存器分配器**：
 
 ```zig
 pub fn RegisterManager(

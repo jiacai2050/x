@@ -6,7 +6,7 @@
 
 ## 1. Step 核心抽象与结构
 
-查看标准库源码 [lib/std/Build/Step.zig:L8-L38](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step.zig#L8-L38)，`Step` 核心结构体定义如下：
+查看标准库源码 [lib/std/Build/Step.zig:L8-L38](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step.zig#L8-L38)，`Step` 核心结构体定义如下：
 
 ```zig
 // 摘自 lib/std/Build/Step.zig:L8-L38

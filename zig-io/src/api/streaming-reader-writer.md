@@ -8,7 +8,7 @@ Zig 0.17 将 `Io.File`、内存切片与网络套接字接入 `Reader` 与 `Writ
 
 ## 缓冲（Buffered）与非缓冲（Unbuffered）机制
 
-在源码 [`lib/std/Io/File.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/File.zig) 中，流式读写器的行为由传入的缓冲区切片长度决定：
+在源码 [`lib/std/Io/File.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/File.zig) 中，流式读写器的行为由传入的缓冲区切片长度决定：
 
 ```zig
 const std = @import("std");
@@ -34,7 +34,7 @@ graph TB
         B_Mem["内部内存拷贝 (@memcpy)"]
         B_Check{"内部缓冲已满 (end == len) ?"}
         B_Flush["单次聚集系统调用 (drain / writev)"]
-        
+
         B_Write --> B_Mem --> B_Check
         B_Check -- 否 --> B_Hold["继续暂存内存"]
         B_Check -- 是 --> B_Flush
@@ -94,7 +94,7 @@ sequenceDiagram
 - 源与目标位于不支持 `copy_file_range` 的跨网络挂载卷（如 NFS、CIFS）；
 - 容器安全策略可能限制了部分系统调用。
 
-查看源码 [`lib/std/Io/Writer.zig#L1074`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Writer.zig#L1074)，Zig 提供了降级处理：
+查看源码 [`lib/std/Io/Writer.zig#L1074`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Writer.zig#L1074)，Zig 提供了降级处理：
 
 ```zig
 pub fn streamFileToSink(w: *Io.Writer, source_file: *Io.File.Reader, max_bytes: u64) !usize {
@@ -107,25 +107,26 @@ pub fn streamFileToSink(w: *Io.Writer, source_file: *Io.File.Reader, max_bytes: 
 ```mermaid
 flowchart TD
     Start["调用 w.sendFileAll(file_reader, limit)"] --> TryNative["尝试调用底层虚表 w.sendFile()"]
-    
+
     TryNative --> Result{"返回值"}
     Result -- 成功写入 N 字节 --> Done["更新进度，返回结果"]
     Result -- 发生一般 I/O 错误 --> Err["抛出错误码"]
-    
+
     Result -- 捕获 error.Unimplemented --> Fallback["降级回退: sendFileReadingAll"]
-    
-    subgraph FallbackLoop ["内部双缓冲读写循环"]
+
+    subgraph FallbackLoop ["内部写缓冲零额外拷贝循环"]
         Fallback --> CheckBuf{"w.buffer.len > 0 ?"}
-        CheckBuf -- 否 --> PanicBuf["断言失败: 需分配写缓冲区"]
-        CheckBuf -- 是 --> Read["file_reader.readSliceShort(w.buffer)"]
-        Read --> Drain["w.drain(w.buffer) 批量写入"]
-        Drain --> CheckFinish{"传输完毕或 EOF?"}
-        CheckFinish -- 否 --> Read
+        CheckBuf -- 否 --> PanicBuf["断言失败: 降级路径必须分配写缓冲区"]
+        CheckBuf -- 是 --> GetDest["dest = w.writableSliceGreedy(1)<br/>获取写缓冲空闲可写切片"]
+        GetDest --> Read["file_reader.readSliceShort(dest)<br/>直读写入目标写缓冲切片"]
+        Read --> Adv["w.advance(n)<br/>推进写游标 (满载自动触发 drain)"]
+        Adv --> CheckFinish{"传输完毕或 EOF?"}
+        CheckFinish -- 否 --> GetDest
         CheckFinish -- 是 --> Done
     end
 ```
 
 ### 降级步骤：
-1. **优先调用底层**：先尝试内核原生零拷贝调用；
-2. **错误拦截**：若底层返回 `error.Unimplemented`，上层方法捕获该错误；
-3. **借用写缓冲区**：自动使用 `w.buffer` 作为中继缓冲区，循环调用 `readSliceShort` 与 `drain` 完成常规读写。
+1. **优先调用底层**：先尝试内核原生零拷贝调用（`w.sendFile`）；
+2. **错误拦截**：若底层返回 `error.Unimplemented`，上层方法捕获该错误并降级至 `sendFileReadingAll`；
+3. **借用写缓冲切片直读**：通过 `w.writableSliceGreedy(1)` 直接获取写缓冲区内部未占用的空闲切片，传入 `file_reader.readSliceShort(dest)` 原地填充，并调用 `w.advance(n)` 推进游标。缓冲区填满时 Writer 自动调用虚表 `drain` 刷盘，实现了在降级模式下的最小内存拷贝。

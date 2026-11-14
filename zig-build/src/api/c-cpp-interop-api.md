@@ -66,7 +66,7 @@ exe.root_module.addImport("c", c_module);
 
 当将 C 源码打包为静态库供下游使用时，下游通常需要同时引入头文件搜索路径。
 
-Zig 的 `linkLibrary` 具备自动传播头文件包含路径的能力。查看 [lib/std/Build/Module.zig:L537-L553](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L537-L553)：
+Zig 的 `linkLibrary` 具备自动传播头文件包含路径的能力。查看 [lib/std/Build/Module.zig:L537-L553](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Module.zig#L537-L553)：
 
 ```zig
 // 摘自 lib/std/Build/Module.zig:L537-L553
@@ -89,7 +89,7 @@ fn linkLibraryOrObject(m: *Module, other: *Step.Compile) void {
 除了基础的 C 源码挂载与头文件包含，`std.Build.Module` 还内置了一系列细粒度的编译配置 API：
 
 ### 3.1 预处理宏直接注入：`addCMacro`
-当只需配置少量编译宏，无需生成 CMake 风格的 `config.h` 时，可通过 [lib/std/Build/Module.zig:L530](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L530) 注入预处理宏：
+当只需配置少量编译宏，无需生成 CMake 风格的 `config.h` 时，可通过 [lib/std/Build/Module.zig:L530](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Module.zig#L530) 注入预处理宏：
 
 ```zig
 module.addCMacro("SQLITE_ENABLE_JSON1", "1");
@@ -97,14 +97,14 @@ module.addCMacro("BUFFER_SIZE", "4096");
 ```
 
 ### 3.2 独立汇编源文件挂载：`addAssemblyFile`
-在加密算法、操作系统内核或 SIMD 高性能计算中，经常包含单独编写的手写汇编文件（`.s` 或 `.S`）。通过 [lib/std/Build/Module.zig:L442](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L442) 直接挂载：
+在加密算法、操作系统内核或 SIMD 高性能计算中，经常包含单独编写的手写汇编文件（`.s` 或 `.S`）。通过 [lib/std/Build/Module.zig:L442](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Module.zig#L442) 直接挂载：
 
 ```zig
 module.addAssemblyFile(b.path("src/asm/sha256_avx2.s"));
 ```
 
 ### 3.3 macOS 系统 Framework 链接：`linkFramework`
-在 macOS / iOS 平台开发图形、音频或系统工具时，常需链接 Apple 官方的系统框架（如 `Metal`、`Cocoa`、`IOKit`）。通过 [lib/std/Build/Module.zig:L374](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L374) 声明链接：
+在 macOS / iOS 平台开发图形、音频或系统工具时，常需链接 Apple 官方的系统框架（如 `Metal`、`Cocoa`、`IOKit`）。通过 [lib/std/Build/Module.zig:L374](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Module.zig#L374) 声明链接：
 
 ```zig
 if (target.result.os.tag.isDarwin()) {
@@ -114,7 +114,7 @@ if (target.result.os.tag.isDarwin()) {
 ```
 
 ### 3.4 Windows 资源文件编译嵌入：`addWin32ResourceFile`
-在 Windows 平台上分发桌面软件时，必须嵌入包含软件图标（Icon）、版本声明（Version Info）以及高 DPI / UAC 清单的 `.rc` 脚本。通过 [lib/std/Build/Module.zig:L429](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Module.zig#L429) 自动调用内置工具链编译并打包进二进制：
+在 Windows 平台上分发桌面软件时，必须嵌入包含软件图标（Icon）、版本声明（Version Info）以及高 DPI / UAC 清单的 `.rc` 脚本。通过 [lib/std/Build/Module.zig:L429](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Module.zig#L429) 自动调用内置工具链编译并打包进二进制：
 
 ```zig
 if (target.result.os.tag == .windows) {

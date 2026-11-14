@@ -5,7 +5,7 @@
 传统增量编译通常仅局限在“增量生成 `.o` 目标文件”，最终链接阶段仍然需要将整个输出文件重新写入磁盘；
 而 Zig 借助常驻内存链接器，实现了**仅更新发生变动的局部字节，未变更的代码段和数据段保持原样**。
 
-这一机制的实现基础位于 [`src/link/MappedFile.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/MappedFile.zig) 与 [`src/link/Elf2.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Elf2.zig) 中。
+这一机制的实现基础位于 [`src/link/MappedFile.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/MappedFile.zig) 与 [`src/link/Elf2.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Elf2.zig) 中。
 
 ---
 
@@ -99,7 +99,7 @@ graph TD
 
 ## 0.17 进展：`-fincremental --watch` 在 Linux x86_64 上支持
 
-在 **Zig 0.17.0** 中，得益于下一代自研链接器 [`Elf2.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Elf2.zig) 的成熟，官方宣布：**针对 `x86_64-linux` 平台的大多数项目，已可使用增量编译机制**。
+在 **Zig 0.17.0** 中，得益于下一代自研链接器 [`Elf2.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Elf2.zig) 的成熟，官方宣布：**针对 `x86_64-linux` 平台的大多数项目，已可使用增量编译机制**。
 
 ```bash
 # 0.17 推荐的增量开发命令：

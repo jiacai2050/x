@@ -1,6 +1,6 @@
 # 通用线程池降级：Threaded 后端机制与阻塞系统调用取消底层剖析
 
-在缺乏 `io_uring` 或 `kqueue` 等异步驱动的环境中（如老旧内核、受限沙箱或单线程目标），系统需要一个通用的兜底实现：[`Io.Threaded`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Threaded.zig)。
+在缺乏 `io_uring` 或 `kqueue` 等异步驱动的环境中（如老旧内核、受限沙箱或单线程目标），系统需要一个通用的兜底实现：[`Io.Threaded`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Threaded.zig)。
 
 该文件封装了阻塞系统调用包装、工作线程池分发以及可取消机制。
 
@@ -8,7 +8,7 @@
 
 ## 线程池拓扑与任务分发
 
-查看源码 [`lib/std/Io/Threaded.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/Threaded.zig)，`Threaded` 将异步任务映射到底层工作线程池：
+查看源码 [`lib/std/Io/Threaded.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Threaded.zig)，`Threaded` 将异步任务映射到底层工作线程池：
 
 ```mermaid
 graph TB
@@ -21,7 +21,7 @@ graph TB
         RunQueue["任务链表队列 (run_queue)"]
         CondVar["互斥锁 (Mutex) + 条件变量 (Condition)"]
         WorkerPool["工作线程池: []Thread"]
-        
+
         TaskAsync --> RunQueue
         TaskConcurrent --> RunQueue
         RunQueue --> CondVar
@@ -31,7 +31,7 @@ graph TB
     subgraph OSKernel ["操作系统内核执行层"]
         SyscallBlock["阻塞系统调用 (preadv / pwritev / accept)"]
         SignalInterrupt["信号取消中断 (SIGUSR1 / CancelSynchronousIo)"]
-        
+
         WorkerPool --> SyscallBlock
         SignalInterrupt -.->|取消信号| SyscallBlock
     end
@@ -78,7 +78,7 @@ sequenceDiagram
     Worker->>Worker: 1. 执行 Syscall.start(): 记录当前线程 TID
     Worker->>Kernel: 2. 进入阻塞系统调用: pwritev(...)
     Note over Kernel: Worker 线程在内核等待队列中休眠
-    
+
     Controller->>Worker: 3. 外部触发取消: future.cancel(io)
     Controller->>Kernel: 4. 向 Worker 线程发送取消信号 (POSIX: pthread_kill; Windows: CancelSynchronousIo)
     Kernel-->>Worker: 5. 内核中断休眠，系统调用返回 EINTR
@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## 单元测试使用 Threaded 的原因
 
-在 Zig 标准库中，单元测试环境 `std.testing.io` 默认使用 `Io.Threaded`（源码见 [`lib/std/testing.zig#L24`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/testing.zig#L24)）：
+在 Zig 标准库中，单元测试环境 `std.testing.io` 默认使用 `Io.Threaded`（源码见 [`lib/std/testing.zig#L24`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/testing.zig#L24)）：
 
 ```zig
 pub var io_instance: Io.Threaded = undefined;

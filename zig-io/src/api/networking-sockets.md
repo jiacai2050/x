@@ -8,7 +8,7 @@
 
 ## TCP 握手全流程与内核双队列机制
 
-查看源码 [`lib/std/Io/net.zig#L1551`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/net.zig#L1551)，调用 `bind_addr.listen(io, .{ .kernel_backlog = 128 })` 时，内核在底层维护两个核心队列：
+查看源码 [`lib/std/Io/net.zig#L1551`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/net.zig#L1551)，调用 `bind_addr.listen(io, .{ .kernel_backlog = 128 })` 时，内核在底层维护两个核心队列：
 
 ```mermaid
 sequenceDiagram
@@ -25,7 +25,7 @@ sequenceDiagram
     Client->>KernelNet: 4. 确认: TCP ACK
     KernelNet->>SynQueue: 5. 从半连接队列取出
     KernelNet->>AccQueue: 6. 创建完整 sock 移入全连接队列 (深度由 backlog 限制)
-    
+
     alt 全连接队列非空
         KernelNet-->>ServerFiber: 7. server.accept(io) 取出 socket 并返回
     else 全连接队列为空

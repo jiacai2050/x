@@ -67,7 +67,7 @@ Zig 保留了切片借用语法（直接传递 `[]u8`），其安全性依赖标
 在 Zig 的设计中：**当内核仍在访问某段内存切片时，发起请求的 Fiber 不能提前退出并释放栈帧。**
 
 ### 1. 取消保护屏障：`CancelProtection`
-查阅源码 [`lib/std/Io.zig#L1451`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1451)：
+查阅源码 [`lib/std/Io.zig#L1451`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1451)：
 ```zig
 pub const CancelProtection = enum(u1) {
     unblocked = 0, // 允许响应外部取消信号
@@ -113,7 +113,7 @@ sequenceDiagram
   内核完成取消处理并写入完成队列（结果通常为 `-ECANCELED`）后，驱动确认内核已终止对该内存切片的访问，此时才唤醒 Fiber 抛出 `error.Canceled` 并展开栈帧。
 
 ### 3. 主动检查取消点：`io.checkCancel()`
-查阅源码 [`lib/std/Io.zig#L1457`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L1457)：
+查阅源码 [`lib/std/Io.zig#L1457`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1457)：
 ```zig
 pub fn checkCancel(io: Io) Cancelable!void {
     return io.vtable.checkCancel(io.userdata);

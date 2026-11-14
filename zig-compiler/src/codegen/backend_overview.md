@@ -4,7 +4,7 @@
 
 部分现代系统级语言在实现上主要依赖 LLVM 作为统一代码生成后端。而 Zig 0.17 在架构上采用了**多层分级的多后端策略**。
 
-在 [`src/codegen.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen.zig) 中，Zig 建立了统一的后端调度分发接口。
+在 [`src/codegen.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen.zig) 中，Zig 建立了统一的后端调度分发接口。
 
 ---
 
@@ -63,7 +63,7 @@ graph TD
 
 ## 后端统一分发接口
 
-查看 [`src/codegen.zig#L50-L67`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/codegen.zig#L50-L67)：
+查看 [`src/codegen.zig#L50-L67`](https://github.com/jiacai2050/zig/blob/0.17.0/src/codegen.zig#L50-L67)：
 
 ```zig
 fn importBackend(comptime backend: std.lang.CompilerBackend) type {

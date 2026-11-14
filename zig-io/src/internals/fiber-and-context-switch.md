@@ -2,13 +2,13 @@
 
 在不依赖垃圾回收（GC）与复杂并发运行时的前提下，Zig 通过轻量有栈纤程（Fiber）实现了同步语法的并发。
 
-其核心支撑组件位于源码 [`lib/std/Io/fiber.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig)。本章分析其内联汇编上下文切换、栈内存页保护以及与 Go `gogo` 调度的差异。
+其核心支撑组件位于源码 [`lib/std/Io/fiber.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig)。本章分析其内联汇编上下文切换、栈内存页保护以及与 Go `gogo` 调度的差异。
 
 ---
 
 ## 寄存器快照：`Context` 与 ABI 约定
 
-查看源码 [`lib/std/Io/fiber.zig#L7-L24`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L7-L24)：
+查看源码 [`lib/std/Io/fiber.zig#L7-L24`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig#L7-L24)：
 
 ```zig
 pub const Context = switch (builtin.cpu.arch) {
@@ -31,7 +31,7 @@ x86-64 拥有 16 个通用寄存器以及向量寄存器，Zig 的纤程上下�
 1. **调用者保存（Caller-saved）寄存器**：
    `contextSwitch` 是作为一个内联函数被调用的。根据 System V AMD64 ABI 约定，调用者保存的寄存器（如 `RAX`, `RCX`, `RDX`, `RSI`, `RDI`, `R8`~`R11`）在发起调用前，若包含活跃数据，已由编译器在外部压入当前栈；
 2. **Clobber 寄存器污染声明**：
-   在 [`fiber.zig#L63-L126`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L63-L126) 中，内联汇编通过破坏列表（Clobber List）告知编译器所有可能被修改的寄存器，编译器在生成外围代码时会自动处理必要数据的暂存；
+   在 [`fiber.zig#L63-L126`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig#L63-L126) 中，内联汇编通过破坏列表（Clobber List）告知编译器所有可能被修改的寄存器，编译器在生成外围代码时会自动处理必要数据的暂存；
 3. **切换动作**：
    因此，硬件层面的切换动作仅需替换栈指针、帧指针并将指令计数器跳转到恢复点。
 
@@ -40,7 +40,7 @@ x86-64 拥有 16 个通用寄存器以及向量寄存器，Zig 的纤程上下�
 ## 汇编级上下文切换：机器指令拆解
 
 ### 1. x86_64 内联汇编分析
-查看源码 [`lib/std/Io/fiber.zig#L244-L255`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L244-L255)：
+查看源码 [`lib/std/Io/fiber.zig#L244-L255`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig#L244-L255)：
 
 ```x86asm
 # 寄存器输入: RSI 指向 Switch 结构体 { old: *Context, new: *Context }
@@ -60,7 +60,7 @@ jmpq *16(%rcx)           # 9. 跳转至 new.rip 执行新 Fiber
 ```
 
 ### 2. AArch64 (ARM64) 内联汇编分析
-查看源码 [`lib/std/Io/fiber.zig#L31-L41`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig#L31-L41)：
+查看源码 [`lib/std/Io/fiber.zig#L31-L41`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig#L31-L41)：
 
 ```armasm
 # 寄存器输入: X1 指向 Switch { old: *Context, new: *Context }
@@ -94,14 +94,14 @@ graph TB
         StackSpace["剩余可用栈空间"]
         GuardPage["栈底保护页: 4KB Guard Page (PROT_NONE)"]
         Low["低地址 (Bottom of Stack)"]
-        
+
         High --- Frame1
         Frame1 --- Frame2
         Frame2 --- StackSpace
         StackSpace --- GuardPage
         GuardPage --- Low
     end
-    
+
     StackSpace -.->|栈溢出越界| GuardPage
     GuardPage -.->|触发页保护错误| Crash["内核产生 SIGSEGV 终止进程"]
 ```

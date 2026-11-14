@@ -2,13 +2,13 @@
 
 在传统编译原理课程中，词法分析器（Lexer / Tokenizer）常使用基于正则表达式的状态机生成工具（如 Flex 或 Lex）。这类工具在理论上具备良好的形式化表达能力，但生成的代码常伴随间接查表与分散的分支跳转，且有时会伴随不可预期的临时内存分配。
 
-Zig 0.17 的词法分析器位于 [`lib/std/zig/tokenizer.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/tokenizer.zig)。它的工程目标很明确：**保持机械同构（Mechanical Sympathy）、实现零堆内存分配，以及采用一次性容量预估策略。**
+Zig 0.17 的词法分析器位于 [`lib/std/zig/tokenizer.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/tokenizer.zig)。它的工程目标很明确：**保持机械同构（Mechanical Sympathy）、实现零堆内存分配，以及采用一次性容量预估策略。**
 
 ---
 
 ## 零分配的流式词法切词器
 
-在 [`lib/std/zig/tokenizer.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/tokenizer.zig) 中，`Tokenizer` 的结构体非常轻量：
+在 [`lib/std/zig/tokenizer.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/tokenizer.zig) 中，`Tokenizer` 的结构体非常轻量：
 
 ```zig
 pub const Tokenizer = struct {
@@ -50,7 +50,7 @@ pub const Tokenizer = struct {
 
 在将源码文本转换为语法树时，一个常见的性能开销是**动态数组在不断调用 `append` 过程中触发的多次扩容与数据拷贝（Realloc & Copy）**。每次扩容不仅带来内存拷贝开销，还可能导致虚拟内存碎片。
 
-查看 Zig 0.17 在语法解析入口处 [`lib/std/zig/Ast.zig#L153-L165`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Ast.zig#L153-L165) 的实现：
+查看 Zig 0.17 在语法解析入口处 [`lib/std/zig/Ast.zig#L153-L165`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Ast.zig#L153-L165) 的实现：
 
 ```zig
 pub fn parse(gpa: Allocator, source: [:0]const u8, options: ParseOptions) Allocator.Error!Ast {

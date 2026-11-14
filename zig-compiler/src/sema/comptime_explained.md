@@ -116,4 +116,4 @@ fn serialize(writer: anytype, value: anytype) !void {
 
 这种分支修剪特性使开发者可以使用直接的条件语句实现静态分发，而无需复杂的模板元编程技巧。
 
-下一节我们将查看 [`src/Sema.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Sema.zig)，分析语义分析与 `comptime` 的具体协作流程。
+下一节我们将查看 [`src/Sema.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Sema.zig)，分析语义分析与 `comptime` 的具体协作流程。

@@ -75,7 +75,7 @@ Zig 提供了另一种思路：
   | [examples/04-c-library-port](https://github.com/jiacai2050/x/tree/main/zig-build/examples/04-c-library-port) | 复杂第三方 C 静态库封装与导出 | [实战三：复杂第三方 C 库的完整移植实践](practices/practice-porting-c-library.md) |
   | [examples/05-custom-step](https://github.com/jiacai2050/x/tree/main/zig-build/examples/05-custom-step) | 编写辅助构建工具并接入构建 DAG（Host Tool + Run Step） | [编写自定义 Step：扩展构建管线](api/custom-steps.md) |
 
-  复杂 C 库移植工程参考开源项目 [zig-mariadb-connector](https://github.com/jiacai2050/zig-mariadb-connector)；源码分析基于 [Zig 官方 0.17.0 源码树](https://codeberg.org/ziglang/zig/src/tag/0.17.0)。
+  复杂 C 库移植工程参考开源项目 [zig-mariadb-connector](https://github.com/jiacai2050/zig-mariadb-connector)；源码分析基于 [Zig 官方 0.17.0 源码树](https://github.com/jiacai2050/zig/blob/0.17.0)。
 - **代码注释**：示例代码中的注释与正文均采用中文，便于中文读者顺畅阅读。
 
 ---

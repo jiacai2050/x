@@ -4,13 +4,13 @@
 
 如果编译器各处均采用独立的堆分配对象来表示类型结构（例如嵌套定义指针与类型描述符），在类型检查与等价性判定时往往需要遍历深层指针结构，且容易产生大量短生命周期的临时分配。
 
-Zig 0.17 在 [`src/InternPool.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig) 中采用**全局驻留池（Intern Pool）**统一管理类型与编译期常量。
+Zig 0.17 在 [`src/InternPool.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig) 中采用**全局驻留池（Intern Pool）**统一管理类型与编译期常量。
 
 ---
 
 ## 驻留（Interning）机制：类型与常量的索引化
 
-查看源码头部注释 [`src/InternPool.zig#L1-L2`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig#L1-L2)：
+查看源码头部注释 [`src/InternPool.zig#L1-L2`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig#L1-L2)：
 
 > *"All interned objects have both a value and a type. This data structure is self-contained."*
 
@@ -67,7 +67,7 @@ if (type_a.ip_index == type_b.ip_index) {
 
 在多线程并行编译时，多个线程可能会并发请求向 `InternPool` 写入新构造的类型或常量。如果采用单一互斥锁，可能会在高并发下形成排队瓶颈。
 
-查看 [`src/InternPool.zig#L22-L26`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/InternPool.zig#L22-L26)：
+查看 [`src/InternPool.zig#L22-L26`](https://github.com/jiacai2050/zig/blob/0.17.0/src/InternPool.zig#L22-L26)：
 
 ```zig
 /// 每一个编译线程独享一个 Local 缓存，以线程 ID (tid) 为索引

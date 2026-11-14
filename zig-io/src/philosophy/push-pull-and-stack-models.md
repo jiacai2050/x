@@ -76,12 +76,12 @@ graph TB
         SL_State0["State0: 准备读取 (存 socket_fd)"]
         SL_State1["State1: 等待数据 (存 header_buf)"]
         SL_State2["State2: 解析完成 (存 result)"]
-        
+
         SL_Func -->|编译期语法变换| SL_Enum
         SL_Enum --> SL_State0
         SL_Enum --> SL_State1
         SL_Enum --> SL_State2
-        
+
         SL_ThreadStack["借用 OS 物理线程栈执行"]
         SL_State1 -.->|挂起时退栈| SL_ThreadStack
     end
@@ -93,7 +93,7 @@ graph TB
         SF_Frame2["栈帧 2: handle_connection()"]
         SF_Frame3["栈帧 3: read_stream()"]
         SF_Regs["CPU 寄存器现场快照 (SP, FP, PC, Callee-saved)"]
-        
+
         SF_Task --> SF_Mem
         SF_Mem --> SF_Frame1
         SF_Frame1 --> SF_Frame2
@@ -175,4 +175,4 @@ Zig 坚持显式内存管理：
 - **内存保护页（Guard Page）**：
   分配纤程栈时，通常在栈底通过 `mprotect`（POSIX）或 `VirtualProtect`（Windows）设置一页带有 `PROT_NONE` 属性的保护页。一旦调用深度超出边界触发越界写入，CPU 触发段错误中断，防止静默覆盖相邻内存；
 - **汇编切换**：
-  在 [`lib/std/Io/fiber.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/fiber.zig) 中，Zig 通过数条内联汇编指令完成寄存器保存与恢复。
+  在 [`lib/std/Io/fiber.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/fiber.zig) 中，Zig 通过数条内联汇编指令完成寄存器保存与恢复。

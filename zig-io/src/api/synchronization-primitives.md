@@ -15,11 +15,11 @@ graph TB
         F1["Fiber 1 (正在执行)"]
         F2["Fiber 2 (就绪态)"]
         F3["Fiber 3 (就绪态)"]
-        
+
         OS_Thread --> F1
         OS_Thread -.-> F2
         OS_Thread -.-> F3
-        
+
         F1 -->|争用锁失败| Syscall["陷入内核系统调用: futex_wait / mutex_lock"]
         Syscall --> BlockOS["操作系统挂起整个物理线程"]
         BlockOS -.->|连带停滞| Starve["同一线程上的 F2 与 F3 随之停滞"]
@@ -30,7 +30,7 @@ graph TB
         ZF1["Fiber 1"]
         ZF2["Fiber 2"]
         Z_Thread --> ZF1
-        
+
         ZF1 -->|争用锁失败| Yield["将 ZF1 挂入互斥锁的 Waiter 双向链表"]
         Yield --> Switch["内联汇编 contextSwitch 切走 CPU"]
         Switch --> ZF2
@@ -78,22 +78,22 @@ pub const Counter = struct {
 ```mermaid
 flowchart TD
     Start["调用 mutex.lock(io)"] --> FastPath{"1. 快路径 (Fast Path)<br/>CAS 原子操作 0 -> 1 ?"}
-    
+
     FastPath -- 成功 (无竞争) --> Locked["成功持有锁"]
-    
+
     FastPath -- 失败 (发生冲突) --> SlowPath["2. 慢路径 (Slow Path)"]
     SlowPath --> Enqueue["将当前 Fiber 上下文插入 mutex.waiters 双向链表"]
     Enqueue --> Yield["调用 io.vtable 触发汇编切换，让出 CPU"]
-    
+
     Yield --> Sleeping["当前 Fiber 在等待队列中休眠..."]
-    
+
     subgraph UnlockPhase ["锁释放阶段: mutex.unlock(io)"]
         UnlockCall["调用 mutex.unlock(io)"] --> CheckWaiters{"waiters 链表非空 ?"}
         CheckWaiters -- 否 --> Reset["原子将锁状态置为 0"]
         CheckWaiters -- 是 --> Pop["从链表头部摘除一个挂起的 Fiber"]
         Pop --> Wake["将该 Fiber 重新塞入调度器就绪队列 (Ready Queue)"]
     end
-    
+
     Wake -.->|被唤醒| Resume["Fiber 被重新载入 CPU，成功获取锁继续执行"]
 ```
 
@@ -105,7 +105,7 @@ flowchart TD
 
 ## 读写锁：`Io.RwLock` 的写防饥饿策略
 
-在读多写少的场景下，[`Io.RwLock`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io/RwLock.zig) 在原子字中同时维护了读者数量与写者等待标记：
+在读多写少的场景下，[`Io.RwLock`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/RwLock.zig) 在原子字中同时维护了读者数量与写者等待标记：
 
 ```zig
 pub fn accessConfig(cache: *ConfigCache, io: Io) !void {
@@ -124,7 +124,7 @@ pub fn accessConfig(cache: *ConfigCache, io: Io) !void {
 
 ## 底层同步基石：Futex（Fast Userspace Mutex）
 
-跨物理线程交互中，`std.Io` 的虚表直接对接操作系统的 Futex 接口（源码见 [`lib/std/Io.zig#L140`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Io.zig#L140)）：
+跨物理线程交互中，`std.Io` 的虚表直接对接操作系统的 Futex 接口（源码见 [`lib/std/Io.zig#L140`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L140)）：
 
 ```zig
 // 等待某个 32 位整型地址的值，若当前内存值 == expected_val 则挂起，超时为 .none

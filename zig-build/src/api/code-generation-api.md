@@ -14,7 +14,7 @@
 
 ## 1. 配置头文件生成：`b.addConfigHeader`
 
-在 C/C++ 库移植或混合编程中，项目通常依赖 CMake 的 `configure_file(config.h.in config.h)` 根据编译平台宏替换变量。Zig 通过 [lib/std/Build/Step/ConfigHeader.zig](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/ConfigHeader.zig#L1-L70) 的 `b.addConfigHeader` 提供了原生替代方案，无需在宿主机安装 CMake 或 Python 解释器。
+在 C/C++ 库移植或混合编程中，项目通常依赖 CMake 的 `configure_file(config.h.in config.h)` 根据编译平台宏替换变量。Zig 通过 [lib/std/Build/Step/ConfigHeader.zig](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/ConfigHeader.zig#L1-L70) 的 `b.addConfigHeader` 提供了原生替代方案，无需在宿主机安装 CMake 或 Python 解释器。
 
 ### 1.1 核心用法
 
@@ -90,7 +90,7 @@ const assets_dir = asset_pack.getDirectory();
 
 在纯 Zig 项目中，若需要将构建期配置（如语义化版本、Git Commit Hash、编译模式、Feature Flags）注入到源代码中，手动使用 `addWriteFiles` 拼接 Zig 字符串容易出现转义或类型拼写错误。
 
-Zig 标准库在 [lib/std/Build/Step/Options.zig:L1-L490](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/Options.zig#L1-L490) 中提供了类型安全的专用步骤 `b.addOptions`。
+Zig 标准库在 [lib/std/Build/Step/Options.zig:L1-L490](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/Options.zig#L1-L490) 中提供了类型安全的专用步骤 `b.addOptions`。
 
 ### 3.1 核心用法
 
@@ -167,7 +167,7 @@ pub fn main() void {
 
 在模块化工程中，经常需要由上游依赖包通过自定义工具生成代码（如 Protocol Buffers、RPC 桩代码或 SQL 结构体），下游项目直接导入这些生成物。
 
-传统做法往往需要下游直接引用上游的磁盘缓存路径，容易出现硬编码和并发读写冲突。Zig 通过 [lib/std/Build.zig:L862-L880](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L862-L880) 的 `addNamedWriteFiles` 与 [lib/std/Build.zig:L1880-L1895](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build.zig#L1880-L1895) 的 `dep.namedWriteFiles` 支持跨包声明式共享生成文件。
+传统做法往往需要下游直接引用上游的磁盘缓存路径，容易出现硬编码和并发读写冲突。Zig 通过 [lib/std/Build.zig:L862-L880](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L862-L880) 的 `addNamedWriteFiles` 与 [lib/std/Build.zig:L1880-L1895](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build.zig#L1880-L1895) 的 `dep.namedWriteFiles` 支持跨包声明式共享生成文件。
 
 ### 4.1 跨包命名导出与消费模式
 
@@ -289,7 +289,7 @@ pub fn build(b: *std.Build) void {
 
 严禁在 `build(b)` 的配置期直接通过 `std.fs.cwd().writeFile()` 篡改源码，这会引发配置缓存污染和文件竞争。
 
-标准方案是使用 [lib/std/Build/Step/UpdateSourceFiles.zig:L1-L60](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/Build/Step/UpdateSourceFiles.zig#L1-L60) 的专用步骤：
+标准方案是使用 [lib/std/Build/Step/UpdateSourceFiles.zig:L1-L60](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Build/Step/UpdateSourceFiles.zig#L1-L60) 的专用步骤：
 
 ```zig
 const std = @import("std");

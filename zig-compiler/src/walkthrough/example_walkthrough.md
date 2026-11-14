@@ -26,7 +26,7 @@ pub fn main() void {
 
 ## 阶段一：词法分析（`tokenizer.zig`）
 
-执行 `zig build-exe main.zig` 时，源码切片首先传入 [`lib/std/zig/tokenizer.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/tokenizer.zig)。
+执行 `zig build-exe main.zig` 时，源码切片首先传入 [`lib/std/zig/tokenizer.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/tokenizer.zig)。
 
 - **容量预分配**：文本长度约 200 字节。依据 `8:1` 经验法则，`Ast.TokenList` 一次性预分配容纳约 25 个 Token 的空间；
 - **词法扫描**：
@@ -42,7 +42,7 @@ pub fn main() void {
 
 ## 阶段二：语法分析（`Parse.zig` 与 `Ast.zig`）
 
-Token 序列经由递归下降分析器 [`lib/std/zig/Parse.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/Parse.zig)，构建出基于平整数组的语法树：
+Token 序列经由递归下降分析器 [`lib/std/zig/Parse.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/Parse.zig)，构建出基于平整数组的语法树：
 
 - 节点以 SoA 形式记录在 `tree.nodes` 中：
   - `Node[0]`（根节点）：Tag 为 `.root`，索引顶层声明列表；
@@ -57,7 +57,7 @@ Token 序列经由递归下降分析器 [`lib/std/zig/Parse.zig`](https://codebe
 
 ## 阶段三：降级为无类型字节码（`AstGen.zig` -> `Zir.zig`）
 
-前端模块启动 [`lib/std/zig/AstGen.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/lib/std/zig/AstGen.zig)，将树状 AST 展平为单文件独立的 ZIR 字节码序列：
+前端模块启动 [`lib/std/zig/AstGen.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/zig/AstGen.zig)，将树状 AST 展平为单文件独立的 ZIR 字节码序列：
 
 ```
 // ZIR 结构示意 (无类型指令流)
@@ -84,7 +84,7 @@ Token 序列经由递归下降分析器 [`lib/std/zig/Parse.zig`](https://codebe
 ## 阶段四：语义分析与 Comptime 求值（`Sema.zig` + `InternPool.zig`）
 
 这是语义分析与类型推导的关键阶段。
-`Zcu` 检测到 `main` 为分析入口根节点，唤醒 [`src/Sema.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/Sema.zig)：
+`Zcu` 检测到 `main` 为分析入口根节点，唤醒 [`src/Sema.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/Sema.zig)：
 
 ```mermaid
 graph TD
@@ -131,7 +131,7 @@ Sema 完成函数 `main()` 的 AIR 分析后，向 `link_queue` 提交异步 Cod
 
 ## 阶段六：自研链接器装配与输出（`src/link/`）
 
-在独立线程中运行的自研链接器（如 Linux 下的 [`src/link/Elf2.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/Elf2.zig) 或 macOS 下的 [`src/link/MachO.zig`](https://codeberg.org/ziglang/zig/src/tag/0.17.0/src/link/MachO.zig)）接管机器码：
+在独立线程中运行的自研链接器（如 Linux 下的 [`src/link/Elf2.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/Elf2.zig) 或 macOS 下的 [`src/link/MachO.zig`](https://github.com/jiacai2050/zig/blob/0.17.0/src/link/MachO.zig)）接管机器码：
 
 1. 打开目标输出文件并建立内存映射（`MappedFile`）；
 2. 将机器码字节写入可执行文件的 `.text` 代码段对应偏移位置；
