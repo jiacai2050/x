@@ -1,0 +1,4 @@
+module CQianliyan [system] {
+    header "dbcore.h"
+    export *
+}

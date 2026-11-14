@@ -1,0 +1,24 @@
+# Zig build artifacts
+zig-out/
+.zig-cache/
+zig-pkg/
+.cache/
+
+# Binary & object files
+*.o
+*.a
+*.dylib
+
+# Swift & SPM build artifacts
+.build/
+macos/.build/
+Package.resolved
+dist/
+
+# macOS system files
+.DS_Store
+
+# Xcode files (if opened in Xcode)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/

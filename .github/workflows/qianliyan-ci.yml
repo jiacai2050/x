@@ -1,0 +1,59 @@
+name: Qianliyan CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'qianliyan/**'
+      - '.github/workflows/qianliyan-ci.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'qianliyan/**'
+      - '.github/workflows/qianliyan-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: qianliyan
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.1
+
+      - name: Show environment
+        run: |
+          zig version
+          swift --version
+
+      - name: Run Zig tests
+        run: make test
+
+      - name: Build macOS app (Debug)
+        run: make macos
+
+      - name: Build release package (DMG & Zip)
+        run: make dist
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Qianliyan-macOS
+          path: |
+            qianliyan/dist/Qianliyan.dmg
+            qianliyan/dist/Qianliyan-macos-arm64.zip
+          retention-days: 7
