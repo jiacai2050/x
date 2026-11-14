@@ -4,7 +4,7 @@
 
 非结构化并发（如没有关联父作用域的后台派生）容易在主函数退出后遗留运行中的子任务，引发资源泄漏。
 
-Zig 0.17 在标准库层面支持结构化并发（Structured Concurrency），主要依托 `AnyFuture` 与 `Io.Group` 管理任务生命周期。
+Zig 在标准库层面支持结构化并发（Structured Concurrency），主要依托 `AnyFuture` 与 `Io.Group` 管理任务生命周期。
 
 ---
 
@@ -73,7 +73,7 @@ graph TB
 
 ## `Io.Group` 状态机与收敛机制
 
-查阅源码 [`lib/std/Io.zig#L1338-L1380`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1338-L1380)，`Io.Group` 的运转流程如下：
+查阅源码 [`lib/std/Io.zig#L1338-L1432`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1338-L1432)，`Io.Group` 的运转流程如下：
 
 ```mermaid
 sequenceDiagram
@@ -82,29 +82,32 @@ sequenceDiagram
     participant Group as Io.Group 控制块
     participant W1 as 子任务 1 (Worker 1)
     participant W2 as 子任务 2 (Worker 2)
+    participant Shared as 业务共享上下文 (Context)
 
     Parent->>Group: 1. var group: Io.Group = .init
-    Parent->>Group: 2. group.concurrent(io, task1) -> active_count.fetchAdd(1)
-    Parent->>Group: 3. group.concurrent(io, task2) -> active_count.fetchAdd(1)
+    Parent->>Group: 2. group.concurrent(io, task1, .{ctx, 1})
+    Parent->>Group: 3. group.concurrent(io, task2, .{ctx, 2})
 
-    Parent->>Group: 4. group.await(io): 检查 active_count > 0，父 Fiber 挂起
+    Parent->>Group: 4. group.await(io): 挂起父 Fiber，等待组内任务收敛
 
     W1->>W1: 执行任务 1... 正常结束
-    W1->>Group: 5. 释放 W1 纤程栈，active_count.fetchSub(1)
+    W1->>Group: 5. 任务 1 结束，即时释放纤程栈并通知 Group
 
-    W2->>W2: 执行任务 2... 遇到错误 error.DiskFull
-    W2->>Group: 6. 写入 group.error_slot，广播取消信号
-    W2->>Group: 7. 释放 W2 纤程栈，active_count.fetchSub(1)
+    W2->>Shared: 6. 任务 2 出现业务异常，写入 ctx.error_slot
+    W2->>Group: 7. 任务 2 结束，即时释放纤程栈并通知 Group
 
-    Note over Group: active_count 归零
-    Group-->>Parent: 8. 唤醒父 Fiber，返回 error.DiskFull
+    Note over Group: 组内所有任务均已执行完毕
+    Group-->>Parent: 8. 唤醒父 Fiber，group.await 返回 void (或在被取消时返回 error.Canceled)
+    Parent->>Shared: 9. 父 Fiber 检查 ctx.error_slot 处理业务错误
 ```
 
 ### 1. 即时资源释放
-在 `Io.Group` 中，每个子任务执行完毕时，其运行外壳会立即释放该任务占用的独立栈空间，随后执行原子计数器 `active_count` 的递减，无需等到组内全部任务结束才释放内存。
+在 `Io.Group` 中，每个子任务执行完毕时，其运行外壳会立即释放该任务占用的独立栈空间，无需等到组内全部任务结束才释放内存。
 
-### 2. 错误记录与级联取消
-当组内子任务并发执行时：
-- **捕获首个错误**：子任务出现错误时，通过原子的 CAS 操作写入 `group.error_slot`，记录第一个异常错误码；
-- **广播取消**：任务出错时，Group 向登记的兄弟 Fiber 广播取消信号，驱动在途 I/O 撤回；
-- **收敛退出**：父 Fiber 阻塞在 `group.await(io)` 处，待所有派生子任务退出并释放内存后，调度器将错误码返回给上层调用栈。
+### 2. 错误隔离与取消边界
+在 `std.Io` 的设计中：
+- **取消传播边界**：`group.async` 与 `group.concurrent` 规定传入函数的返回值必须可转换为 `Cancelable!void`。若函数返回 `error.Canceled`，外层调度包装会显式捕获并静默忽略（`catch {}`），因为任务组已作为取消传播边界；
+- **业务错误外置**：`Group` 自身仅包含 `token` 与 `state`，不负责收集业务层面的任意错误（如 `error.DiskFull`）。若需要多任务汇总错误或返回结果，应由业务任务写入父作用域传入的共享上下文（如原子变量、互斥保护结构体）；
+- **`await` 与 `cancel` 的同步收敛**：
+  - `group.await(io)`：阻塞当前调用方，直到组内所有任务运行完毕。若在此期间当前任务或组收到了取消请求，则返回 `error.Canceled`；
+  - `group.cancel(io)`：向组内所有尚未完成的任务广播取消信号，**并且同样会阻塞等待所有任务全部收敛退出**。其执行完毕后 `token` 会被重置为 `null`，确保无残留悬挂任务。

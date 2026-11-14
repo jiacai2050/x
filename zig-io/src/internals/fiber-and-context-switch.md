@@ -82,17 +82,17 @@ br x3                    # 9. 跳转至 X3 (new.pc)
 
 ---
 
-## 纤程栈内存管理与保护页（Guard Page）
+## 纤程栈内存管理与保护页考量
 
 ```mermaid
 graph TB
-    subgraph FiberStack ["纤程栈物理内存布局"]
+    subgraph FiberStack ["纤程栈物理内存布局 (传统安全模型 vs std.Io 裸栈)"]
         direction TB
         High["高地址 (Top of Stack)"]
         Frame1["当前函数栈帧"]
         Frame2["父函数栈帧"]
         StackSpace["剩余可用栈空间"]
-        GuardPage["栈底保护页: 4KB Guard Page (PROT_NONE)"]
+        GuardPage["可选保护页: 4KB Guard Page (PROT_NONE)"]
         Low["低地址 (Bottom of Stack)"]
 
         High --- Frame1
@@ -102,15 +102,15 @@ graph TB
         GuardPage --- Low
     end
 
-    StackSpace -.->|栈溢出越界| GuardPage
-    GuardPage -.->|触发页保护错误| Crash["内核产生 SIGSEGV 终止进程"]
+    StackSpace -.->|溢出至保护页| Crash["MMU 产生 SIGSEGV (需自定义分配器注入)"]
 ```
 
-### 保护页机制：
-1. **栈向下生长**：在 x86-64 与 ARM64 架构中，函数压栈向低地址生长；
-2. **设置 `PROT_NONE`**：分配纤程栈时，通常将栈底部的 4KB 页面通过 `mprotect` 标记为不可读写访问；
-3. **防止越界踩踏**：
-   若 Fiber 递归过深或分配了过大的局部数组导致栈指针越界触碰该保护页，硬件 MMU 触发缺页异常（Page Fault），操作系统向进程发送 `SIGSEGV`，便于及时定位栈溢出问题。
+### 纤程栈分配与安全边界：
+1. **栈向下生长**：在 x86-64 与 ARM64 架构中，函数压栈均向低地址生长；
+2. **标准库原生行为**：
+   在 Zig `std.Io` 现行驱动实现（`Uring.zig`、`Dispatch.zig` 等）中，Fiber 栈是直接从通用分配器（`gpa.alloc`）切出的一整块固定内存，**标准库内部默认不发起 `mprotect` 系统调用设置 `PROT_NONE` 保护页**，以此保持极低的分配开销与跨平台通用性；
+3. **栈溢出防范建议**：
+   由于缺乏 Go 式的 `morestack` 运行时动态扩容与默认硬件保护页兜底，纤程任务中严禁分配超大局部栈数组（推荐使用显式堆分配或通过 Buffer 借用）。在开发与调试测试环境中，可通过包裹带 Guard Page 的虚拟内存分配器（设置页属性不可访问）来及时暴露越界踩踏隐患。
 
 ---
 
@@ -121,4 +121,4 @@ graph TB
 | **执行路径** | 用户态调度循环 | 内联汇编 |
 | **寄存器处理** | 保存 Callee-saved 寄存器及 TLS 指针 | 置换 `SP`、`FP`、`PC`，其余由编译器调度管理 |
 | **运行时结构体** | 维护 `g`、`m`、`p` 状态及栈边界信息 | 仅进行寄存器状态切换 |
-| **栈溢出检查** | 函数序言包含 `morestack` 探测指令 | 依赖硬件保护页（Guard Page）捕获越界 |
+| **栈溢出检查** | 函数序言包含 `morestack` 探测指令进行动态扩容 | 固定大小栈，标准库默认不注入 Guard Page（需显式把控栈预算或配合调试分配器） |

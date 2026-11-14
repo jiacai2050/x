@@ -76,11 +76,16 @@ pub fn copyFileZeroCopy(io: Io, src_file: Io.File, dst_file: Io.File) !u64 {
 2. **上层拦截与降级**：
    高层方法 `w.sendFileAll` 捕获该错误后，调用备用方法 `sendFileReadingAll`：
    ```zig
+   // 入口处无条件断言非零缓冲容量，确保无论走零拷贝还是降级路径均及早暴露配置缺陷
+   assert(w.buffer.len > 0);
+   var remaining = @backingInt(limit);
    while (remaining > 0) {
-       const n = w.vtable.sendFile(w, file_reader, limit) catch |err| switch (err) {
+       const n = sendFile(w, file_reader, .limited(remaining)) catch |err| switch (err) {
+           error.EndOfStream => break,
            error.Unimplemented => {
-               assert(w.buffer.len > 0);
-               return sendFileReadingAll(w, file_reader, limit);
+               file_reader.mode = file_reader.mode.toSimple();
+               remaining -= try w.sendFileReadingAll(file_reader, .limited(remaining));
+               break;
            },
            else => |e| return e,
        };
@@ -94,7 +99,7 @@ pub fn copyFileZeroCopy(io: Io, src_file: Io.File, dst_file: Io.File) !u64 {
 
 ## 跨语言对比（Zig vs Go vs Rust）
 
-| 维度 | Go 语言 (`io.Copy`) | Rust Tokio (`tokio::io::copy`) | Zig 0.17 (`w.sendFileAll`) |
+| 维度 | Go 语言 (`io.Copy`) | Rust Tokio (`tokio::io::copy`) | Zig (`w.sendFileAll`) |
 | :--- | :--- | :--- | :--- |
 | **底层系统调用** | Linux `splice` / `sendfile` | 默认通用用户态缓冲拷贝 | Linux `copy_file_range` / `sendfile`，macOS `fcopyfile` |
 | **分发方式** | 运行时接口断言（`ReaderFrom` / `WriterTo`） | 需引入特定平台 crate 支持 | VTable 虚表方法 |

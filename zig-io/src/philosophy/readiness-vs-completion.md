@@ -4,7 +4,7 @@
 
 围绕“数据何时就绪”以及“数据由谁负责读入内存”，操作系统衍生出了两种常见的通知机制：
 - **Readiness-based（基于就绪通知 / Reactor 模式）**：以 Linux `select`/`poll`/`epoll`、BSD/macOS `kqueue` 为代表；
-- **Completion-based（基于完成通知 / Proactor 模式）**：以 Windows `IOCP`（I/O Completion Ports）、Linux `io_uring` 为代表，Zig 0.17 的 `std.Io` 采用这一范式。
+- **Completion-based（基于完成通知 / Proactor 模式）**：以 Windows `IOCP`（I/O Completion Ports）、Linux `io_uring` 为代表，Zig 的 `std.Io` 采用这一范式。
 
 ---
 
@@ -214,7 +214,7 @@ graph TB
   - 就绪事件触发后调用 `waker.wake()`，将任务重新加入工作窃取调度队列。
 - **文件 I/O 方案**：由于 `epoll` 的限制，`tokio::fs` 通过 `spawn_blocking` 将文件操作交由专属的阻塞线程池（默认上限 512 个线程）处理。
 
-### 3. Zig 0.17：统一完成模型与纤程结合
+### 3. Zig：统一完成模型与纤程结合
 
 Zig 的 `std.Io` 采用完成模型语义：
 

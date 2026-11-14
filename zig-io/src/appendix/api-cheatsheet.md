@@ -29,7 +29,7 @@
 | `group.async(io, func, args)` | 原子自增 `active_count`，向当前事件环压入协作纤程 |
 | `group.concurrent(io, func, args)` | 原子自增 `active_count`，向全局工作线程池投递并行任务 |
 | `group.await(io)` | 挂起父纤程，直到所有子任务退出且 `active_count == 0` 时收敛唤醒 |
-| `group.cancel(io)` | 向组内所有未完成的子任务广播原子取消信号，驱动在途 I/O 撤回 |
+| `group.cancel(io)` | 向组内所有未完成的子任务广播原子取消信号，并同步等待所有任务全部收敛退出 |
 
 ---
 

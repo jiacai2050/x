@@ -103,9 +103,9 @@ fn handleClientSession(io: Io, stream: net.Stream) void {
 
 ### 2. 并发连接内存对比
 
-| 评估项目 | Go 语言 (Goroutine) | Rust (Tokio) | Zig 0.17 (std.Io Fiber) |
+| 评估项目 | Go 语言 (Goroutine) | Rust (Tokio) | Zig (std.Io Fiber) |
 | :--- | :--- | :--- | :--- |
 | **单连接栈/状态机占用** | 初始 2KB 动态连续栈 + 运行时结构体 | 仅 `Future` 状态机枚举（根据状态按需分配） | 显式分配栈（如 4KB） |
-| **栈扩容行为** | 递归深层调用时可能触发 `copystack` 扩容与指针重写 | 零栈扩容 | 零栈扩容，由保护页（Guard Page）防范越界 |
+| **栈扩容行为** | 递归深层调用时可能触发 `copystack` 扩容与指针重写 | 零栈扩容 | 零栈扩容，显式预分配固定栈空间 |
 | **函数语法** | 同步书写，无函数颜色 | 需标注 `async`/`await` | 同步书写，无函数颜色 |
 | **C 动态库交互** | 需经由 CGO 桥接 | 需通过 FFI 处理生命周期 | 在纤程内可直接调用 C 函数 |

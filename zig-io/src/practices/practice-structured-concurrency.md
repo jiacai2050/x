@@ -23,19 +23,18 @@ sequenceDiagram
     Note over Mgr: 阶段一: 停止接收新任务
     Mgr->>Mgr: 2. 原子写入 is_running.store(false, .release)
     
-    Note over Mgr: 阶段二: 广播取消
-    Mgr->>Group: 3. group.cancel(io): 向任务组广播取消标记
-    Group->>Worker: 4. 中断处于等待状态的操作
+    Note over Mgr: 阶段二: 广播取消并同步收敛
+    Mgr->>Group: 3. group.cancel(io): 广播取消信号并同步等待所有 Worker 退出
+    Group->>Worker: 4. 向在途操作注入取消请求 (下个安全点触发 error.Canceled)
     
-    Note over Worker: 阶段三: 临界区保护
-    Worker->>Worker: 5. 捕获取消，刷盘期间通过 swapCancelProtection(.blocked) 建立屏障
-    Worker->>Storage: 6. 完成数据刷盘
-    Worker->>Worker: 7. 解除保护屏障并退出
+    Note over Worker: 阶段三: 临界区保护与状态落盘
+    Worker->>Worker: 5. 收到取消请求，关键刷盘操作通过 swapCancelProtection(.blocked) 建立屏障
+    Worker->>Storage: 6. 完成数据落盘
+    Worker->>Worker: 7. 解除保护屏障，退出任务并释放纤程栈
     
-    Note over Mgr: 阶段四: 等待任务收敛
-    Mgr->>Group: 8. group.await(io): 等待全部 Worker 退出
-    Group-->>Mgr: 9. active_count 归零
-    Mgr-->>OS: 10. 进程安全退出
+    Note over Group: 阶段四: 所有任务全部收敛退出
+    Group-->>Mgr: 8. group.cancel 完成同步等待并重置 token
+    Mgr-->>OS: 9. 进程安全退出
 ```
 
 ---
@@ -68,10 +67,10 @@ pub const ServiceManager = struct {
         // 1. 切断新任务流入 (采用 Release 内存序)
         self.is_running.store(false, .release);
 
-        // 2. 通知当前在途 Fiber 尽快结束
+        // 2. 广播取消信号并同步等待所有 Worker 退出收敛 (cancel 自身具备阻塞等待语义)
         self.group.cancel(self.io);
 
-        // 3. 等待 Group 内所有 Worker 退出
+        // 3. 也可调用 group.await(self.io)，若已通过 cancel 收敛完成则其为幂等空操作
         try self.group.await(self.io);
 
         std.debug.print("All background workers have cleanly exited. Safe to terminate.\n", .{});
@@ -118,7 +117,7 @@ fn workerLoop(mgr: *ServiceManager, worker_id: usize) Io.Cancelable!void {
 
 ## 跨语言停机机制对比
 
-| 维度 | Go 语言 (`context.WithCancel`) | Rust Tokio (`CancellationToken`) | Zig 0.17 (`Io.Group` + `CancelProtection`) |
+| 维度 | Go 语言 (`context.WithCancel`) | Rust Tokio (`CancellationToken`) | Zig (`Io.Group` + `CancelProtection`) |
 | :--- | :--- | :--- | :--- |
 | **信号传递方式** | 通过函数形参显式透传 `ctx: context.Context` | 克隆 `CancellationToken` 传入闭包 | 携带在 Fiber 上下文中 |
 | **临界区防打断** | 需使用带超时的独立 `context.Background()` 组织逻辑 | 依赖各组件自行设计标志位 | 原生支持 `swapCancelProtection(.blocked)` |

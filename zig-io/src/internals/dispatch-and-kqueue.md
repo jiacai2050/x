@@ -2,7 +2,7 @@
 
 在 BSD 系列（FreeBSD, NetBSD, OpenBSD）以及 Apple 体系（macOS, iOS, Darwin）中，系统提供了 **`kqueue`** 以及 Apple 的 **`libdispatch` (GCD / Grand Central Dispatch)**。
 
-由于此类内核原生基于就绪通知模型，Zig 0.17 在标准库层面实现了适配驱动：[`Io.Kqueue`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Kqueue.zig) 与 [`Io.Dispatch`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Dispatch.zig)。
+由于此类内核原生基于就绪通知模型，Zig 在标准库层面实现了适配驱动：[`Io.Kqueue`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Kqueue.zig) 与 [`Io.Dispatch`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io/Dispatch.zig)。
 
 本章分析标准库如何在就绪型（Readiness）内核机制上提供完成型（Proactor）接口。
 

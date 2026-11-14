@@ -113,7 +113,7 @@ fn handleClient(io: Io, stream: net.Stream) !void {
 
     while (true) {
         var chunk: [256]u8 = undefined;
-        // 短读：返回 0 表示对端发送 FIN 断开
+        // 短读：优先返回内部已就绪数据；当内部缓冲排空且底层遇到 EOF (FIN) 时返回 0
         const n = try r.readSliceShort(&chunk);
         if (n == 0) break;
 
@@ -128,5 +128,5 @@ fn handleClient(io: Io, stream: net.Stream) !void {
 当对端调用 `shutdown(SHUT_WR)` 时：
 1. 对端发送 `FIN` 报文进入终止状态；
 2. 本地内核收到 `FIN` 并回复 `ACK`，在接收队列中记录文件结束标记（EOF）；
-3. 本地 `r.readSliceShort` 读完剩余数据后返回 `0` 字节；
+3. 本地 `r.readSliceShort` 先排空 Reader 内部缓冲区的残留数据，随后再次尝试读取底层时收到 EOF，返回 `0` 字节（注意：高层方法如 `r.read` 在此时会抛出 `error.EndOfStream`，而短读方法则约定返回 0 字节）；
 4. 本地确认对端停止写入，但仍可通过 `w` 发送数据，发送完毕后调用 `stream.close(io)` 发送己方 `FIN` 彻底关闭连接。

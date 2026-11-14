@@ -113,7 +113,7 @@ sequenceDiagram
   内核完成取消处理并写入完成队列（结果通常为 `-ECANCELED`）后，驱动确认内核已终止对该内存切片的访问，此时才唤醒 Fiber 抛出 `error.Canceled` 并展开栈帧。
 
 ### 3. 主动检查取消点：`io.checkCancel()`
-查阅源码 [`lib/std/Io.zig#L1457`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1457)：
+查阅源码 [`lib/std/Io.zig#L1485`](https://github.com/jiacai2050/zig/blob/0.17.0/lib/std/Io.zig#L1485)：
 ```zig
 pub fn checkCancel(io: Io) Cancelable!void {
     return io.vtable.checkCancel(io.userdata);

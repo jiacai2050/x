@@ -2,7 +2,7 @@
 
 在开发构建脚本、CLI 工具或跨进程服务时，控制子进程生命周期、重定向管道输出以及管理终端交互是常见的系统级操作。
 
-Zig 0.17 将进程派生（Process Spawning）、跨进程管道（Anonymous Pipe）与标准错误终端锁定统筹纳管至 `std.Io` 体系中。
+Zig 将进程派生（Process Spawning）、跨进程管道（Anonymous Pipe）与标准错误终端锁定统筹纳管至 `std.Io` 体系中。
 
 ---
 
