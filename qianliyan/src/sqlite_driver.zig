@@ -15,6 +15,7 @@ pub const SqliteDriver = struct {
     threaded: *std.Io.Threaded,
     sqlite_drv: *sql.sqlite.SQLiteDriver,
     db: *sql.DB,
+    last_error_buf: ?[]u8 = null,
 
     pub const OpenOptions = struct {
         path: ?[*:0]const u8 = null,
@@ -46,10 +47,15 @@ pub const SqliteDriver = struct {
             .threaded = threaded,
             .sqlite_drv = sqlite_drv,
             .db = db,
+            .last_error_buf = null,
         };
     }
 
     pub fn close(self: *SqliteDriver) void {
+        if (self.last_error_buf) |buf| {
+            self.allocator.free(buf);
+            self.last_error_buf = null;
+        }
         self.db.close();
         self.allocator.destroy(self.sqlite_drv);
         self.threaded.deinit();
@@ -60,22 +66,56 @@ pub const SqliteDriver = struct {
         _ = self.db.interruptAll();
     }
 
+    pub fn lastError(self: *SqliteDriver) ?[]const u8 {
+        return self.last_error_buf;
+    }
+
+    fn recordError(self: *SqliteDriver, msg: ?[]const u8) void {
+        if (self.last_error_buf) |buf| {
+            self.allocator.free(buf);
+            self.last_error_buf = null;
+        }
+        if (msg) |m| {
+            self.last_error_buf = self.allocator.dupe(u8, m) catch null;
+        }
+    }
+
     pub fn exec(self: *SqliteDriver, sql_str: []const u8) !void {
-        _ = try self.db.exec(sql_str, &.{});
+        self.recordError(null);
+        const pc = try self.db.conn();
+        defer pc.release();
+        _ = pc.exec(sql_str, &.{}) catch |err| {
+            self.recordError(pc.lastError());
+            return err;
+        };
     }
 
     /// Query dynamic SQL statement, returning a self-contained QueryResult
     pub fn query(self: *SqliteDriver, gpa: std.mem.Allocator, sql_str: [:0]const u8, max_rows: ?usize) !types.QueryResult {
+        self.recordError(null);
+
         var arena = std.heap.ArenaAllocator.init(gpa);
         errdefer arena.deinit();
         const arena_allocator = arena.allocator();
 
         const start_time = getMonotonicNs();
 
-        var rows = try self.db.query(sql_str, &.{});
-        defer rows.close();
+        const pc = try self.db.conn();
+        defer pc.release();
 
-        const col_names = rows.columns();
+        var stmt = pc.raw.prepare(sql_str) catch |err| {
+            self.recordError(pc.lastError());
+            return err;
+        };
+        defer stmt.close();
+
+        var raw_rows = stmt.query(&.{}) catch |err| {
+            self.recordError(pc.lastError());
+            return err;
+        };
+        defer raw_rows.close();
+
+        const col_names = raw_rows.columns();
         const col_count = col_names.len;
 
         var columns = try arena_allocator.alloc(types.ColumnDef, col_count);
@@ -93,7 +133,7 @@ pub const SqliteDriver = struct {
 
         const dest_buf = try arena_allocator.alloc(sql.Value, col_count);
 
-        while (rows.next(dest_buf)) {
+        while (raw_rows.next(dest_buf)) {
             if (res_rows.items.len >= limit) {
                 has_more = true;
                 break;
@@ -111,6 +151,11 @@ pub const SqliteDriver = struct {
                 };
             }
             try res_rows.append(arena_allocator, row_values);
+        }
+
+        if (raw_rows.err()) |err| {
+            self.recordError(pc.lastError());
+            return err;
         }
 
         const end_time = getMonotonicNs();

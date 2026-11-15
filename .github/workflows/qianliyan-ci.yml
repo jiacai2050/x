@@ -46,14 +46,12 @@ jobs:
       - name: Build macOS app (Debug)
         run: make macos
 
-      - name: Build release package (DMG & Zip)
+      - name: Build release package (DMG)
         run: make dist
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Qianliyan-macOS
-          path: |
-            qianliyan/dist/Qianliyan.dmg
-            qianliyan/dist/Qianliyan-macos-arm64.zip
+          path: qianliyan/dist/Qianliyan.dmg
           retention-days: 7

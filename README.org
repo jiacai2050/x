@@ -1,6 +1,6 @@
 #+TITLE: X
 #+DATE: 2025-04-16T10:11:50+0800
-#+LASTMOD: 2026-10-06T15:58:20+0800
+#+LASTMOD: 2026-11-15T10:28:00+0800
 #+AUTHOR: Jiacai Liu
 
 X represents infinite possibilities and embodies the diversity of the projects.
@@ -8,6 +8,7 @@ X represents infinite possibilities and embodies the diversity of the projects.
 https://jiacai2050.github.io/x/
 
 * Zig
+- [[file:qianliyan/][qianliyan]] :: A lightweight, blazing-fast native database client for macOS, powered by a Zig core engine and SwiftUI.
 - [[file:zms/][zms]] :: A pure Zig solution to set up a mirror server for fetching Zig tarballs on demand and caching them on the local disk.
 - [[file:zigos/][zigos]] :: A Chinese tutorial on writing an OS in Zig.
 

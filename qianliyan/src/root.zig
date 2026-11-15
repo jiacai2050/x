@@ -138,4 +138,14 @@ test "C-ABI ffi functions test" {
 
     // Test db_interrupt does not crash and correctly interrupts active connections
     ffi.db_interrupt(db);
+
+    // Test lastError detailed error reporting via db_query
+    const err_res = ffi.db_query(db, "SELECT * FORM items;", 0, &err_out);
+    try testing.expect(err_res == null);
+    try testing.expect(err_out != null);
+    if (err_out) |e_str| {
+        defer ffi.db_free_string(e_str);
+        const span = std.mem.span(e_str);
+        try testing.expect(std.mem.indexOf(u8, span, "syntax error") != null);
+    }
 }

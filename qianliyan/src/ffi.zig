@@ -219,9 +219,11 @@ pub export fn db_query(
 
     // Use driver query
     var zig_result = ctx.driver.query(ctx.gpa, sql_str, max_rows) catch |err| {
-        const msg = switch (err) {
-            error.QueryInterrupted => "Query was cancelled by user",
-            error.PrepareFailed => "SQL syntax error or invalid table",
+        const msg = if (ctx.driver.lastError()) |le|
+            le
+        else switch (err) {
+            error.Interrupted, error.QueryInterrupted => "Query was cancelled by user",
+            error.SQLitePrepareFailed, error.PrepareFailed => "SQL syntax error or invalid table",
             else => "Query execution failed",
         };
         setError(ctx.gpa, error_out, msg);

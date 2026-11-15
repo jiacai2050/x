@@ -8,9 +8,17 @@ struct AboutSheet: View {
         VStack(spacing: 20) {
             // App Icon & Name
             VStack(spacing: 8) {
-                Image(systemName: "eye.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(.accentColor)
+                if let appIcon = NSApp.applicationIconImage {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 72, height: 72)
+                        .cornerRadius(16)
+                } else {
+                    Image(systemName: "eye.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundColor(.accentColor)
+                }
 
                 Text("Qianliyan")
                     .font(.title.bold())
@@ -29,7 +37,7 @@ struct AboutSheet: View {
 
             // Description & Tech Stack
             VStack(spacing: 8) {
-                Text("A lightweight, ultra-fast native SQLite client powered by a Zig core engine and modern SwiftUI.")
+                Text("A lightweight, ultra-fast native database client powered by a Zig core engine and modern SwiftUI.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
