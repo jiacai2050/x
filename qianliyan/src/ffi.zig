@@ -67,6 +67,18 @@ fn setError(gpa: std.mem.Allocator, error_out: ?*?[*:0]u8, err_msg: []const u8) 
     }
 }
 
+pub export fn db_alloc(size: usize) ?[*]u8 {
+    if (size == 0) return null;
+    const slice = std.heap.c_allocator.alloc(u8, size) catch return null;
+    return slice.ptr;
+}
+
+pub export fn db_free(ptr: ?[*]u8, size: usize) void {
+    if (ptr) |p| {
+        std.heap.c_allocator.free(p[0..size]);
+    }
+}
+
 pub export fn db_open(path: ?[*:0]const u8, error_out: ?*?[*:0]u8) ?*DbContext {
     // The C ABI boundary cannot pass a fat-pointer Zig std.mem.Allocator from the Swift host.
     // We use std.heap.c_allocator here to integrate with the OS libc malloc/free runtime safely

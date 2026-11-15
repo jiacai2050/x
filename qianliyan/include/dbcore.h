@@ -46,7 +46,13 @@ typedef struct {
     uint64_t execution_time_ns;
 } DbBatchResult;
 
-// Open database. Returns handle, or NULL on error with error_out set.
+// Allocate heap buffer inside Zig runtime.
+uint8_t* db_alloc(size_t size);
+
+// Free heap buffer allocated by db_alloc.
+void db_free(uint8_t* ptr, size_t size);
+
+// Open database from filesystem path. Returns handle, or NULL on error with error_out set.
 DbHandle db_open(const char* path, char** error_out);
 
 // Close database handle.

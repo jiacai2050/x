@@ -12,6 +12,7 @@ compress-video/README.md
 # Zig
 zig-out
 .zig-cache
+*.wasm
 
 # JS
 node_modules/

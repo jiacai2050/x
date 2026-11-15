@@ -62,4 +62,37 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_mod_tests.step);
+
+    // WebAssembly target for Qianliyan Web client
+    const wasm_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .wasi,
+    });
+    const wasm_stdgo_dep = b.dependency("stdgo", .{
+        .target = wasm_target,
+        .optimize = .ReleaseSmall,
+        .sqlite = true,
+    });
+    const wasm_stdgo_mod = wasm_stdgo_dep.module("stdgo");
+
+    const wasm_mod = b.addModule("qianliyan_wasm", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = wasm_target,
+        .imports = &.{
+            .{ .name = "stdgo", .module = wasm_stdgo_mod },
+        },
+        .sanitize_c = .off,
+    });
+
+    const wasm_exe = b.addExecutable(.{
+        .name = "qianliyan",
+        .root_module = wasm_mod,
+    });
+    wasm_exe.rdynamic = true;
+
+    const install_wasm = b.addInstallArtifact(wasm_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "web" } },
+    });
+    const wasm_step = b.step("wasm", "Build WebAssembly module for Web");
+    wasm_step.dependOn(&install_wasm.step);
 }

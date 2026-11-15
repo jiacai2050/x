@@ -8,6 +8,7 @@ zig-pkg/
 *.o
 *.a
 *.dylib
+*.wasm
 
 # Swift & SPM build artifacts
 .build/

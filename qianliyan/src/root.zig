@@ -14,6 +14,8 @@ pub const ffi = @import("ffi.zig");
 
 // Force compilation and symbol inclusion for all exported C-ABI functions.
 comptime {
+    _ = ffi.db_alloc;
+    _ = ffi.db_free;
     _ = ffi.db_open;
     _ = ffi.db_close;
     _ = ffi.db_get_schema_json;
@@ -171,3 +173,7 @@ test "C-ABI ffi functions test" {
         try testing.expect(std.mem.indexOf(u8, span, "syntax error") != null);
     }
 }
+
+/// Entry point when compiled as a WebAssembly WASI executable.
+/// It performs no-op initialization so that exported C-ABI functions remain accessible.
+pub fn main() void {}
