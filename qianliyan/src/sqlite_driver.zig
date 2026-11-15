@@ -1,17 +1,23 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const stdgo = @import("stdgo");
 const sql = stdgo.database.sql;
 const types = @import("types.zig");
 
 fn getMonotonicNs() u64 {
     var ts: std.c.timespec = undefined;
-    _ = std.c.clock_gettime(std.c.CLOCK.MONOTONIC, &ts);
+    const rc = std.c.clock_gettime(std.c.CLOCK.MONOTONIC, &ts);
+    assert(rc == 0);
     const total_ns = @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
-    return if (total_ns > 0) @intCast(total_ns) else 0;
+    if (total_ns > 0) {
+        return @intCast(total_ns);
+    } else {
+        return 0;
+    }
 }
 
 pub const SqliteDriver = struct {
-    allocator: std.mem.Allocator,
+    gpa: std.mem.Allocator,
     threaded: *std.Io.Threaded,
     sqlite_drv: *sql.sqlite.SQLiteDriver,
     db: *sql.DB,
@@ -23,18 +29,18 @@ pub const SqliteDriver = struct {
         create: bool = true,
     };
 
-    pub fn open(allocator: std.mem.Allocator, options: OpenOptions) !SqliteDriver {
-        const threaded = try allocator.create(std.Io.Threaded);
-        errdefer allocator.destroy(threaded);
-        threaded.* = std.Io.Threaded.init(allocator, .{});
+    pub fn open(gpa: std.mem.Allocator, options: OpenOptions) !SqliteDriver {
+        const threaded = try gpa.create(std.Io.Threaded);
+        errdefer gpa.destroy(threaded);
+        threaded.* = std.Io.Threaded.init(gpa, .{});
         errdefer threaded.deinit();
 
-        const sqlite_drv = try allocator.create(sql.sqlite.SQLiteDriver);
-        errdefer allocator.destroy(sqlite_drv);
-        sqlite_drv.* = sql.sqlite.SQLiteDriver.init(allocator);
+        const sqlite_drv = try gpa.create(sql.sqlite.SQLiteDriver);
+        errdefer gpa.destroy(sqlite_drv);
+        sqlite_drv.* = sql.sqlite.SQLiteDriver.init(gpa);
 
         const dsn = if (options.path) |p| std.mem.span(p) else ":memory:";
-        const db = try sql.DB.open(allocator, threaded.io(), sqlite_drv.driver(), dsn);
+        const db = try sql.DB.open(gpa, threaded.io(), sqlite_drv.driver(), dsn);
         errdefer db.close();
 
         // For SQLite in Qianliyan: single connection per database ensures consistent transaction
@@ -43,7 +49,7 @@ pub const SqliteDriver = struct {
         db.setMaxIdleConns(1);
 
         return SqliteDriver{
-            .allocator = allocator,
+            .gpa = gpa,
             .threaded = threaded,
             .sqlite_drv = sqlite_drv,
             .db = db,
@@ -53,17 +59,19 @@ pub const SqliteDriver = struct {
 
     pub fn close(self: *SqliteDriver) void {
         if (self.last_error_buf) |buf| {
-            self.allocator.free(buf);
+            self.gpa.free(buf);
             self.last_error_buf = null;
         }
         self.db.close();
-        self.allocator.destroy(self.sqlite_drv);
+        self.gpa.destroy(self.sqlite_drv);
         self.threaded.deinit();
-        self.allocator.destroy(self.threaded);
+        self.gpa.destroy(self.threaded);
     }
 
     pub fn interrupt(self: *SqliteDriver) void {
-        _ = self.db.interruptAll();
+        const interrupted_count = self.db.interruptAll();
+        // Number of interrupted connections can be 0 when no query is currently active.
+        assert(interrupted_count >= 0);
     }
 
     pub fn lastError(self: *SqliteDriver) ?[]const u8 {
@@ -72,33 +80,42 @@ pub const SqliteDriver = struct {
 
     fn recordError(self: *SqliteDriver, msg: ?[]const u8) void {
         if (self.last_error_buf) |buf| {
-            self.allocator.free(buf);
+            self.gpa.free(buf);
             self.last_error_buf = null;
         }
         if (msg) |m| {
-            self.last_error_buf = self.allocator.dupe(u8, m) catch null;
+            self.last_error_buf = self.gpa.dupe(u8, m) catch null;
         }
     }
 
     pub fn exec(self: *SqliteDriver, sql_str: []const u8) !void {
+        assert(sql_str.len > 0);
         self.recordError(null);
         const pc = try self.db.conn();
         defer pc.release();
-        _ = pc.exec(sql_str, &.{}) catch |err| {
+        const exec_res = pc.exec(sql_str, &.{}) catch |err| {
             self.recordError(pc.lastError());
             return err;
         };
+        // Result is discarded after successful execution as caller only expects void.
+        assert(@sizeOf(@TypeOf(exec_res)) > 0);
     }
 
-    /// Query dynamic SQL statement, returning a self-contained QueryResult
-    pub fn query(self: *SqliteDriver, gpa: std.mem.Allocator, sql_str: [:0]const u8, max_rows: ?usize) !types.QueryResult {
+    /// Query dynamic SQL statement, returning a self-contained QueryResult.
+    pub fn query(
+        self: *SqliteDriver,
+        gpa: std.mem.Allocator,
+        sql_str: [:0]const u8,
+        row_count_max: ?usize,
+    ) !types.QueryResult {
+        assert(sql_str.len > 0);
         self.recordError(null);
 
         var arena = std.heap.ArenaAllocator.init(gpa);
         errdefer arena.deinit();
         const arena_allocator = arena.allocator();
 
-        const start_time = getMonotonicNs();
+        const start_time_ns = getMonotonicNs();
 
         const pc = try self.db.conn();
         defer pc.release();
@@ -127,14 +144,19 @@ pub const SqliteDriver = struct {
             };
         }
 
-        var res_rows: std.ArrayList([]const types.Value) = .empty;
+        var row_list: std.ArrayList([]const types.Value) = .empty;
         var has_more = false;
-        const limit = max_rows orelse std.math.maxInt(usize);
+        const limit = row_count_max orelse std.math.maxInt(usize);
+        const loop_bound = if (limit < std.math.maxInt(usize))
+            limit + 1
+        else
+            std.math.maxInt(usize);
 
         const dest_buf = try arena_allocator.alloc(sql.Value, col_count);
+        var iteration_count: usize = 0;
 
-        while (raw_rows.next(dest_buf)) {
-            if (res_rows.items.len >= limit) {
+        while (iteration_count < loop_bound and raw_rows.next(dest_buf)) : (iteration_count += 1) {
+            if (row_list.items.len >= limit) {
                 has_more = true;
                 break;
             }
@@ -150,7 +172,7 @@ pub const SqliteDriver = struct {
                     .bytes => |b| .{ .blob = try arena_allocator.dupe(u8, b) },
                 };
             }
-            try res_rows.append(arena_allocator, row_values);
+            try row_list.append(arena_allocator, row_values);
         }
 
         if (raw_rows.err()) |err| {
@@ -158,30 +180,40 @@ pub const SqliteDriver = struct {
             return err;
         }
 
-        const end_time = getMonotonicNs();
-        const duration: u64 = if (end_time > start_time) end_time - start_time else 0;
+        const end_time_ns = getMonotonicNs();
+        const duration_ns: u64 = if (end_time_ns > start_time_ns)
+            end_time_ns - start_time_ns
+        else
+            0;
+
+        assert(row_list.items.len <= limit);
 
         return types.QueryResult{
             .arena = arena,
             .columns = columns,
-            .rows = try res_rows.toOwnedSlice(arena_allocator),
+            .rows = try row_list.toOwnedSlice(arena_allocator),
             .has_more = has_more,
-            .execution_time_ns = duration,
+            .execution_time_ns = duration_ns,
         };
     }
 
-    /// Retrieve schema (all tables, DDL sql, columns, and indexes)
+    /// Retrieve schema (all tables, DDL sql, columns, and indexes).
     pub fn getSchema(self: *SqliteDriver, gpa: std.mem.Allocator) !types.SchemaResult {
         var arena = std.heap.ArenaAllocator.init(gpa);
         errdefer arena.deinit();
         const arena_allocator = arena.allocator();
 
-        var table_res = try self.query(arena_allocator, "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;", null);
-        defer table_res.deinit();
+        var tables_res = try self.query(
+            arena_allocator,
+            "SELECT name, sql FROM sqlite_master WHERE type='table' " ++
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name;",
+            null,
+        );
+        defer tables_res.deinit();
 
         var tables: std.ArrayList(types.TableDef) = .empty;
 
-        for (table_res.rows) |row| {
+        for (tables_res.rows) |row| {
             if (row.len < 2) continue;
             const table_name = switch (row[0]) {
                 .text => |t| t,
@@ -192,8 +224,13 @@ pub const SqliteDriver = struct {
                 else => "",
             };
 
-            // 1. Fetch column info
-            const pragma_col_sql = try std.fmt.allocPrintSentinel(arena_allocator, "PRAGMA table_info(\"{s}\");", .{table_name}, 0);
+            // 1. Fetch column definitions using PRAGMA table_info.
+            const pragma_col_sql = try std.fmt.allocPrintSentinel(
+                arena_allocator,
+                "PRAGMA table_info(\"{s}\");",
+                .{table_name},
+                0,
+            );
             var col_res = try self.query(arena_allocator, pragma_col_sql, null);
             defer col_res.deinit();
 
@@ -219,14 +256,19 @@ pub const SqliteDriver = struct {
                 });
             }
 
-            // 2. Fetch index info
-            const pragma_idx_sql = try std.fmt.allocPrintSentinel(arena_allocator, "PRAGMA index_list(\"{s}\");", .{table_name}, 0);
+            // 2. Fetch index definitions using PRAGMA index_list.
+            const pragma_idx_sql = try std.fmt.allocPrintSentinel(
+                arena_allocator,
+                "PRAGMA index_list(\"{s}\");",
+                .{table_name},
+                0,
+            );
             var idx_res = try self.query(arena_allocator, pragma_idx_sql, null);
             defer idx_res.deinit();
 
             var indexes: std.ArrayList(types.IndexDef) = .empty;
             for (idx_res.rows) |idx_row| {
-                // index_list columns: 0:seq, 1:name, 2:unique, 3:origin, 4:partial
+                // index_list columns: 0:seq, 1:name, 2:unique, 3:origin, 4:partial.
                 if (idx_row.len < 3) continue;
                 const idx_name = switch (idx_row[1]) {
                     .text => |t| try arena_allocator.dupe(u8, t),
@@ -237,14 +279,19 @@ pub const SqliteDriver = struct {
                     else => false,
                 };
 
-                // Fetch index columns via PRAGMA index_info("index_name")
-                const pragma_idx_info_sql = try std.fmt.allocPrintSentinel(arena_allocator, "PRAGMA index_info(\"{s}\");", .{idx_name}, 0);
+                // Fetch indexed columns via PRAGMA index_info("index_name").
+                const pragma_idx_info_sql = try std.fmt.allocPrintSentinel(
+                    arena_allocator,
+                    "PRAGMA index_info(\"{s}\");",
+                    .{idx_name},
+                    0,
+                );
                 var idx_col_res = try self.query(arena_allocator, pragma_idx_info_sql, null);
                 defer idx_col_res.deinit();
 
                 var idx_columns: std.ArrayList([]const u8) = .empty;
                 for (idx_col_res.rows) |info_row| {
-                    // index_info columns: 0:seqno, 1:cid, 2:name
+                    // index_info columns: 0:seqno, 1:cid, 2:name.
                     if (info_row.len > 2) {
                         switch (info_row[2]) {
                             .text => |t| {
@@ -277,3 +324,7 @@ pub const SqliteDriver = struct {
         };
     }
 };
+
+comptime {
+    assert(@sizeOf(SqliteDriver) > 0);
+}

@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const sqlite_driver = @import("sqlite_driver.zig");
 const types = @import("types.zig");
 const SqliteDriver = sqlite_driver.SqliteDriver;
@@ -42,6 +43,13 @@ pub const CDbBatchResult = extern struct {
     execution_time_ns: u64,
 };
 
+comptime {
+    assert(@sizeOf(CDbColumnType) == @sizeOf(c_int));
+    assert(@sizeOf(CDbColumnDef) == 2 * @sizeOf(?*anyopaque));
+    assert(@sizeOf(CDbBlobVal) == @sizeOf(?*anyopaque) + @sizeOf(usize));
+    assert(@sizeOf(CDbBatchResult) > 0);
+}
+
 const InternalResult = struct {
     arena: std.heap.ArenaAllocator,
     c_result: CDbBatchResult,
@@ -60,8 +68,13 @@ fn setError(gpa: std.mem.Allocator, error_out: ?*?[*:0]u8, err_msg: []const u8) 
 }
 
 pub export fn db_open(path: ?[*:0]const u8, error_out: ?*?[*:0]u8) ?*DbContext {
+    // The C ABI boundary cannot pass a fat-pointer Zig std.mem.Allocator from the Swift host.
+    // We use std.heap.c_allocator here to integrate with the OS libc malloc/free runtime safely
+    // across threads, paired with db_close() to guarantee symmetrical deallocation.
     const gpa = std.heap.c_allocator;
-    if (error_out) |out| out.* = null;
+    if (error_out) |out| {
+        out.* = null;
+    }
 
     const ctx = gpa.create(DbContext) catch {
         setError(gpa, error_out, "Out of memory");
@@ -74,7 +87,11 @@ pub export fn db_open(path: ?[*:0]const u8, error_out: ?*?[*:0]u8) ?*DbContext {
         .read_only = false,
         .create = true,
     }) catch |err| {
-        const msg = std.fmt.allocPrint(gpa, "Failed to open database: {s}", .{@errorName(err)}) catch "Failed to open database";
+        const msg = std.fmt.allocPrint(
+            gpa,
+            "Failed to open database: {s}",
+            .{@errorName(err)},
+        ) catch "Failed to open database";
         defer gpa.free(msg);
         setError(gpa, error_out, msg);
         return null;
@@ -136,17 +153,23 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
         setError(std.heap.c_allocator, error_out, "Null db handle");
         return null;
     };
-    if (error_out) |out| out.* = null;
+    if (error_out) |out| {
+        out.* = null;
+    }
 
     var schema = ctx.driver.getSchema(ctx.gpa) catch |err| {
-        const msg = std.fmt.allocPrint(ctx.gpa, "Failed to inspect schema: {s}", .{@errorName(err)}) catch "Failed to inspect schema";
+        const msg = std.fmt.allocPrint(
+            ctx.gpa,
+            "Failed to inspect schema: {s}",
+            .{@errorName(err)},
+        ) catch "Failed to inspect schema";
         defer ctx.gpa.free(msg);
         setError(ctx.gpa, error_out, msg);
         return null;
     };
     defer schema.deinit();
 
-    // Serialize schema to JSON string
+    // Serialize schema to JSON string for Swift JSONDecoder.
     var list: std.ArrayList(u8) = .empty;
     defer list.deinit(ctx.gpa);
 
@@ -159,7 +182,7 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
         list.appendSlice(ctx.gpa, ",\"sql\":") catch return null;
         writeJsonString(&list, ctx.gpa, tbl.sql) catch return null;
 
-        // Columns
+        // Table Columns
         list.appendSlice(ctx.gpa, ",\"columns\":[") catch return null;
         for (tbl.columns, 0..) |col, ci| {
             if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
@@ -167,20 +190,28 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
             writeJsonString(&list, ctx.gpa, col.name) catch return null;
             list.appendSlice(ctx.gpa, ",\"type\":") catch return null;
             writeJsonString(&list, ctx.gpa, col.type_name) catch return null;
-            const pk_str = std.fmt.allocPrint(ctx.gpa, ",\"pk\":{d}}}", .{col.pk}) catch return null;
+            const pk_str = std.fmt.allocPrint(
+                ctx.gpa,
+                ",\"pk\":{d}}}",
+                .{col.pk},
+            ) catch return null;
             defer ctx.gpa.free(pk_str);
             list.appendSlice(ctx.gpa, pk_str) catch return null;
         }
         list.appendSlice(ctx.gpa, "]") catch return null;
 
-        // Indexes
+        // Table Indexes
         list.appendSlice(ctx.gpa, ",\"indexes\":[") catch return null;
         for (tbl.indexes, 0..) |idx, ii| {
             if (ii > 0) list.appendSlice(ctx.gpa, ",") catch return null;
             list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
             writeJsonString(&list, ctx.gpa, idx.name) catch return null;
             const unique_str = if (idx.unique) "true" else "false";
-            const idx_mid = std.fmt.allocPrint(ctx.gpa, ",\"unique\":{s},\"columns\":[", .{unique_str}) catch return null;
+            const idx_mid = std.fmt.allocPrint(
+                ctx.gpa,
+                ",\"unique\":{s},\"columns\":[",
+                .{unique_str},
+            ) catch return null;
             defer ctx.gpa.free(idx_mid);
             list.appendSlice(ctx.gpa, idx_mid) catch return null;
 
@@ -208,17 +239,22 @@ pub export fn db_query(
         setError(std.heap.c_allocator, error_out, "Null db handle");
         return null;
     };
-    if (error_out) |out| out.* = null;
+    if (error_out) |out| {
+        out.* = null;
+    }
 
     const sql_str = if (sql) |s| std.mem.span(s) else {
         setError(ctx.gpa, error_out, "Empty SQL statement");
         return null;
     };
+    if (sql_str.len == 0) {
+        setError(ctx.gpa, error_out, "Empty SQL statement");
+        return null;
+    }
 
-    const max_rows: ?usize = if (limit > 0) @intCast(limit) else null;
+    const row_count_max: ?usize = if (limit > 0) @intCast(limit) else null;
 
-    // Use driver query
-    var zig_result = ctx.driver.query(ctx.gpa, sql_str, max_rows) catch |err| {
+    var zig_result = ctx.driver.query(ctx.gpa, sql_str, row_count_max) catch |err| {
         const msg = if (ctx.driver.lastError()) |le|
             le
         else switch (err) {
@@ -231,7 +267,6 @@ pub export fn db_query(
     };
     defer zig_result.deinit();
 
-    // Allocate arena for CDbBatchResult
     var arena = std.heap.ArenaAllocator.init(ctx.gpa);
     errdefer arena.deinit();
     const arena_allocator = arena.allocator();
@@ -245,7 +280,11 @@ pub export fn db_query(
     for (zig_result.columns, 0..) |col, i| {
         c_columns[i] = .{
             .name = (arena_allocator.dupeSentinel(u8, col.name, 0) catch return null).ptr,
-            .type_name = (arena_allocator.dupeSentinel(u8, col.type_name, 0) catch return null).ptr,
+            .type_name = (arena_allocator.dupeSentinel(
+                u8,
+                col.type_name,
+                0,
+            ) catch return null).ptr,
         };
     }
 
@@ -253,8 +292,10 @@ pub export fn db_query(
     var c_values = arena_allocator.alloc(CDbValue, total_values) catch return null;
 
     for (zig_result.rows, 0..) |row, r| {
+        assert(row.len == col_count);
         for (row, 0..) |val, c| {
             const idx = r * col_count + c;
+            assert(idx < total_values);
             switch (val) {
                 .null => {
                     c_values[idx] = .{
@@ -275,7 +316,11 @@ pub export fn db_query(
                     };
                 },
                 .text => |t| {
-                    const text_copy = (arena_allocator.dupeSentinel(u8, t, 0) catch return null).ptr;
+                    const text_copy = (arena_allocator.dupeSentinel(
+                        u8,
+                        t,
+                        0,
+                    ) catch return null).ptr;
                     c_values[idx] = .{
                         .type = .text,
                         .value = .{ .text_val = text_copy },

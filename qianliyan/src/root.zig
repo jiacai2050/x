@@ -12,6 +12,7 @@ pub const SqliteDriver = sqlite_driver.SqliteDriver;
 
 pub const ffi = @import("ffi.zig");
 
+// Force compilation and symbol inclusion for all exported C-ABI functions.
 comptime {
     _ = ffi.db_open;
     _ = ffi.db_close;
@@ -22,18 +23,21 @@ comptime {
     _ = ffi.db_free_result;
 }
 
+// Test: SQLite Driver in-memory end-to-end functionality.
+// Goal: Verify table creation, DDL execution, data insertion, schema inspection,
+// and typed query retrieval across all supported SQLite storage classes.
 test "sqlite driver in-memory end-to-end test" {
     const testing = std.testing;
-    const allocator = testing.allocator;
+    const gpa = testing.allocator;
 
-    var driver = try SqliteDriver.open(allocator, .{
-        .path = null, // in-memory
+    var driver = try SqliteDriver.open(gpa, .{
+        .path = null, // In-memory database.
         .read_only = false,
         .create = true,
     });
     defer driver.close();
 
-    // 1. Create table with various data types
+    // 1. Create table with various data types.
     try driver.exec(
         \\CREATE TABLE users (
         \\    id INTEGER PRIMARY KEY,
@@ -44,7 +48,7 @@ test "sqlite driver in-memory end-to-end test" {
         \\);
     );
 
-    // 2. Insert records & create index
+    // 2. Insert records and create index.
     try driver.exec(
         \\INSERT INTO users (id, name, score, avatar, bio)
         \\VALUES (1, 'Alice', 98.5, X'DEADBEEF', 'Software Engineer');
@@ -55,8 +59,8 @@ test "sqlite driver in-memory end-to-end test" {
     );
     try driver.exec("CREATE INDEX idx_users_name ON users(name);");
 
-    // 3. Inspect schema via getSchema
-    var schema = try driver.getSchema(allocator);
+    // 3. Inspect schema via getSchema.
+    var schema = try driver.getSchema(gpa);
     defer schema.deinit();
 
     try testing.expectEqual(@as(usize, 1), schema.tables.len);
@@ -72,14 +76,19 @@ test "sqlite driver in-memory end-to-end test" {
     try testing.expectEqual(@as(usize, 1), schema.tables[0].indexes[0].columns.len);
     try testing.expectEqualStrings("name", schema.tables[0].indexes[0].columns[0]);
 
-    // 4. Dynamic query execution
-    var res = try driver.query(allocator, "SELECT id, name, score, avatar, bio FROM users ORDER BY id ASC;", null);
+    // 4. Dynamic query execution.
+    var res = try driver.query(
+        gpa,
+        "SELECT id, name, score, avatar, bio FROM users ORDER BY id ASC;",
+        null,
+    );
     defer res.deinit();
 
     try testing.expectEqual(@as(usize, 5), res.columns.len);
     try testing.expectEqual(@as(usize, 2), res.rows.len);
+    try testing.expect(!res.has_more);
 
-    // Check row 0 (Alice)
+    // Check row 0 (Alice).
     const row0 = res.rows[0];
     try testing.expectEqual(@as(i64, 1), row0[0].integer);
     try testing.expectEqualStrings("Alice", row0[1].text);
@@ -87,7 +96,7 @@ test "sqlite driver in-memory end-to-end test" {
     try testing.expectEqualSlices(u8, &[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF }, row0[3].blob);
     try testing.expectEqualStrings("Software Engineer", row0[4].text);
 
-    // Check row 1 (Bob)
+    // Check row 1 (Bob).
     const row1 = res.rows[1];
     try testing.expectEqual(@as(i64, 2), row1[0].integer);
     try testing.expectEqualStrings("Bob", row1[1].text);
@@ -95,6 +104,9 @@ test "sqlite driver in-memory end-to-end test" {
     try testing.expectEqual(types.Value.null, row1[4]);
 }
 
+// Test: C-ABI FFI exported functions test.
+// Goal: Verify C-ABI lifecycle functions including handle creation, schema serialization,
+// memory freeing, query batches, interruption safety, and exact error propagation.
 test "C-ABI ffi functions test" {
     const testing = std.testing;
 
@@ -103,14 +115,24 @@ test "C-ABI ffi functions test" {
     try testing.expect(db != null);
     defer ffi.db_close(db);
 
-    // Create table & insert
-    const res_create = ffi.db_query(db, "CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);", 0, &err_out);
+    // Create table and insert records.
+    const res_create = ffi.db_query(
+        db,
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);",
+        0,
+        &err_out,
+    );
     if (res_create) |r| ffi.db_free_result(r);
 
-    const res_insert = ffi.db_query(db, "INSERT INTO items VALUES (1, 'First Item'), (2, 'Second Item');", 0, &err_out);
+    const res_insert = ffi.db_query(
+        db,
+        "INSERT INTO items VALUES (1, 'First Item'), (2, 'Second Item');",
+        0,
+        &err_out,
+    );
     if (res_insert) |r| ffi.db_free_result(r);
 
-    // Schema json test
+    // Schema JSON serialization test.
     const json_schema = ffi.db_get_schema_json(db, &err_out);
     try testing.expect(json_schema != null);
     defer ffi.db_free_string(json_schema);
@@ -119,7 +141,7 @@ test "C-ABI ffi functions test" {
     try testing.expect(std.mem.indexOf(u8, schema_slice, "title") != null);
     try testing.expect(std.mem.indexOf(u8, schema_slice, "\"pk\":1") != null);
 
-    // Query test
+    // Batch query test.
     const q_res = ffi.db_query(db, "SELECT * FROM items ORDER BY id ASC;", 100, &err_out);
     try testing.expect(q_res != null);
     defer ffi.db_free_result(q_res);
@@ -130,16 +152,16 @@ test "C-ABI ffi functions test" {
     try testing.expectEqualStrings("id", std.mem.span(r.columns[0].name));
     try testing.expectEqualStrings("title", std.mem.span(r.columns[1].name));
 
-    // First row
+    // First row verification.
     try testing.expectEqual(ffi.CDbColumnType.integer, r.values[0].type);
     try testing.expectEqual(@as(i64, 1), r.values[0].value.int_val);
     try testing.expectEqual(ffi.CDbColumnType.text, r.values[1].type);
     try testing.expectEqualStrings("First Item", std.mem.span(r.values[1].value.text_val));
 
-    // Test db_interrupt does not crash and correctly interrupts active connections
+    // Test db_interrupt does not crash and safely handles connection interruption.
     ffi.db_interrupt(db);
 
-    // Test lastError detailed error reporting via db_query
+    // Test lastError exact error reporting on syntax error via db_query.
     const err_res = ffi.db_query(db, "SELECT * FORM items;", 0, &err_out);
     try testing.expect(err_res == null);
     try testing.expect(err_out != null);
