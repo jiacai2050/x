@@ -18,7 +18,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Qianliyan")
                             .font(.title2.bold())
-                        Text("千里眼 · 现代原生数据库客户端")
+                        Text("Modern Native Database Client")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

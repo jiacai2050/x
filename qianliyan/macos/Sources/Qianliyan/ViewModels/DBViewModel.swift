@@ -336,8 +336,13 @@ public final class DBViewModel {
 
         var execSql = trimmed
         if let tbl = tab.tableName {
-            let offset = (tab.page - 1) * tab.pageSize
-            execSql = "SELECT * FROM \"\(tbl)\" LIMIT \(tab.pageSize) OFFSET \(offset);"
+            let defaultSql = "SELECT * FROM \"\(tbl)\";"
+            if trimmed == defaultSql {
+                let offset = (tab.page - 1) * tab.pageSize
+                execSql = "SELECT * FROM \"\(tbl)\" LIMIT \(tab.pageSize) OFFSET \(offset);"
+            } else {
+                tab.tableName = nil
+            }
         }
 
         tab.isExecuting = true
@@ -363,6 +368,7 @@ public final class DBViewModel {
                 tab.statusMessage = "\(countStr) returned in \(String(format: "%.2f", res.executionTimeMs)) ms"
             } catch {
                 tab.isExecuting = false
+                tab.result = nil
                 tab.errorMessage = error.localizedDescription
                 tab.statusMessage = "Query error"
             }

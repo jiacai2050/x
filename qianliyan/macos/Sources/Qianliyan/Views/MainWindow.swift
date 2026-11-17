@@ -15,6 +15,7 @@ struct MainWindow: View {
                 } detail: {
                     if viewModel.isTableMaximized {
                         ResultTableView(viewModel: viewModel)
+                            .id(viewModel.activeTabId)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         VSplitView {
@@ -22,6 +23,7 @@ struct MainWindow: View {
                                 .frame(minHeight: 100, idealHeight: 150, maxHeight: 300)
 
                             ResultTableView(viewModel: viewModel)
+                                .id(viewModel.activeTabId)
                                 .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -47,7 +49,7 @@ struct MainWindow: View {
     private var windowTitle: String {
         switch viewModel.viewMode {
         case .home:
-            return "Qianliyan (千里眼)"
+            return "Qianliyan"
         case .workspace:
             let displayName = viewModel.dbName.isEmpty
                 ? (viewModel.dbPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Workspace")

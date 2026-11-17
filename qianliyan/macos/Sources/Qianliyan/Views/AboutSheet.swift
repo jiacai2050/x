@@ -32,10 +32,10 @@ struct AboutSheet: View {
                         .foregroundColor(.accentColor)
                 }
 
-                Text("Qianliyan")
+                Text("Qianliyan (千里眼)")
                     .font(.title.bold())
 
-                Text("千里眼 · 现代原生数据库客户端")
+                Text("Modern Native Database Client")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 

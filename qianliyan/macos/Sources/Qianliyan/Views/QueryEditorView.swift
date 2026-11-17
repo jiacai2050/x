@@ -67,8 +67,14 @@ struct QueryEditorView: View {
             // Active Tab SQL Editor
             TextEditor(text: Binding(
                 get: { viewModel.activeTab.sql },
-                set: { viewModel.activeTab.sql = $0 }
+                set: {
+                    viewModel.activeTab.sql = $0
+                    if viewModel.activeTab.tableName != nil {
+                        viewModel.activeTab.tableName = nil
+                    }
+                }
             ))
+            .id(viewModel.activeTabId)
             .font(.system(.body, design: .monospaced))
             .padding(8)
             .scrollContentBackground(.hidden)
