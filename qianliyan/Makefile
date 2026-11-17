@@ -20,8 +20,9 @@ dist:
 wasm:
 	zig build wasm
 	cp -f zig-out/web/qianliyan.wasm web/qianliyan.wasm
-	mkdir -p ../docs/qianliyan
-	cp -f zig-out/web/qianliyan.wasm ../docs/qianliyan/qianliyan.wasm
+	mkdir -p ../docs/qianliyan/web
+	cp -f web/index.html ../docs/qianliyan/web/index.html
+	cp -f zig-out/web/qianliyan.wasm ../docs/qianliyan/web/qianliyan.wasm
 
 web: wasm
 	@echo "Serving Qianliyan Web at http://localhost:8000"

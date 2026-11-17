@@ -1,975 +1,277 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Qianliyan (千里眼) — SQLite Web Viewer (Powered by Zig Core)</title>
-  <meta name="description" content="A lightweight, blazing-fast client-side SQLite viewer powered by Qianliyan's Zig core engine compiled to WebAssembly. 100% private, zero uploads." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%236366f1'/><stop offset='100%' stop-color='%2306b6d4'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='%230f172a'/><circle cx='50' cy='50' r='32' fill='url(%23g)' opacity='0.85'/><ellipse cx='50' cy='50' rx='28' ry='16' fill='none' stroke='%23ffffff' stroke-width='4'/><circle cx='50' cy='50' r='10' fill='%23ffffff'/><circle cx='50' cy='50' r='5' fill='%230f172a'/></svg>" />
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#eef2ff',
-              100: '#e0e7ff',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
-            }
-          }
-        }
-      }
-    };
-  </script>
-  <style>
-    /* Custom scrollbars */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(156, 163, 175, 0.4);
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(156, 163, 175, 0.6);
-    }
-    .font-mono-code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-  </style>
-</head>
-<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-150">
-
-  <!-- Header -->
-  <header class="h-14 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between z-10 shrink-0">
-    <div class="flex items-center space-x-3">
-      <!-- Logo -->
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 via-sky-500 to-teal-400 p-0.5 shadow-md shadow-indigo-500/20 flex items-center justify-center">
-        <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </div>
-      <div>
-        <h1 class="text-sm font-semibold tracking-tight flex items-center gap-1.5">
-          <span>Qianliyan</span>
-          <span class="text-xs font-normal text-indigo-600 dark:text-indigo-400 font-medium">千里眼</span>
-          <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            Zig Core Wasm
-          </span>
-        </h1>
-      </div>
-    </div>
-
-    <!-- Active DB badge & global controls -->
-    <div class="flex items-center space-x-3">
-      <div id="db-badge" class="hidden items-center space-x-2 text-xs px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span id="db-badge-name" class="font-medium max-w-[180px] truncate">db.sqlite</span>
-        <span id="db-badge-size" class="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">1.2 MB</span>
-      </div>
-
-      <!-- Action buttons -->
-      <label class="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition">
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <span>Open SQLite</span>
-        <input type="file" id="file-input" accept=".db,.sqlite,.sqlite3" class="hidden" />
-      </label>
-
-      <button id="btn-sample" type="button" class="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition">
-        <span>Sample DB</span>
-      </button>
-
-      <!-- Dark mode toggle -->
-      <button id="btn-theme" type="button" aria-label="Toggle Theme" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-        <svg id="icon-moon" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-        </svg>
-        <svg id="icon-sun" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="4"/>
-          <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-        </svg>
-      </button>
-
-      <!-- GitHub link -->
-      <a href="https://github.com/jiacai2050/x/tree/main/qianliyan" target="_blank" rel="noopener noreferrer" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-        </svg>
-      </a>
-    </div>
-  </header>
-
-  <!-- Main Container -->
-  <div class="flex-1 flex overflow-hidden relative">
-
-    <!-- Loading Wasm overlay -->
-    <div id="loading-overlay" class="absolute inset-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-3">
-      <div class="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      <p class="text-sm font-medium text-slate-600 dark:text-slate-300">Loading Qianliyan Zig Core WebAssembly Module...</p>
-    </div>
-
-    <!-- Empty State / Dropzone -->
-    <div id="empty-state" class="flex-1 flex flex-col items-center justify-center p-6 text-center z-20">
-      <div id="dropzone" class="max-w-xl w-full border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-10 flex flex-col items-center justify-center space-y-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur transition cursor-pointer group">
-        <div class="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition duration-200">
-          <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <ellipse cx="12" cy="5" rx="9" ry="3"/>
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+<!doctype html>
+<html lang="zh-CN" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Qianliyan (千里眼) — 现代原生轻量级数据库客户端</title>
+    <meta
+      name="description"
+      content="千里眼 (Qianliyan) 是一款轻量、极速的现代 SQLite 数据库客户端，基于 Zig 高性能核心引擎构建，支持原生 macOS (SwiftUI) 与 100% 客户端私密运行的 WebAssembly 在线版。"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'media',
+        theme: {
+          extend: {
+            colors: {
+              brand: '#4f46e5',
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body
+    class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased min-h-screen flex flex-col"
+  >
+    <!-- Nav -->
+    <nav
+      class="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur sticky top-0 z-50"
+    >
+      <div
+        class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between"
+      >
+        <a href="." class="flex items-center gap-2 text-xl font-bold text-brand">
+          <svg class="w-6 h-6 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+            <circle cx="12" cy="12" r="3"/>
           </svg>
+          <span>Qianliyan <span class="text-sm font-normal text-gray-500 dark:text-gray-400">千里眼</span></span>
+        </a>
+        <div
+          class="flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-400"
+        >
+          <a href="." class="text-brand font-semibold">主页</a>
+          <a href="web/" class="hover:text-brand transition flex items-center gap-1">
+            <span>在线体验</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-mono">Wasm</span>
+          </a>
+          <a
+            href="https://github.com/jiacai2050/x/tree/main/qianliyan"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-brand transition"
+            >GitHub</a
+          >
+          <a href="../" class="hover:text-brand transition">全部项目</a>
         </div>
-        <div>
-          <h2 class="text-lg font-semibold tracking-tight">Drop your SQLite database here</h2>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Parsed directly by <span class="font-semibold text-indigo-600 dark:text-indigo-400">Qianliyan Zig Core</span> in WebAssembly</p>
-        </div>
-        <div class="flex items-center space-x-3 pt-2">
-          <label class="cursor-pointer px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 transition">
-            Choose Local File
-            <input type="file" id="file-input-empty" accept=".db,.sqlite,.sqlite3" class="hidden" />
-          </label>
-          <button id="btn-sample-empty" type="button" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition">
-            Try Sample DB
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-6">
+        <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+        <span>macOS 原生客户端 + 浏览器端 WebAssembly · 双端同源</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+        Qianliyan (千里眼)
+      </h1>
+      <p class="mt-3 text-xl text-indigo-600 dark:text-indigo-400 font-medium">
+        现代原生轻量级 SQLite 数据库客户端
+      </p>
+      <p
+        class="mt-4 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
+      >
+        摒弃 Electron 的沉重负担。基于 <strong>Zig</strong> 高性能核心引擎打造，原生集成 macOS <strong>SwiftUI</strong> 界面，同时提供 100% 在浏览器客户端私密运行的 <strong>WebAssembly</strong> 在线版本。
+      </p>
+
+      <!-- Action Buttons -->
+      <div class="mt-8 flex flex-wrap justify-center items-center gap-4">
+        <!-- Online Demo -->
+        <a
+          href="web/"
+          class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-500/20 transition transform active:scale-95"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          <span>在线体验 (WebAssembly)</span>
+        </a>
+
+        <!-- macOS Download (TODO) -->
+        <div class="relative group">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 font-semibold border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer"
+            onclick="document.getElementById('macos-todo-toast').classList.toggle('hidden')"
+          >
+            <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.93.04-2.07.63-2.73 1.4-.58.67-1.09 1.76-.95 2.81 1.04.08 2.11-.51 2.74-1.28z"/>
+            </svg>
+            <span>下载 macOS 版</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">TODO</span>
           </button>
         </div>
-        <p class="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1 pt-4">
-          <svg class="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+
+        <!-- GitHub -->
+        <a
+          href="https://github.com/jiacai2050/x/tree/main/qianliyan"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 font-medium border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
           </svg>
-          100% Client-Side Zig Engine. No server uploads, zero data leaves your browser.
+          <span>查看源码</span>
+        </a>
+      </div>
+
+      <!-- Toast Tip for macOS TODO -->
+      <div id="macos-todo-toast" class="hidden mt-4 max-w-lg mx-auto p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-left text-xs text-amber-800 dark:text-amber-200">
+        <div class="flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div>
+            <p class="font-semibold">macOS 预编译安装包即将提供！</p>
+            <p class="mt-1 text-amber-700/90 dark:text-amber-300/80 leading-relaxed">
+              目前正在完善 GitHub Actions Release 自动分发流程。如果您拥有 macOS 开发环境，可克隆代码并执行 <code>make dist</code> 本地一键打包 DMG。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="max-w-4xl mx-auto px-6 py-8">
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-6 sm:p-8">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <svg class="w-5 h-5 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+          </svg>
+          <span>双端同源架构设计</span>
+        </h2>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          核心 SQLite 驱动与连接管理由 Zig 纯静态实现；SwiftUI 桌面端通过高性能 C-ABI 直调，Web 端直接编译为 WebAssembly 运行于浏览器环境。
         </p>
+
+        <div class="mt-5 bg-gray-900 text-gray-200 p-4 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed shadow-inner">
+          <pre>macOS GUI (SwiftUI) ──[C-ABI]─┐
+                              ├──> Zig Core (stdgo.database.sql) ────> SQLite Engine
+Web Browser (HTML/JS) ─[Wasm]─┘</pre>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Active Workspace -->
-    <div id="workspace" class="hidden flex-1 flex overflow-hidden">
-
-      <!-- Left Sidebar (Schema Navigator) -->
-      <aside class="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
-        <!-- Tables search -->
-        <div class="p-3 border-b border-slate-200 dark:border-slate-800">
-          <div class="relative">
-            <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+    <!-- Key Features -->
+    <section class="max-w-5xl mx-auto px-6 py-12">
+      <h2 class="text-2xl font-bold tracking-tight text-center mb-8">核心特性</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Feature 1 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
             </svg>
-            <input id="table-search" type="text" placeholder="Filter tables..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500" />
           </div>
+          <h3 class="font-semibold text-base">原生 macOS 体验</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            纯 SwiftUI 编写，毫秒级冷启动，超低内存占用，深度集成 macOS 原生明暗主题与快捷键支持，无 Electron 臃肿。
+          </p>
         </div>
 
-        <!-- Tables list -->
-        <div class="flex-1 overflow-y-auto p-2 space-y-0.5" id="table-list">
-          <!-- Dynamically populated from Zig db_get_schema_json -->
-        </div>
-
-        <!-- Sidebar footer -->
-        <div class="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-between">
-          <span id="sidebar-table-count">0 tables</span>
-          <button id="btn-close-db" type="button" class="text-rose-500 hover:text-rose-600 transition">Close DB</button>
-        </div>
-      </aside>
-
-      <!-- Right Main Workspace -->
-      <main class="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
-
-        <!-- Top SQL Editor Area -->
-        <div class="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 flex flex-col space-y-2 shrink-0">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">SQL Query (Zig Core)</span>
-              <span class="text-[11px] text-slate-400">(Press <kbd class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[10px]">⌘+Enter</kbd> to run)</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <button id="btn-clear-sql" type="button" class="px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">Clear</button>
-              <button id="btn-run-sql" type="button" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition">
-                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-                <span>Execute</span>
-              </button>
-            </div>
-          </div>
-
-          <textarea id="sql-editor" rows="3" class="w-full p-2.5 text-xs font-mono-code bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed text-slate-900 dark:text-slate-100 resize-y" placeholder="SELECT * FROM table_name LIMIT 100;"></textarea>
-
-          <!-- Query execution banner -->
-          <div id="query-status" class="hidden flex items-center justify-between text-xs px-2.5 py-1.5 rounded-md">
-            <span id="query-status-text" class="font-medium"></span>
-            <span id="query-status-time" class="text-[11px] opacity-75 font-mono"></span>
-          </div>
-        </div>
-
-        <!-- Data Tabs & Toolbar -->
-        <div class="h-10 px-4 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur flex items-center justify-between shrink-0">
-          <div class="flex space-x-4 text-xs font-medium">
-            <button id="tab-data" type="button" class="h-10 border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 flex items-center space-x-1.5">
-              <span>Results</span>
-              <span id="result-count-badge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">0</span>
-            </button>
-            <button id="tab-schema" type="button" class="h-10 border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1.5">
-              <span>Table Schema & DDL</span>
-            </button>
-          </div>
-
-          <!-- Export & Pagination Toolbar -->
-          <div class="flex items-center space-x-2">
-            <div id="pagination-controls" class="hidden items-center space-x-2 text-xs text-slate-500">
-              <span id="page-info">1 - 50 of 100</span>
-              <button id="btn-prev-page" type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-40" disabled>
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <button id="btn-next-page" type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-40" disabled>
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
-
-            <div class="h-4 w-px bg-slate-200 dark:border-slate-800"></div>
-
-            <button id="btn-export-csv" type="button" class="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition">
-              CSV
-            </button>
-            <button id="btn-export-json" type="button" class="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition">
-              JSON
-            </button>
-          </div>
-        </div>
-
-        <!-- Tab Content Viewport -->
-        <div class="flex-1 overflow-auto relative">
-
-          <!-- Results Grid View -->
-          <div id="view-data" class="min-w-full inline-block align-middle">
-            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs font-mono-code">
-              <thead id="table-head" class="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10">
-                <!-- Columns header -->
-              </thead>
-              <tbody id="table-body" class="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-950">
-                <!-- Rows -->
-              </tbody>
-            </table>
-            <div id="table-empty-msg" class="p-12 text-center text-xs text-slate-400">
-              Execute a SQL query via Qianliyan Zig Core to see results
-            </div>
-          </div>
-
-          <!-- Schema / DDL View -->
-          <div id="view-schema" class="hidden p-6 space-y-6 max-w-4xl mx-auto">
-            <div>
-              <h3 id="schema-table-title" class="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2">Columns</h3>
-              <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs font-mono-code">
-                  <thead class="bg-slate-50 dark:bg-slate-900">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-slate-500">Name</th>
-                      <th class="px-3 py-2 text-left text-slate-500">Type</th>
-                      <th class="px-3 py-2 text-left text-slate-500">Primary Key</th>
-                    </tr>
-                  </thead>
-                  <tbody id="schema-columns-body" class="divide-y divide-slate-200 dark:divide-slate-800">
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">DDL Statement (from Zig Core)</h3>
-                <button id="btn-copy-ddl" type="button" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Copy DDL</button>
-              </div>
-              <pre id="schema-ddl-code" class="p-3 bg-slate-900 text-slate-100 rounded-lg text-xs font-mono-code overflow-x-auto"></pre>
-            </div>
-          </div>
-
-        </div>
-
-      </main>
-    </div>
-
-  </div>
-
-  <!-- Client-Side Engine Application Logic (Directly Powered by Qianliyan Zig Core Wasm) -->
-  <script type="module">
-    import { WASI, File, OpenFile, PreopenDirectory } from 'https://esm.sh/@bjorn3/browser_wasi_shim@0.3.0/es2022/browser_wasi_shim.bundle.mjs';
-
-    // State variables
-    let wasmModuleBytes = null;
-    let wasmInstance = null;
-    let currentDbHandle = null;
-    let currentDbName = '';
-    let currentDbSize = 0;
-    let schemaTables = [];
-    let currentTable = null;
-    let currentResult = { columns: [], values: [], hasMore: false, durationMs: 0 };
-    let currentPage = 1;
-    const pageSize = 50;
-
-    // Theme setup
-    const isDark = localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      document.getElementById('icon-sun').classList.remove('hidden');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.getElementById('icon-moon').classList.remove('hidden');
-    }
-
-    document.getElementById('btn-theme').addEventListener('click', () => {
-      if (document.documentElement.classList.contains('dark')) {
-        document.documentElement.classList.remove('dark');
-        localStorage.theme = 'light';
-        document.getElementById('icon-sun').classList.add('hidden');
-        document.getElementById('icon-moon').classList.remove('hidden');
-      } else {
-        document.documentElement.classList.add('dark');
-        localStorage.theme = 'dark';
-        document.getElementById('icon-moon').classList.add('hidden');
-        document.getElementById('icon-sun').classList.remove('hidden');
-      }
-    });
-
-    // Helper: Allocate null-terminated C string in WebAssembly memory
-    function allocCString(instance, str) {
-      const bytes = new TextEncoder().encode(str + '\0');
-      const ptr = instance.exports.db_alloc(bytes.length);
-      new Uint8Array(instance.exports.memory.buffer).set(bytes, ptr);
-      return ptr;
-    }
-
-    // Helper: Read null-terminated UTF-8 string from WebAssembly memory
-    function readCString(instance, ptr) {
-      if (!ptr) return '';
-      const u8 = new Uint8Array(instance.exports.memory.buffer);
-      let end = ptr;
-      while (end < u8.length && u8[end] !== 0) end++;
-      return new TextDecoder().decode(u8.subarray(ptr, end));
-    }
-
-    // Helper: Read CDbBatchResult struct returned by Zig Core db_query
-    function readBatchResult(instance, resPtr) {
-      const view = new DataView(instance.exports.memory.buffer);
-      const colCount = view.getUint32(resPtr + 0, true);
-      const colsPtr = view.getUint32(resPtr + 4, true);
-      const rowCount = view.getUint32(resPtr + 8, true);
-      const valuesPtr = view.getUint32(resPtr + 12, true);
-      const hasMore = view.getUint8(resPtr + 16) !== 0;
-      const timeNsLow = view.getUint32(resPtr + 24, true);
-      const timeNsHigh = view.getUint32(resPtr + 28, true);
-      const durationMs = Number(BigInt(timeNsLow) + (BigInt(timeNsHigh) << 32n)) / 1_000_000;
-
-      const columns = [];
-      for (let c = 0; c < colCount; c++) {
-        const colNamePtr = view.getUint32(colsPtr + c * 8 + 0, true);
-        columns.push(readCString(instance, colNamePtr));
-      }
-
-      const values = [];
-      for (let r = 0; r < rowCount; r++) {
-        const row = [];
-        for (let c = 0; c < colCount; c++) {
-          const valOffset = valuesPtr + (r * colCount + c) * 16;
-          const type = view.getInt32(valOffset + 0, true);
-          let val = null;
-          if (type === 1) { // integer
-            const low = view.getUint32(valOffset + 8, true);
-            const high = view.getInt32(valOffset + 12, true);
-            val = Number(BigInt(low) + (BigInt(high) << 32n));
-          } else if (type === 2) { // real
-            val = view.getFloat64(valOffset + 8, true);
-          } else if (type === 3) { // text
-            val = readCString(instance, view.getUint32(valOffset + 8, true));
-          } else if (type === 4) { // blob
-            const dataSize = view.getUint32(valOffset + 12, true);
-            val = `<BLOB ${dataSize}B>`;
-          }
-          row.push(val);
-        }
-        values.push(row);
-      }
-
-      return { columns, values, hasMore, durationMs };
-    }
-
-    // Fetch and compile qianliyan.wasm once
-    async function initWasm() {
-      try {
-        const response = await fetch('qianliyan.wasm');
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: Failed to fetch qianliyan.wasm`);
-        }
-        wasmModuleBytes = await response.arrayBuffer();
-        document.getElementById('loading-overlay').classList.add('hidden');
-      } catch (err) {
-        console.error(err);
-        document.getElementById('loading-overlay').innerHTML = `
-          <div class="text-rose-500 font-semibold text-sm">Failed to load Qianliyan Zig Core WebAssembly module.</div>
-          <div class="text-xs text-slate-500 mt-1">${err.message}</div>
-        `;
-      }
-    }
-    initWasm();
-
-    // Instantiate a new WASI instance with our Zig Core
-    async function instantiateZigCore(userFileBytes = null, fileName = 'database.sqlite') {
-      const fds = [
-        new OpenFile(new File([])), // fd 0: stdin
-        new OpenFile(new File([])), // fd 1: stdout
-        new OpenFile(new File([])), // fd 2: stderr
-        new PreopenDirectory('/', [  // fd 3: root preopen directory
-          ...(userFileBytes ? [[fileName, new File(userFileBytes)]] : [])
-        ])
-      ];
-
-      const wasi = new WASI([], [], fds);
-      const { instance } = await WebAssembly.instantiate(wasmModuleBytes, {
-        wasi_snapshot_preview1: wasi.wasiImport
-      });
-      wasi.start(instance);
-      return instance;
-    }
-
-    // Load an uploaded file
-    async function loadFile(file) {
-      if (!file || !wasmModuleBytes) return;
-      try {
-        if (currentDbHandle && wasmInstance) {
-          wasmInstance.exports.db_close(currentDbHandle);
-          currentDbHandle = null;
-        }
-
-        const buffer = await file.arrayBuffer();
-        const userBytes = new Uint8Array(buffer);
-        wasmInstance = await instantiateZigCore(userBytes, 'database.sqlite');
-
-        const pathBytes = new TextEncoder().encode('database.sqlite\0');
-        const pathPtr = wasmInstance.exports.db_alloc(pathBytes.length);
-        new Uint8Array(wasmInstance.exports.memory.buffer).set(pathBytes, pathPtr);
-
-        const errPtr = wasmInstance.exports.db_alloc(4);
-        currentDbHandle = wasmInstance.exports.db_open(pathPtr, errPtr);
-        wasmInstance.exports.db_free(pathPtr, pathBytes.length);
-
-        const view = new DataView(wasmInstance.exports.memory.buffer);
-        const errStrPtr = view.getUint32(errPtr, true);
-        wasmInstance.exports.db_free(errPtr, 4);
-
-        if (errStrPtr) {
-          const err = readCString(wasmInstance, errStrPtr);
-          wasmInstance.exports.db_free_string(errStrPtr);
-          throw new Error(err);
-        }
-
-        if (!currentDbHandle) {
-          throw new Error("db_open returned null handle");
-        }
-
-        currentDbName = file.name;
-        currentDbSize = file.size;
-        onDatabaseReady();
-      } catch (err) {
-        alert("Failed to open SQLite database with Zig Core: " + err.message);
-      }
-    }
-
-    document.getElementById('file-input').addEventListener('change', e => loadFile(e.target.files[0]));
-    document.getElementById('file-input-empty').addEventListener('change', e => loadFile(e.target.files[0]));
-
-    // Drag & Drop
-    const dropzone = document.getElementById('dropzone');
-    dropzone.addEventListener('dragover', e => {
-      e.preventDefault();
-      dropzone.classList.add('border-indigo-500', 'bg-indigo-50/20');
-    });
-    dropzone.addEventListener('dragleave', e => {
-      e.preventDefault();
-      dropzone.classList.remove('border-indigo-500', 'bg-indigo-50/20');
-    });
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropzone.classList.remove('border-indigo-500', 'bg-indigo-50/20');
-      if (e.dataTransfer.files.length > 0) {
-        loadFile(e.dataTransfer.files[0]);
-      }
-    });
-
-    // Sample Database Generation (Executed directly via Zig Core db_query)
-    async function loadSampleDatabase() {
-      if (!wasmModuleBytes) return;
-      try {
-        if (currentDbHandle && wasmInstance) {
-          wasmInstance.exports.db_close(currentDbHandle);
-          currentDbHandle = null;
-        }
-
-        // Open in-memory database in Zig Core
-        wasmInstance = await instantiateZigCore(null);
-        currentDbHandle = wasmInstance.exports.db_open(0, 0);
-        currentDbName = 'sample_ecommerce.sqlite (Zig in-memory)';
-        currentDbSize = 64 * 1024;
-
-        const statements = [
-          `CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL,
-            role TEXT CHECK(role IN ('admin', 'editor', 'viewer')),
-            is_active INTEGER DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          );`,
-          `CREATE TABLE categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT
-          );`,
-          `CREATE TABLE products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_id INTEGER REFERENCES categories(id),
-            title TEXT NOT NULL,
-            price REAL NOT NULL,
-            stock INTEGER DEFAULT 0
-          );`,
-          `CREATE TABLE orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER REFERENCES users(id),
-            total_price REAL NOT NULL,
-            status TEXT CHECK(status IN ('pending', 'completed', 'cancelled')),
-            order_date DATETIME DEFAULT CURRENT_TIMESTAMP
-          );`,
-          `INSERT INTO users (username, email, role, is_active) VALUES
-            ('alice_dev', 'alice@example.com', 'admin', 1),
-            ('bob_designer', 'bob@example.com', 'editor', 1),
-            ('carol_analyst', 'carol@example.com', 'viewer', 1),
-            ('dave_ops', 'dave@example.com', 'viewer', 0);`,
-          `INSERT INTO categories (name, description) VALUES
-            ('Hardware', 'Workstations, displays and accessories'),
-            ('Books', 'Engineering, algorithms and design'),
-            ('Cloud Subscriptions', 'Compute instances and database clusters');`,
-          `INSERT INTO products (category_id, title, price, stock) VALUES
-            (1, '4K Ultrawide Monitor', 799.99, 15),
-            (1, 'Ergonomic Mechanical Keyboard', 189.50, 42),
-            (2, 'Designing Data-Intensive Applications', 45.00, 120),
-            (2, 'Database Internals: A Pragmatic Guide', 52.00, 85),
-            (3, 'Managed SQLite Edge Node (Yearly)', 120.00, 999);`,
-          `INSERT INTO orders (user_id, total_price, status) VALUES
-            (1, 989.49, 'completed'),
-            (2, 45.00, 'completed'),
-            (3, 172.00, 'pending'),
-            (1, 799.99, 'completed');`,
-          `CREATE INDEX idx_products_category ON products(category_id);`,
-          `CREATE INDEX idx_orders_user ON orders(user_id);`
-        ];
-
-        for (const sql of statements) {
-          const sqlBytes = new TextEncoder().encode(sql + '\0');
-          const sqlPtr = wasmInstance.exports.db_alloc(sqlBytes.length);
-          new Uint8Array(wasmInstance.exports.memory.buffer).set(sqlBytes, sqlPtr);
-          const res = wasmInstance.exports.db_query(currentDbHandle, sqlPtr, 0, 0);
-          wasmInstance.exports.db_free(sqlPtr, sqlBytes.length);
-          if (res) wasmInstance.exports.db_free_result(res);
-        }
-
-        onDatabaseReady();
-        runQuery("SELECT u.username, o.id AS order_id, o.total_price, o.status, o.order_date FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.id ASC;");
-      } catch (err) {
-        alert("Failed to build sample database in Zig Core: " + err.message);
-      }
-    }
-
-    document.getElementById('btn-sample').addEventListener('click', loadSampleDatabase);
-    document.getElementById('btn-sample-empty').addEventListener('click', loadSampleDatabase);
-
-    // Database Ready
-    function onDatabaseReady() {
-      document.getElementById('empty-state').classList.add('hidden');
-      document.getElementById('workspace').classList.remove('hidden');
-
-      const badge = document.getElementById('db-badge');
-      badge.classList.remove('hidden');
-      badge.classList.add('inline-flex');
-      document.getElementById('db-badge-name').textContent = currentDbName;
-      document.getElementById('db-badge-size').textContent = (currentDbSize / 1024).toFixed(1) + ' KB';
-
-      refreshTables();
-    }
-
-    // Close Database
-    document.getElementById('btn-close-db').addEventListener('click', () => {
-      if (currentDbHandle && wasmInstance) {
-        wasmInstance.exports.db_close(currentDbHandle);
-        currentDbHandle = null;
-      }
-      document.getElementById('workspace').classList.add('hidden');
-      document.getElementById('empty-state').classList.remove('hidden');
-      document.getElementById('db-badge').classList.add('hidden');
-      document.getElementById('file-input').value = '';
-      document.getElementById('file-input-empty').value = '';
-    });
-
-    // Refresh Tables list from Zig Core db_get_schema_json
-    function refreshTables() {
-      if (!currentDbHandle || !wasmInstance) return;
-
-      const errPtr = wasmInstance.exports.db_alloc(4);
-      const schemaPtr = wasmInstance.exports.db_get_schema_json(currentDbHandle, errPtr);
-
-      const view = new DataView(wasmInstance.exports.memory.buffer);
-      const errStrPtr = view.getUint32(errPtr, true);
-      wasmInstance.exports.db_free(errPtr, 4);
-
-      if (errStrPtr) {
-        const err = readCString(wasmInstance, errStrPtr);
-        wasmInstance.exports.db_free_string(errStrPtr);
-        console.error("Schema inspection error:", err);
-        return;
-      }
-
-      if (schemaPtr) {
-        const jsonStr = readCString(wasmInstance, schemaPtr);
-        wasmInstance.exports.db_free_string(schemaPtr);
-        try {
-          schemaTables = JSON.parse(jsonStr);
-        } catch (e) {
-          console.error("Failed to parse schema JSON from Zig Core", e);
-          schemaTables = [];
-        }
-      } else {
-        schemaTables = [];
-      }
-
-      document.getElementById('sidebar-table-count').textContent = `${schemaTables.length} tables`;
-      renderTableList(schemaTables.map(t => t.name));
-
-      if (schemaTables.length > 0 && !currentTable) {
-        selectTable(schemaTables[0].name);
-      }
-    }
-
-    function renderTableList(names) {
-      const listEl = document.getElementById('table-list');
-      listEl.innerHTML = '';
-      names.forEach(tableName => {
-        const item = document.createElement('div');
-        item.className = `group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition ${currentTable === tableName ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'}`;
-        
-        item.innerHTML = `
-          <div class="flex items-center space-x-2 truncate">
-            <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect width="18" height="18" x="3" y="3" rx="2"/>
-              <path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>
+        <!-- Feature 2 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
-            <span class="truncate">${tableName}</span>
           </div>
-          <button title="Inspect Schema" class="opacity-0 group-hover:opacity-100 p-1 hover:text-indigo-600 dark:hover:text-indigo-400">
-            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+          <h3 class="font-semibold text-base">100% 客户端隐私安全</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            在线版数据库完全在浏览器 WASM 内存沙箱中执行，零网络上传；macOS 端直接读写本地文件，无遥测、无数据回传。
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>
             </svg>
-          </button>
-        `;
+          </div>
+          <h3 class="font-semibold text-base">多标签 SQL 编辑与查询</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            支持多个工作标签页并行执行、毫秒级耗时监控、执行历史溯源，以及针对耗时查询的安全异步中断 (<kbd class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 border text-xs">⌘.</kbd>)。
+          </p>
+        </div>
 
-        item.addEventListener('click', () => selectTable(tableName));
-        listEl.appendChild(item);
-      });
-    }
+        <!-- Feature 4 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-base">表结构与 DDL 审查</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            层次化表导航面板，即时查阅字段类型、主键、外键约束、索引关联以及原始 <code>CREATE TABLE</code> DDL 语句。
+          </p>
+        </div>
 
-    // Filter tables
-    document.getElementById('table-search').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase();
-      const filtered = schemaTables.filter(t => t.name.toLowerCase().includes(q)).map(t => t.name);
-      renderTableList(filtered);
-    });
+        <!-- Feature 5 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-base">流畅表格与数据导出</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            支持快速二维滚动的数据网格、自适应列宽、单行与多单元格复制，并支持将当前查询结果导出为 CSV 或格式化 JSON 文件。
+          </p>
+        </div>
 
-    // Select table
-    function selectTable(tableName) {
-      currentTable = tableName;
-      renderTableList(schemaTables.map(t => t.name));
-      const sql = `SELECT * FROM "${tableName}" LIMIT 100;`;
-      document.getElementById('sql-editor').value = sql;
-      runQuery(sql);
-      updateSchemaView(tableName);
-    }
+        <!-- Feature 6 -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold mb-4">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-base">内嵌 Sample DB 一键上手</h3>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            无论是开发测试还是在线体验，均可一键通过内存模拟生成电商示例数据库，秒级体验复杂的 Schema 和多表关联查询。
+          </p>
+        </div>
+      </div>
+    </section>
 
-    // Run Query via Zig Core db_query
-    function runQuery(sql) {
-      if (!currentDbHandle || !wasmInstance) return;
-      const editor = document.getElementById('sql-editor');
-      if (!sql) sql = editor.value.trim();
-      if (!sql) return;
+    <!-- Quick Start -->
+    <section class="max-w-4xl mx-auto px-6 py-8">
+      <div class="border-t border-gray-200 dark:border-gray-800 pt-10">
+        <h2 class="text-xl font-bold tracking-tight mb-4">本地编译与开发</h2>
+        <div class="bg-gray-900 text-gray-200 p-4 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed shadow-inner">
+          <pre>git clone https://github.com/jiacai2050/my-works.git
+cd my-works/qianliyan
 
-      const statusEl = document.getElementById('query-status');
-      const statusText = document.getElementById('query-status-text');
-      const statusTime = document.getElementById('query-status-time');
+make test    # 运行 Zig 核心单元测试
+make macos   # 编译 macOS 原生应用
+make run     # 启动 macOS GUI 客户端
+make web     # 本地启动 WebAssembly 客户端 (http://localhost:8000)
+make dist    # 一键打包 macOS Release DMG (dist/Qianliyan.dmg)</pre>
+        </div>
+      </div>
+    </section>
 
-      statusEl.classList.remove('hidden', 'bg-rose-50', 'dark:bg-rose-950/50', 'text-rose-700', 'dark:text-rose-300', 'bg-emerald-50', 'dark:bg-emerald-950/50', 'text-emerald-700', 'dark:text-emerald-300');
-
-      try {
-        const sqlBytes = new TextEncoder().encode(sql + '\0');
-        const sqlPtr = wasmInstance.exports.db_alloc(sqlBytes.length);
-        new Uint8Array(wasmInstance.exports.memory.buffer).set(sqlBytes, sqlPtr);
-
-        const errPtr = wasmInstance.exports.db_alloc(4);
-        const resPtr = wasmInstance.exports.db_query(currentDbHandle, sqlPtr, 0, errPtr);
-        wasmInstance.exports.db_free(sqlPtr, sqlBytes.length);
-
-        const view = new DataView(wasmInstance.exports.memory.buffer);
-        const errStrPtr = view.getUint32(errPtr, true);
-        wasmInstance.exports.db_free(errPtr, 4);
-
-        if (errStrPtr) {
-          const err = readCString(wasmInstance, errStrPtr);
-          wasmInstance.exports.db_free_string(errStrPtr);
-          statusEl.classList.add('bg-rose-50', 'dark:bg-rose-950/50', 'text-rose-700', 'dark:text-rose-300');
-          statusText.textContent = err;
-          statusTime.textContent = 'Failed';
-          currentResult = { columns: [], values: [], hasMore: false, durationMs: 0 };
-          renderResults();
-          return;
-        }
-
-        if (resPtr) {
-          currentResult = readBatchResult(wasmInstance, resPtr);
-          wasmInstance.exports.db_free_result(resPtr);
-
-          statusEl.classList.add('bg-emerald-50', 'dark:bg-emerald-950/50', 'text-emerald-700', 'dark:text-emerald-300');
-          statusText.textContent = `Zig Core returned ${currentResult.values.length} rows.`;
-          statusTime.textContent = `${currentResult.durationMs.toFixed(2)} ms`;
-        } else {
-          currentResult = { columns: [], values: [], hasMore: false, durationMs: 0 };
-          statusEl.classList.add('bg-emerald-50', 'dark:bg-emerald-950/50', 'text-emerald-700', 'dark:text-emerald-300');
-          statusText.textContent = 'Statement executed successfully. (0 rows affected)';
-          statusTime.textContent = '0 ms';
-        }
-
-        currentPage = 1;
-        renderResults();
-        switchTab('data');
-      } catch (err) {
-        statusEl.classList.add('bg-rose-50', 'dark:bg-rose-950/50', 'text-rose-700', 'dark:text-rose-300');
-        statusText.textContent = err.message;
-        statusTime.textContent = 'Error';
-        currentResult = { columns: [], values: [], hasMore: false, durationMs: 0 };
-        renderResults();
-      }
-    }
-
-    document.getElementById('btn-run-sql').addEventListener('click', () => runQuery());
-    document.getElementById('btn-clear-sql').addEventListener('click', () => {
-      document.getElementById('sql-editor').value = '';
-      document.getElementById('sql-editor').focus();
-    });
-
-    // Keyboard shortcut Cmd+Enter
-    document.getElementById('sql-editor').addEventListener('keydown', e => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        runQuery();
-      }
-    });
-
-    // Render Results Grid
-    function renderResults() {
-      const thead = document.getElementById('table-head');
-      const tbody = document.getElementById('table-body');
-      const emptyMsg = document.getElementById('table-empty-msg');
-      const badge = document.getElementById('result-count-badge');
-      const pagination = document.getElementById('pagination-controls');
-
-      badge.textContent = currentResult.values.length;
-
-      if (!currentResult.columns || currentResult.columns.length === 0) {
-        thead.innerHTML = '';
-        tbody.innerHTML = '';
-        emptyMsg.classList.remove('hidden');
-        pagination.classList.add('hidden');
-        return;
-      }
-
-      emptyMsg.classList.add('hidden');
-
-      // Header
-      let headHtml = '<tr><th class="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400 w-12">#</th>';
-      currentResult.columns.forEach(col => {
-        headHtml += `<th class="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">${escapeHtml(col)}</th>`;
-      });
-      headHtml += '</tr>';
-      thead.innerHTML = headHtml;
-
-      // Pagination slice
-      const total = currentResult.values.length;
-      const startIdx = (currentPage - 1) * pageSize;
-      const endIdx = Math.min(startIdx + pageSize, total);
-      const rows = currentResult.values.slice(startIdx, endIdx);
-
-      // Body
-      let bodyHtml = '';
-      rows.forEach((row, i) => {
-        const rowNum = startIdx + i + 1;
-        bodyHtml += `<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"><td class="px-3 py-1.5 text-slate-400 select-none">${rowNum}</td>`;
-        row.forEach(val => {
-          bodyHtml += '<td class="px-3 py-1.5 whitespace-nowrap">';
-          if (val === null) {
-            bodyHtml += '<span class="italic text-slate-400">NULL</span>';
-          } else if (typeof val === 'string' && val.startsWith('<BLOB ')) {
-            bodyHtml += `<span class="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px]">${escapeHtml(val)}</span>`;
-          } else {
-            bodyHtml += escapeHtml(String(val));
-          }
-          bodyHtml += '</td>';
-        });
-        bodyHtml += '</tr>';
-      });
-      tbody.innerHTML = bodyHtml;
-
-      // Pagination controls
-      if (total > pageSize) {
-        pagination.classList.remove('hidden');
-        pagination.classList.add('flex');
-        document.getElementById('page-info').textContent = `${startIdx + 1} - ${endIdx} of ${total}`;
-        document.getElementById('btn-prev-page').disabled = currentPage <= 1;
-        document.getElementById('btn-next-page').disabled = endIdx >= total;
-      } else {
-        pagination.classList.add('hidden');
-      }
-    }
-
-    document.getElementById('btn-prev-page').addEventListener('click', () => {
-      if (currentPage > 1) {
-        currentPage--;
-        renderResults();
-      }
-    });
-
-    document.getElementById('btn-next-page').addEventListener('click', () => {
-      const maxPages = Math.ceil(currentResult.values.length / pageSize);
-      if (currentPage < maxPages) {
-        currentPage++;
-        renderResults();
-      }
-    });
-
-    // Schema View
-    function updateSchemaView(tableName) {
-      const tableDef = schemaTables.find(t => t.name === tableName);
-      if (!tableDef) return;
-
-      document.getElementById('schema-table-title').textContent = `Table: "${tableName}" Columns`;
-
-      const tbody = document.getElementById('schema-columns-body');
-      let html = '';
-      if (tableDef.columns) {
-        tableDef.columns.forEach(col => {
-          html += `
-            <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/60">
-              <td class="px-3 py-1.5 font-semibold text-slate-800 dark:text-slate-200">${escapeHtml(col.name)}</td>
-              <td class="px-3 py-1.5 text-indigo-600 dark:text-indigo-400">${escapeHtml(col.type || 'TEXT')}</td>
-              <td class="px-3 py-1.5">${col.pk ? '<span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 text-[10px] font-bold">PK</span>' : '-'}</td>
-            </tr>
-          `;
-        });
-      }
-      tbody.innerHTML = html;
-
-      // DDL
-      const ddlCode = document.getElementById('schema-ddl-code');
-      ddlCode.textContent = tableDef.sql || '-- DDL unavailable';
-    }
-
-    document.getElementById('btn-copy-ddl').addEventListener('click', () => {
-      const ddl = document.getElementById('schema-ddl-code').textContent;
-      navigator.clipboard.writeText(ddl);
-      document.getElementById('btn-copy-ddl').textContent = 'Copied!';
-      setTimeout(() => {
-        document.getElementById('btn-copy-ddl').textContent = 'Copy DDL';
-      }, 1500);
-    });
-
-    // Tab switching
-    function switchTab(tab) {
-      const dataBtn = document.getElementById('tab-data');
-      const schemaBtn = document.getElementById('tab-schema');
-      const dataView = document.getElementById('view-data');
-      const schemaView = document.getElementById('view-schema');
-
-      if (tab === 'data') {
-        dataBtn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-        dataBtn.classList.remove('border-transparent', 'text-slate-500');
-        schemaBtn.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-        schemaBtn.classList.add('border-transparent', 'text-slate-500');
-
-        dataView.classList.remove('hidden');
-        schemaView.classList.add('hidden');
-      } else {
-        schemaBtn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-        schemaBtn.classList.remove('border-transparent', 'text-slate-500');
-        dataBtn.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-        dataBtn.classList.add('border-transparent', 'text-slate-500');
-
-        dataView.classList.add('hidden');
-        schemaView.classList.remove('hidden');
-      }
-    }
-
-    document.getElementById('tab-data').addEventListener('click', () => switchTab('data'));
-    document.getElementById('tab-schema').addEventListener('click', () => switchTab('schema'));
-
-    // Export CSV & JSON
-    document.getElementById('btn-export-csv').addEventListener('click', () => {
-      if (!currentResult.columns || currentResult.columns.length === 0) return;
-      let csv = currentResult.columns.map(c => `"${c.replace(/"/g, '""')}"`).join(',') + '\n';
-      currentResult.values.forEach(row => {
-        const line = row.map(val => {
-          if (val === null) return '""';
-          return `"${String(val).replace(/"/g, '""')}"`;
-        }).join(',');
-        csv += line + '\n';
-      });
-      downloadBlob(csv, `${currentDbName}_export.csv`, 'text/csv');
-    });
-
-    document.getElementById('btn-export-json').addEventListener('click', () => {
-      if (!currentResult.columns || currentResult.columns.length === 0) return;
-      const list = currentResult.values.map(row => {
-        const obj = {};
-        currentResult.columns.forEach((col, i) => {
-          obj[col] = row[i];
-        });
-        return obj;
-      });
-      downloadBlob(JSON.stringify(list, null, 2), `${currentDbName}_export.json`, 'application/json');
-    });
-
-    function downloadBlob(content, filename, type) {
-      const blob = new Blob([content], { type });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-  </script>
-</body>
+    <!-- Footer -->
+    <footer
+      class="mt-auto border-t border-gray-200 dark:border-gray-800 py-8 text-center text-xs text-gray-500"
+    >
+      <div class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          © 2026 Qianliyan by <a href="https://jiacai2050.github.io/" class="underline hover:text-brand">Jiacai Liu</a>. Open source under MIT.
+        </div>
+        <div class="flex gap-4">
+          <a href="web/" class="hover:text-brand transition">在线体验</a>
+          <a href="https://github.com/jiacai2050/x/tree/main/qianliyan" class="hover:text-brand transition">GitHub</a>
+          <a href="../" class="hover:text-brand transition">全部项目</a>
+        </div>
+      </div>
+    </footer>
+  </body>
 </html>

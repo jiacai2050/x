@@ -4,6 +4,18 @@ import AppKit
 struct AboutSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    private var appVersionString: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "nightly"
+        #if arch(arm64)
+        let arch = "arm64"
+        #elseif arch(x86_64)
+        let arch = "x86_64"
+        #else
+        let arch = "native"
+        #endif
+        return "Version \(version) (macOS \(arch))"
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             // App Icon & Name
@@ -27,7 +39,7 @@ struct AboutSheet: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                Text("Version 1.0.0 (macOS arm64)")
+                Text(appVersionString)
                     .font(.caption.monospaced())
                     .foregroundColor(.secondary.opacity(0.8))
             }

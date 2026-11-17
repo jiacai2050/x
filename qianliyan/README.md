@@ -10,7 +10,7 @@ A lightweight, blazing-fast native database client for macOS, powered by a **Zig
 - **Multi-Tab SQL Editor**: Multiple query tabs with execution history and thread-safe cancellation (`⌘.`).
 - **Schema & Index Inspector**: Hierarchical browser for tables, columns, primary keys, indexes, and raw `CREATE TABLE` DDL.
 - **Data Grid & Export**: Fast two-way scrollable table with adaptive column widths, cell/row copying, and CSV/JSON export.
-- **WebAssembly Version**: 100% client-side Web viewer powered directly by Qianliyan's **Zig Core** in WebAssembly. Zero server uploads, runs privately in your browser. [Try Online](https://jiacai2050.github.io/my-works/qianliyan/).
+- **WebAssembly Version**: 100% client-side Web viewer powered directly by Qianliyan's **Zig Core** in WebAssembly. Zero server uploads, runs privately in your browser. [Try Online](https://jiacai2050.github.io/my-works/qianliyan/web/).
 - **Recent Databases**: Quick-open dashboard with custom aliases, Finder integration, and connection import/export.
 
 ---
