@@ -1,0 +1,71 @@
+name: Qianliyan Release
+
+on:
+  push:
+    tags:
+      - 'qianliyan-v*'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release (macOS DMG)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: qianliyan
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.1
+
+      - name: Extract version
+        id: get_version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "${TAG}" == qianliyan-v* ]]; then
+            VERSION="${TAG#qianliyan-v}"
+          else
+            VERSION="nightly"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Show environment
+        run: |
+          zig version
+          swift --version
+          echo "Building Qianliyan v${{ steps.get_version.outputs.version }}"
+
+      - name: Build release package (DMG)
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}" make dist
+
+      - name: Create Release and Upload DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, uploading asset..."
+            gh release upload "${TAG}" dist/Qianliyan.dmg --clobber
+          else
+            echo "Creating new release ${TAG}..."
+            gh release create "${TAG}" \
+              dist/Qianliyan.dmg \
+              --title "Qianliyan v${VERSION}" \
+              --notes "Qianliyan v${VERSION}" \
+              --verify-tag
+          fi

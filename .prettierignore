@@ -11,3 +11,6 @@ venv
 shellgpt/contents.json
 *min.css
 GEMINI.md
+qianliyan/macos/.build
+zig-io
+zig-compiler

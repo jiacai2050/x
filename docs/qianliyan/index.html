@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="zh-CN" class="scroll-smooth">
+<html lang="en" class="scroll-smooth">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Qianliyan (千里眼) — 现代原生轻量级数据库客户端</title>
+    <title>
+      Qianliyan (千里眼) — Modern, Lightweight Native Database Client
+    </title>
     <meta
       name="description"
-      content="千里眼 (Qianliyan) 是一款轻量、极速的现代 SQLite 数据库客户端，基于 Zig 高性能核心引擎构建，支持原生 macOS (SwiftUI) 与 100% 客户端私密运行的 WebAssembly 在线版。"
+      content="Qianliyan is a lightweight, blazing-fast SQLite client powered by a native Zig core engine. Built for macOS with SwiftUI, with a 100% client-side WebAssembly viewer."
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -32,20 +34,40 @@
       <div
         class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between"
       >
-        <a href="." class="flex items-center gap-2 text-xl font-bold text-brand">
-          <svg class="w-6 h-6 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-            <circle cx="12" cy="12" r="3"/>
+        <a
+          href="."
+          class="flex items-center gap-2 text-xl font-bold text-brand"
+        >
+          <svg
+            class="w-6 h-6 text-brand"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
           </svg>
-          <span>Qianliyan <span class="text-sm font-normal text-gray-500 dark:text-gray-400">千里眼</span></span>
+          <span
+            >Qianliyan
+            <span class="text-sm font-normal text-gray-500 dark:text-gray-400"
+              >千里眼</span
+            ></span
+          >
         </a>
         <div
           class="flex items-center gap-6 text-sm font-medium text-gray-600 dark:text-gray-400"
         >
-          <a href="." class="text-brand font-semibold">主页</a>
-          <a href="web/" class="hover:text-brand transition flex items-center gap-1">
-            <span>在线体验</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-mono">Wasm</span>
+          <a href="." class="text-brand font-semibold">Home</a>
+          <a
+            href="web/"
+            class="hover:text-brand transition flex items-center gap-1.5"
+          >
+            <span>Try Online</span>
+            <span
+              class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-mono font-semibold"
+              >Wasm</span
+            >
           </a>
           <a
             href="https://github.com/jiacai2050/x/tree/main/qianliyan"
@@ -54,28 +76,35 @@
             class="hover:text-brand transition"
             >GitHub</a
           >
-          <a href="../" class="hover:text-brand transition">全部项目</a>
+          <a href="../" class="hover:text-brand transition">All Projects</a>
         </div>
       </div>
     </nav>
 
     <!-- Hero -->
     <section class="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-6">
+      <div
+        class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mb-6"
+      >
         <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-        <span>macOS 原生客户端 + 浏览器端 WebAssembly · 双端同源</span>
+        <span
+          >macOS Native App + In-Browser WebAssembly · Shared Zig Engine</span
+        >
       </div>
 
       <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
         Qianliyan (千里眼)
       </h1>
       <p class="mt-3 text-xl text-indigo-600 dark:text-indigo-400 font-medium">
-        现代原生轻量级 SQLite 数据库客户端
+        A Lightweight, Blazing-Fast Native Database Client
       </p>
       <p
         class="mt-4 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
       >
-        摒弃 Electron 的沉重负担。基于 <strong>Zig</strong> 高性能核心引擎打造，原生集成 macOS <strong>SwiftUI</strong> 界面，同时提供 100% 在浏览器客户端私密运行的 <strong>WebAssembly</strong> 在线版本。
+        Zero Electron bloat. Powered by a high-performance
+        <strong>Zig</strong> core engine with a modern native
+        <strong>SwiftUI</strong> interface on macOS, and a 100% client-side
+        <strong>WebAssembly</strong> in-browser viewer.
       </p>
 
       <!-- Action Buttons -->
@@ -85,26 +114,36 @@
           href="web/"
           class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-500/20 transition transform active:scale-95"
         >
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          <svg
+            class="w-5 h-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
-          <span>在线体验 (WebAssembly)</span>
+          <span>Try Online (WebAssembly)</span>
         </a>
 
-        <!-- macOS Download (TODO) -->
-        <div class="relative group">
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 font-semibold border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer"
-            onclick="document.getElementById('macos-todo-toast').classList.toggle('hidden')"
+        <!-- macOS Download Link -->
+        <a
+          href="https://github.com/jiacai2050/x/releases?q=qianliyan"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800/90 text-gray-700 dark:text-gray-200 font-semibold border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+        >
+          <svg
+            class="w-5 h-5 text-gray-600 dark:text-gray-300"
+            viewBox="0 0 24 24"
+            fill="currentColor"
           >
-            <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.93.04-2.07.63-2.73 1.4-.58.67-1.09 1.76-.95 2.81 1.04.08 2.11-.51 2.74-1.28z"/>
-            </svg>
-            <span>下载 macOS 版</span>
-            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">TODO</span>
-          </button>
-        </div>
+            <path
+              d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.93.04-2.07.63-2.73 1.4-.58.67-1.09 1.76-.95 2.81 1.04.08 2.11-.51 2.74-1.28z"
+            />
+          </svg>
+          <span>Download for macOS (DMG)</span>
+        </a>
 
         <!-- GitHub -->
         <a
@@ -114,146 +153,234 @@
           class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 font-medium border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition"
         >
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+            />
           </svg>
-          <span>查看源码</span>
+          <span>View Source</span>
         </a>
-      </div>
-
-      <!-- Toast Tip for macOS TODO -->
-      <div id="macos-todo-toast" class="hidden mt-4 max-w-lg mx-auto p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-left text-xs text-amber-800 dark:text-amber-200">
-        <div class="flex items-start gap-2.5">
-          <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <div>
-            <p class="font-semibold">macOS 预编译安装包即将提供！</p>
-            <p class="mt-1 text-amber-700/90 dark:text-amber-300/80 leading-relaxed">
-              目前正在完善 GitHub Actions Release 自动分发流程。如果您拥有 macOS 开发环境，可克隆代码并执行 <code>make dist</code> 本地一键打包 DMG。
-            </p>
-          </div>
-        </div>
       </div>
     </section>
 
     <!-- Architecture Section -->
     <section class="max-w-4xl mx-auto px-6 py-8">
-      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-6 sm:p-8">
-        <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <svg class="w-5 h-5 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+      <div
+        class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40 p-6 sm:p-8"
+      >
+        <h2
+          class="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2"
+        >
+          <svg
+            class="w-5 h-5 text-brand"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M3 9h18" />
+            <path d="M9 21V9" />
           </svg>
-          <span>双端同源架构设计</span>
+          <span>Dual-Target Architecture</span>
         </h2>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          核心 SQLite 驱动与连接管理由 Zig 纯静态实现；SwiftUI 桌面端通过高性能 C-ABI 直调，Web 端直接编译为 WebAssembly 运行于浏览器环境。
+          The core SQLite engine, type serialization, and connection pool are
+          implemented in pure Zig. The macOS desktop app communicates via native
+          C-ABI, while the web viewer runs the identical core compiled to
+          WebAssembly (WASI).
         </p>
 
-        <div class="mt-5 bg-gray-900 text-gray-200 p-4 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed shadow-inner">
-          <pre>macOS GUI (SwiftUI) ──[C-ABI]─┐
+        <div
+          class="mt-5 bg-gray-900 text-gray-200 p-4 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed shadow-inner"
+        >
+          <pre>
+macOS GUI (SwiftUI) ──[C-ABI]─┐
                               ├──> Zig Core (stdgo.database.sql) ────> SQLite Engine
-Web Browser (HTML/JS) ─[Wasm]─┘</pre>
+Web Browser (HTML/JS) ─[Wasm]─┘</pre
+          >
         </div>
       </div>
     </section>
 
     <!-- Key Features -->
     <section class="max-w-5xl mx-auto px-6 py-12">
-      <h2 class="text-2xl font-bold tracking-tight text-center mb-8">核心特性</h2>
+      <h2 class="text-2xl font-bold tracking-tight text-center mb-8">
+        Key Features
+      </h2>
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <!-- Feature 1 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+              />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">原生 macOS 体验</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            纯 SwiftUI 编写，毫秒级冷启动，超低内存占用，深度集成 macOS 原生明暗主题与快捷键支持，无 Electron 臃肿。
+          <h3 class="font-semibold text-base">Native macOS Performance</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            Pure SwiftUI interface. Sub-second startup, low memory footprint,
+            system dark mode integration, and zero Electron bloat.
           </p>
         </div>
 
         <!-- Feature 2 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">100% 客户端隐私安全</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            在线版数据库完全在浏览器 WASM 内存沙箱中执行，零网络上传；macOS 端直接读写本地文件，无遥测、无数据回传。
+          <h3 class="font-semibold text-base">100% Client-Side Privacy</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            The Web viewer executes entirely inside browser Wasm memory with
+            zero cloud uploads. The macOS app accesses files directly with zero
+            telemetry.
           </p>
         </div>
 
         <!-- Feature 3 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M3 15h18" />
+              <path d="M9 3v18" />
+              <path d="M15 3v18" />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">多标签 SQL 编辑与查询</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            支持多个工作标签页并行执行、毫秒级耗时监控、执行历史溯源，以及针对耗时查询的安全异步中断 (<kbd class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 border text-xs">⌘.</kbd>)。
+          <h3 class="font-semibold text-base">Multi-Tab SQL Editor</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            Multiple concurrent query tabs, sub-millisecond execution metrics,
+            query history tracking, and thread-safe cancellation (<kbd
+              class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 border text-xs"
+              >⌘.</kbd
+            >).
           </p>
         </div>
 
         <!-- Feature 4 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
+              />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">表结构与 DDL 审查</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            层次化表导航面板，即时查阅字段类型、主键、外键约束、索引关联以及原始 <code>CREATE TABLE</code> DDL 语句。
+          <h3 class="font-semibold text-base">Schema & DDL Inspector</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            Hierarchical schema navigation for tables, column types,
+            primary/foreign keys, and indexes, with one-click inspection of raw
+            <code>CREATE TABLE</code> DDL.
           </p>
         </div>
 
         <!-- Feature 5 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" y2="3" />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">流畅表格与数据导出</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            支持快速二维滚动的数据网格、自适应列宽、单行与多单元格复制，并支持将当前查询结果导出为 CSV 或格式化 JSON 文件。
+          <h3 class="font-semibold text-base">Smooth Grid & Export</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            Fast two-way scrollable table with adaptive column sizing, cell and
+            row copying, and instant export of query results to CSV or formatted
+            JSON.
           </p>
         </div>
 
         <!-- Feature 6 -->
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm">
-          <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold mb-4">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <div
+          class="rounded-2xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-900/60 shadow-sm"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold mb-4"
+          >
+            <svg
+              class="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </div>
-          <h3 class="font-semibold text-base">内嵌 Sample DB 一键上手</h3>
-          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-            无论是开发测试还是在线体验，均可一键通过内存模拟生成电商示例数据库，秒级体验复杂的 Schema 和多表关联查询。
+          <h3 class="font-semibold text-base">Instant Sample Database</h3>
+          <p
+            class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+          >
+            Spin up an in-memory e-commerce database with one click. Test schema
+            browsing, complex multi-table JOINs, and query metrics with zero
+            setup.
           </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Quick Start -->
-    <section class="max-w-4xl mx-auto px-6 py-8">
-      <div class="border-t border-gray-200 dark:border-gray-800 pt-10">
-        <h2 class="text-xl font-bold tracking-tight mb-4">本地编译与开发</h2>
-        <div class="bg-gray-900 text-gray-200 p-4 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed shadow-inner">
-          <pre>git clone https://github.com/jiacai2050/my-works.git
-cd my-works/qianliyan
-
-make test    # 运行 Zig 核心单元测试
-make macos   # 编译 macOS 原生应用
-make run     # 启动 macOS GUI 客户端
-make web     # 本地启动 WebAssembly 客户端 (http://localhost:8000)
-make dist    # 一键打包 macOS Release DMG (dist/Qianliyan.dmg)</pre>
         </div>
       </div>
     </section>
@@ -262,14 +389,25 @@ make dist    # 一键打包 macOS Release DMG (dist/Qianliyan.dmg)</pre>
     <footer
       class="mt-auto border-t border-gray-200 dark:border-gray-800 py-8 text-center text-xs text-gray-500"
     >
-      <div class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div
+        class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+      >
         <div>
-          © 2026 Qianliyan by <a href="https://jiacai2050.github.io/" class="underline hover:text-brand">Jiacai Liu</a>. Open source under MIT.
+          © 2026 Qianliyan by
+          <a
+            href="https://jiacai2050.github.io/"
+            class="underline hover:text-brand"
+            >Jiacai Liu</a
+          >. Open source under MIT.
         </div>
         <div class="flex gap-4">
-          <a href="web/" class="hover:text-brand transition">在线体验</a>
-          <a href="https://github.com/jiacai2050/x/tree/main/qianliyan" class="hover:text-brand transition">GitHub</a>
-          <a href="../" class="hover:text-brand transition">全部项目</a>
+          <a href="web/" class="hover:text-brand transition">Try Online</a>
+          <a
+            href="https://github.com/jiacai2050/x/tree/main/qianliyan"
+            class="hover:text-brand transition"
+            >GitHub</a
+          >
+          <a href="../" class="hover:text-brand transition">All Projects</a>
         </div>
       </div>
     </footer>
