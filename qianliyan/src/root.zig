@@ -174,6 +174,3 @@ test "C-ABI ffi functions test" {
     }
 }
 
-/// Entry point when compiled as a WebAssembly WASI executable.
-/// It performs no-op initialization so that exported C-ABI functions remain accessible.
-pub fn main() void {}

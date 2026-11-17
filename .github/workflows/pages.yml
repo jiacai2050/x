@@ -40,6 +40,14 @@ jobs:
       - name: Build zig-io
         run: cd zig-io && mdbook build
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.1
+
+      - name: Build Qianliyan Wasm
+        run: make -C qianliyan wasm
+
       - name: Build all
         run: |
           mkdir public

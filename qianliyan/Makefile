@@ -3,10 +3,10 @@
 all: core macos
 
 core:
-	env -u all_proxy -u http_proxy -u https_proxy -u ALL_PROXY -u HTTP_PROXY -u HTTPS_PROXY zig build
+	zig build
 
 test:
-	env -u all_proxy -u http_proxy -u https_proxy -u ALL_PROXY -u HTTP_PROXY -u HTTPS_PROXY zig build test --summary all
+	zig build test --summary all
 
 macos: core
 	cd macos && swift build
@@ -18,7 +18,7 @@ dist:
 	bash scripts/package.sh
 
 wasm:
-	env -u all_proxy -u http_proxy -u https_proxy -u ALL_PROXY -u HTTP_PROXY -u HTTPS_PROXY zig build wasm
+	zig build wasm
 	cp -f zig-out/web/qianliyan.wasm web/qianliyan.wasm
 	mkdir -p ../docs/qianliyan
 	cp -f zig-out/web/qianliyan.wasm ../docs/qianliyan/qianliyan.wasm
