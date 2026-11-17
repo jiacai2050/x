@@ -120,13 +120,14 @@ pub const SqliteDriver = struct {
         const pc = try self.db.conn();
         defer pc.release();
 
-        var stmt = pc.raw.prepare(sql_str) catch |err| {
+        const ctx = stdgo.context.background();
+        var stmt = pc.raw.prepare(ctx, sql_str) catch |err| {
             self.recordError(pc.lastError());
             return err;
         };
         defer stmt.close();
 
-        var raw_rows = stmt.query(&.{}) catch |err| {
+        var raw_rows = stmt.query(ctx, &.{}) catch |err| {
             self.recordError(pc.lastError());
             return err;
         };

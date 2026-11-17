@@ -33,8 +33,8 @@
     // internet connectivity.
     .dependencies = .{
         .stdgo = .{
-            .url = "git+https://github.com/jiacai2050/stdgo.git#94fe5f3241ab3d3996369ee2c7e6046cfe939ab3",
-            .hash = "stdgo-0.0.0--Js0jSiFCwAej-q8N7kstguO__c0Nc01_FHIDE8Zzcmj",
+            .url = "git+https://github.com/jiacai2050/stdgo#a61715c242592310389add29d7eb76ad43d57bfe",
+            .hash = "stdgo-0.0.0--Js0jVBEFAC35RgTuFDUul-gRmz98RHBhFA0kRM_ZLrT",
         },
     },
     .paths = .{
