@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainWindow: View {
     @Bindable var viewModel: DBViewModel
@@ -43,6 +44,23 @@ struct MainWindow: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowAboutQianliyan"))) { _ in
             viewModel.showAbout = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OpenFileNotification"))) { notif in
+            if let path = notif.object as? String {
+                let url = URL(fileURLWithPath: path)
+                viewModel.openDatabase(path: path, name: url.deletingPathExtension().lastPathComponent)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url = url {
+                    DispatchQueue.main.async {
+                        viewModel.openDatabase(path: url.path, name: url.deletingPathExtension().lastPathComponent)
+                    }
+                }
+            }
+            return true
         }
     }
 

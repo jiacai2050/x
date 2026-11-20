@@ -39,6 +39,7 @@ public final class QueryTab: Identifiable {
     public let id = UUID()
     public var title: String
     public var sql: String
+    public var selectedSQL: String? = nil
     public var result: QueryResultData? = nil
     public var isExecuting: Bool = false
     public var errorMessage: String? = nil
@@ -46,20 +47,87 @@ public final class QueryTab: Identifiable {
     public var page: Int = 1
     public var pageSize: Int = 50
     public var tableName: String? = nil
+    public var sortColumnIndex: Int? = nil
+    public var sortAscending: Bool = true
 
     public init(title: String, sql: String, tableName: String? = nil) {
         self.title = title
         self.sql = sql
         self.tableName = tableName
     }
+
+    public var sortedRowIndices: [Int] {
+        guard let res = result else { return [] }
+        let count = res.rowCount
+        guard count > 0 else { return [] }
+        let initial = Array(0..<count)
+        guard let col = sortColumnIndex, col < res.columnCount else {
+            return initial
+        }
+        return initial.sorted { r1, r2 in
+            let valA = res[r1, col]
+            let valB = res[r2, col]
+            let isLess = compareCellValue(valA, valB)
+            return sortAscending ? isLess : !isLess
+        }
+    }
+
+    public var displayRows: [[CellValue]] {
+        guard let res = result else { return [] }
+        let indices = sortedRowIndices
+        var list: [[CellValue]] = []
+        list.reserveCapacity(indices.count)
+        for idx in indices {
+            list.append(Array(res.row(at: idx)))
+        }
+        return list
+    }
+
+    private func compareCellValue(_ a: CellValue, _ b: CellValue) -> Bool {
+        switch (a, b) {
+        case (.null, .null): return false
+        case (.null, _): return true
+        case (_, .null): return false
+        case (.integer(let v1), .integer(let v2)): return v1 < v2
+        case (.real(let v1), .real(let v2)): return v1 < v2
+        case (.integer(let v1), .real(let v2)): return Double(v1) < v2
+        case (.real(let v1), .integer(let v2)): return v1 < Double(v2)
+        case (.text(let v1), .text(let v2)): return v1.localizedStandardCompare(v2) == .orderedAscending
+        case (.blob(let v1), .blob(let v2)): return v1 < v2
+        default:
+            return a.description < b.description
+        }
+    }
+
+    public func toggleSort(column: Int) {
+        if sortColumnIndex == column {
+            if sortAscending {
+                sortAscending = false
+            } else {
+                sortColumnIndex = nil
+                sortAscending = true
+            }
+        } else {
+            sortColumnIndex = column
+            sortAscending = true
+        }
+    }
 }
 
-public struct HistoryItem: Identifiable, Hashable {
-    public let id = UUID()
+public struct HistoryItem: Identifiable, Hashable, Codable {
+    public var id: UUID
     public let sql: String
     public let timestamp: Date
     public let durationMs: Double
     public let rowCount: Int
+
+    public init(id: UUID = UUID(), sql: String, timestamp: Date = Date(), durationMs: Double, rowCount: Int) {
+        self.id = id
+        self.sql = sql
+        self.timestamp = timestamp
+        self.durationMs = durationMs
+        self.rowCount = rowCount
+    }
 }
 
 @Observable
@@ -90,12 +158,14 @@ public final class DBViewModel {
     public let client: DBClient = DBClient()
 
     private let recentKey = "qianliyan_recent_databases_v1"
+    private let historyKey = "qianliyan_query_history_v1"
 
     public init() {
         let defaultTab = QueryTab(title: "Query 1", sql: "")
         self.tabs = [defaultTab]
         self.activeTabId = defaultTab.id
         loadRecentDatabases()
+        loadHistory()
     }
 
     public var activeTab: QueryTab {
@@ -196,13 +266,10 @@ public final class DBViewModel {
                     importedList = payload.connections
                 } else if let rawList = try? decoder.decode([RecentDB].self, from: data) {
                     importedList = rawList
+                } else if let fallbackList = try? JSONDecoder().decode([RecentDB].self, from: data) {
+                    importedList = fallbackList
                 } else {
-                    let standardDecoder = JSONDecoder()
-                    if let rawList = try? standardDecoder.decode([RecentDB].self, from: data) {
-                        importedList = rawList
-                    } else {
-                        return
-                    }
+                    return
                 }
 
                 // Merge into recentDatabases (update existing or prepend new)
@@ -290,6 +357,19 @@ public final class DBViewModel {
         }
     }
 
+    private func loadHistory() {
+        if let data = UserDefaults.standard.data(forKey: historyKey),
+           let list = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+            self.history = list
+        }
+    }
+
+    private func saveHistory() {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: historyKey)
+        }
+    }
+
     public func newTab(title: String? = nil, sql: String = "", tableName: String? = nil) {
         let tabNumber = tabs.count + 1
         let newTitle = title ?? "Query \(tabNumber)"
@@ -329,9 +409,10 @@ public final class DBViewModel {
         }
     }
 
-    public func executeQuery() {
+    public func executeQuery(overrideSql: String? = nil) {
         let tab = activeTab
-        let trimmed = tab.sql.trimmingCharacters(in: .whitespacesAndNewlines)
+        let targetSql = overrideSql ?? (tab.selectedSQL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? tab.selectedSQL! : tab.sql)
+        let trimmed = targetSql.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         var execSql = trimmed
@@ -359,12 +440,13 @@ public final class DBViewModel {
                     sql: trimmed,
                     timestamp: Date(),
                     durationMs: res.executionTimeMs,
-                    rowCount: res.rows.count
+                    rowCount: res.rowCount
                 )
                 self.history.insert(item, at: 0)
                 if self.history.count > 100 { self.history.removeLast() }
+                self.saveHistory()
 
-                let countStr = "\(res.rows.count) row(s)"
+                let countStr = "\(res.rowCount) row(s)"
                 tab.statusMessage = "\(countStr) returned in \(String(format: "%.2f", res.executionTimeMs)) ms"
             } catch {
                 tab.isExecuting = false
@@ -394,9 +476,35 @@ public final class DBViewModel {
 
     public func exportCSV(for tab: QueryTab, to url: URL) throws {
         guard let res = tab.result else { return }
-        var csv = ""
-        csv += res.columns.map { "\"\($0.name.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",") + "\n"
-        for row in res.rows {
+        guard let outputStream = OutputStream(url: url, append: false) else {
+            throw NSError(domain: "DBViewModel", code: 10, userInfo: [NSLocalizedDescriptionKey: "Failed to open output stream"])
+        }
+        outputStream.open()
+        defer { outputStream.close() }
+
+        func writeString(_ str: String) throws {
+            guard let data = str.data(using: .utf8) else { return }
+            try data.withUnsafeBytes { buffer in
+                guard let baseAddress = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+                var bytesWritten = 0
+                while bytesWritten < buffer.count {
+                    let count = outputStream.write(baseAddress.advanced(by: bytesWritten), maxLength: buffer.count - bytesWritten)
+                    if count <= 0 {
+                        throw outputStream.streamError ?? NSError(domain: "DBViewModel", code: 11, userInfo: [NSLocalizedDescriptionKey: "Stream write failed"])
+                    }
+                    bytesWritten += count
+                }
+            }
+        }
+
+        // 1. Header
+        let header = res.columns.map { "\"\($0.name.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",") + "\n"
+        try writeString(header)
+
+        // 2. Rows (using sortedRowIndices to preserve active sorting without full array duplication)
+        let indices = tab.sortedRowIndices
+        for idx in indices {
+            let row = res.row(at: idx)
             let line = row.map { cell -> String in
                 switch cell {
                 case .null: return ""
@@ -405,27 +513,26 @@ public final class DBViewModel {
                 case .text(let t): return "\"\((t).replacingOccurrences(of: "\"", with: "\"\""))\""
                 case .blob(let size): return "<Blob \(size)B>"
                 }
-            }.joined(separator: ",")
-            csv += line + "\n"
+            }.joined(separator: ",") + "\n"
+            try writeString(line)
         }
-        try csv.write(to: url, atomically: true, encoding: .utf8)
     }
 
     public func exportJSON(for tab: QueryTab, to url: URL) throws {
         guard let res = tab.result else { return }
+        let indices = tab.sortedRowIndices
         var list: [[String: Any]] = []
-        for row in res.rows {
+        list.reserveCapacity(indices.count)
+        for r in indices {
             var dict: [String: Any] = [:]
             for (i, col) in res.columns.enumerated() {
-                if i < row.count {
-                    let cell = row[i]
-                    switch cell {
-                    case .null: dict[col.name] = NSNull()
-                    case .integer(let v): dict[col.name] = v
-                    case .real(let v): dict[col.name] = v
-                    case .text(let t): dict[col.name] = t
-                    case .blob(let size): dict[col.name] = "<Blob \(size)B>"
-                    }
+                let cell = res[r, i]
+                switch cell {
+                case .null: dict[col.name] = NSNull()
+                case .integer(let v): dict[col.name] = v
+                case .real(let v): dict[col.name] = v
+                case .text(let t): dict[col.name] = t
+                case .blob(let size): dict[col.name] = "<Blob \(size)B>"
                 }
             }
             list.append(dict)

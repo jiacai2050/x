@@ -694,8 +694,12 @@
               // real
               val = view.getFloat64(valOffset + 8, true);
             } else if (type === 3) {
-              // text
-              val = readCString(instance, view.getUint32(valOffset + 8, true));
+              // text (CDbSlice: data ptr + size)
+              const strPtr = view.getUint32(valOffset + 8, true);
+              const strLen = view.getUint32(valOffset + 12, true);
+              val = strPtr && strLen > 0
+                ? new TextDecoder().decode(new Uint8Array(instance.exports.memory.buffer, strPtr, strLen))
+                : '';
             } else if (type === 4) {
               // blob
               const dataSize = view.getUint32(valOffset + 12, true);

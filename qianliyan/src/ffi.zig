@@ -4,35 +4,15 @@ const sqlite_driver = @import("sqlite_driver.zig");
 const types = @import("types.zig");
 const SqliteDriver = sqlite_driver.SqliteDriver;
 
-pub const CDbColumnType = enum(c_int) {
-    null = 0,
-    integer = 1,
-    real = 2,
-    text = 3,
-    blob = 4,
-};
-
-pub const CDbColumnDef = extern struct {
-    name: [*:0]const u8,
-    type_name: [*:0]const u8,
-};
-
-pub const CDbBlobVal = extern struct {
-    data: [*]const u8,
-    size: usize,
-};
-
-pub const CDbValueUnion = extern union {
-    int_val: i64,
-    real_val: f64,
-    text_val: [*:0]const u8,
-    blob_val: CDbBlobVal,
-};
-
-pub const CDbValue = extern struct {
-    type: CDbColumnType,
-    value: CDbValueUnion,
-};
+pub const CDbColumnType = types.DbColumnType;
+pub const CDbSlice = types.DbSlice;
+pub const CDbValueUnion = types.DbValueUnion;
+pub const CDbValue = types.DbValue;
+pub const CDbColumnDef = types.DbColumnDef;
+pub const CDbColumnInfo = types.DbColumnInfo;
+pub const CDbIndexDef = types.DbIndexDef;
+pub const CDbTableDef = types.DbTableDef;
+pub const CDbSchemaResult = types.DbSchemaResult;
 
 pub const CDbBatchResult = extern struct {
     column_count: u32,
@@ -46,8 +26,10 @@ pub const CDbBatchResult = extern struct {
 comptime {
     assert(@sizeOf(CDbColumnType) == @sizeOf(c_int));
     assert(@sizeOf(CDbColumnDef) == 2 * @sizeOf(?*anyopaque));
-    assert(@sizeOf(CDbBlobVal) == @sizeOf(?*anyopaque) + @sizeOf(usize));
+    assert(@sizeOf(CDbSlice) == @sizeOf(?*anyopaque) + @sizeOf(usize));
     assert(@sizeOf(CDbBatchResult) > 0);
+    assert(@sizeOf(CDbColumnInfo) > 0);
+    assert(@sizeOf(CDbSchemaResult) > 0);
 }
 
 const InternalResult = struct {
@@ -55,9 +37,23 @@ const InternalResult = struct {
     c_result: CDbBatchResult,
 };
 
+const InternalSchemaResult = struct {
+    arena: std.heap.ArenaAllocator,
+    c_schema: CDbSchemaResult,
+};
+
 pub const DbContext = struct {
     driver: SqliteDriver,
     gpa: std.mem.Allocator,
+    last_error_buf: ?[:0]u8 = null,
+
+    pub fn setLastError(self: *DbContext, msg: []const u8) void {
+        if (self.last_error_buf) |b| {
+            self.gpa.free(b);
+            self.last_error_buf = null;
+        }
+        self.last_error_buf = self.gpa.dupeSentinel(u8, msg, 0) catch null;
+    }
 };
 
 fn setError(gpa: std.mem.Allocator, error_out: ?*?[*:0]u8, err_msg: []const u8) void {
@@ -112,16 +108,29 @@ pub export fn db_open(path: ?[*:0]const u8, error_out: ?*?[*:0]u8) ?*DbContext {
     ctx.* = .{
         .driver = driver,
         .gpa = gpa,
+        .last_error_buf = null,
     };
     return ctx;
 }
 
 pub export fn db_close(handle: ?*DbContext) void {
     if (handle) |ctx| {
+        if (ctx.last_error_buf) |b| {
+            ctx.gpa.free(b);
+        }
         ctx.driver.close();
         const gpa = ctx.gpa;
         gpa.destroy(ctx);
     }
+}
+
+pub export fn db_errmsg(handle: ?*DbContext) ?[*:0]const u8 {
+    if (handle) |ctx| {
+        if (ctx.last_error_buf) |msg| {
+            return msg.ptr;
+        }
+    }
+    return null;
 }
 
 pub export fn db_interrupt(handle: ?*DbContext) void {
@@ -160,6 +169,49 @@ fn writeJsonString(list: *std.ArrayList(u8), gpa: std.mem.Allocator, str: []cons
     try list.append(gpa, '"');
 }
 
+pub export fn db_get_schema(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?*CDbSchemaResult {
+    const ctx = handle orelse {
+        setError(std.heap.c_allocator, error_out, "Null db handle");
+        return null;
+    };
+    if (error_out) |out| {
+        out.* = null;
+    }
+
+    const schema_res = ctx.driver.getSchema(ctx.gpa) catch |err| {
+        const msg = std.fmt.allocPrint(
+            ctx.gpa,
+            "Failed to inspect schema: {s}",
+            .{@errorName(err)},
+        ) catch "Failed to inspect schema";
+        defer ctx.gpa.free(msg);
+        ctx.setLastError(msg);
+        setError(ctx.gpa, error_out, msg);
+        return null;
+    };
+
+    // Take direct ownership of the driver's arena.
+    // Zero second arena allocation, zero duplicate string copies.
+    var arena = schema_res.arena;
+    errdefer arena.deinit();
+    const allocator = arena.allocator();
+
+    const internal = allocator.create(InternalSchemaResult) catch return null;
+    internal.* = .{
+        .arena = arena,
+        .c_schema = schema_res.schema,
+    };
+    return &internal.c_schema;
+}
+
+pub export fn db_free_schema(schema: ?*CDbSchemaResult) void {
+    if (schema) |s| {
+        const internal: *InternalSchemaResult = @fieldParentPtr("c_schema", s);
+        var arena = internal.arena;
+        arena.deinit();
+    }
+}
+
 pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*:0]u8 {
     const ctx = handle orelse {
         setError(std.heap.c_allocator, error_out, "Null db handle");
@@ -176,6 +228,7 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
             .{@errorName(err)},
         ) catch "Failed to inspect schema";
         defer ctx.gpa.free(msg);
+        ctx.setLastError(msg);
         setError(ctx.gpa, error_out, msg);
         return null;
     };
@@ -186,22 +239,26 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
     defer list.deinit(ctx.gpa);
 
     list.appendSlice(ctx.gpa, "[") catch return null;
-    for (schema.tables, 0..) |tbl, i| {
+    for (schema.schema.tables[0..schema.schema.table_count], 0..) |tbl, i| {
         if (i > 0) list.appendSlice(ctx.gpa, ",") catch return null;
         list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-        writeJsonString(&list, ctx.gpa, tbl.name) catch return null;
+        writeJsonString(&list, ctx.gpa, std.mem.span(tbl.name)) catch return null;
 
         list.appendSlice(ctx.gpa, ",\"sql\":") catch return null;
-        writeJsonString(&list, ctx.gpa, tbl.sql) catch return null;
+        if (tbl.sql) |s| {
+            writeJsonString(&list, ctx.gpa, std.mem.span(s)) catch return null;
+        } else {
+            writeJsonString(&list, ctx.gpa, "") catch return null;
+        }
 
         // Table Columns
         list.appendSlice(ctx.gpa, ",\"columns\":[") catch return null;
-        for (tbl.columns, 0..) |col, ci| {
+        for (tbl.columns[0..tbl.column_count], 0..) |col, ci| {
             if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
             list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-            writeJsonString(&list, ctx.gpa, col.name) catch return null;
+            writeJsonString(&list, ctx.gpa, std.mem.span(col.name)) catch return null;
             list.appendSlice(ctx.gpa, ",\"type\":") catch return null;
-            writeJsonString(&list, ctx.gpa, col.type_name) catch return null;
+            writeJsonString(&list, ctx.gpa, std.mem.span(col.type_name)) catch return null;
             const pk_str = std.fmt.allocPrint(
                 ctx.gpa,
                 ",\"pk\":{d}}}",
@@ -214,11 +271,11 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
 
         // Table Indexes
         list.appendSlice(ctx.gpa, ",\"indexes\":[") catch return null;
-        for (tbl.indexes, 0..) |idx, ii| {
+        for (tbl.indexes[0..tbl.index_count], 0..) |idx, ii| {
             if (ii > 0) list.appendSlice(ctx.gpa, ",") catch return null;
             list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-            writeJsonString(&list, ctx.gpa, idx.name) catch return null;
-            const unique_str = if (idx.unique) "true" else "false";
+            writeJsonString(&list, ctx.gpa, std.mem.span(idx.name)) catch return null;
+            const unique_str = if (idx.is_unique) "true" else "false";
             const idx_mid = std.fmt.allocPrint(
                 ctx.gpa,
                 ",\"unique\":{s},\"columns\":[",
@@ -227,9 +284,9 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
             defer ctx.gpa.free(idx_mid);
             list.appendSlice(ctx.gpa, idx_mid) catch return null;
 
-            for (idx.columns, 0..) |col_name, ci| {
+            for (idx.columns[0..idx.column_count], 0..) |col_name, ci| {
                 if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
-                writeJsonString(&list, ctx.gpa, col_name) catch return null;
+                writeJsonString(&list, ctx.gpa, std.mem.span(col_name)) catch return null;
             }
             list.appendSlice(ctx.gpa, "]}") catch return null;
         }
@@ -266,7 +323,7 @@ pub export fn db_query(
 
     const row_count_max: ?usize = if (limit > 0) @intCast(limit) else null;
 
-    var zig_result = ctx.driver.query(ctx.gpa, sql_str, row_count_max) catch |err| {
+    const zig_result = ctx.driver.query(ctx.gpa, sql_str, row_count_max) catch |err| {
         const msg = if (ctx.driver.lastError()) |le|
             le
         else switch (err) {
@@ -274,93 +331,31 @@ pub export fn db_query(
             error.SQLitePrepareFailed, error.PrepareFailed => "SQL syntax error or invalid table",
             else => "Query execution failed",
         };
+        ctx.setLastError(msg);
         setError(ctx.gpa, error_out, msg);
         return null;
     };
-    defer zig_result.deinit();
 
-    var arena = std.heap.ArenaAllocator.init(ctx.gpa);
+    // Take ownership of the arena already populated by zig_result.
+    // This eliminates the redundant second arena allocation and deep copying of BLOBs.
+    var arena = zig_result.arena;
     errdefer arena.deinit();
     const arena_allocator = arena.allocator();
 
     const internal = arena_allocator.create(InternalResult) catch return null;
 
     const col_count = zig_result.columns.len;
-    const row_count = zig_result.rows.len;
-
-    var c_columns = arena_allocator.alloc(CDbColumnDef, col_count) catch return null;
-    for (zig_result.columns, 0..) |col, i| {
-        c_columns[i] = .{
-            .name = (arena_allocator.dupeSentinel(u8, col.name, 0) catch return null).ptr,
-            .type_name = (arena_allocator.dupeSentinel(
-                u8,
-                col.type_name,
-                0,
-            ) catch return null).ptr,
-        };
-    }
-
-    const total_values = col_count * row_count;
-    var c_values = arena_allocator.alloc(CDbValue, total_values) catch return null;
-
-    for (zig_result.rows, 0..) |row, r| {
-        assert(row.len == col_count);
-        for (row, 0..) |val, c| {
-            const idx = r * col_count + c;
-            assert(idx < total_values);
-            switch (val) {
-                .null => {
-                    c_values[idx] = .{
-                        .type = .null,
-                        .value = .{ .int_val = 0 },
-                    };
-                },
-                .integer => |v| {
-                    c_values[idx] = .{
-                        .type = .integer,
-                        .value = .{ .int_val = v },
-                    };
-                },
-                .real => |v| {
-                    c_values[idx] = .{
-                        .type = .real,
-                        .value = .{ .real_val = v },
-                    };
-                },
-                .text => |t| {
-                    const text_copy = (arena_allocator.dupeSentinel(
-                        u8,
-                        t,
-                        0,
-                    ) catch return null).ptr;
-                    c_values[idx] = .{
-                        .type = .text,
-                        .value = .{ .text_val = text_copy },
-                    };
-                },
-                .blob => |b| {
-                    const blob_copy = (arena_allocator.dupe(u8, b) catch return null).ptr;
-                    c_values[idx] = .{
-                        .type = .blob,
-                        .value = .{
-                            .blob_val = .{
-                                .data = blob_copy,
-                                .size = b.len,
-                            },
-                        },
-                    };
-                },
-            }
-        }
-    }
+    const row_count = zig_result.row_count;
+    const total_values = zig_result.values.len;
+    assert(total_values == col_count * row_count);
 
     internal.* = .{
         .arena = arena,
         .c_result = .{
             .column_count = @intCast(col_count),
-            .columns = c_columns.ptr,
+            .columns = zig_result.columns.ptr,
             .row_count = @intCast(row_count),
-            .values = c_values.ptr,
+            .values = zig_result.values.ptr,
             .has_more = zig_result.has_more,
             .execution_time_ns = zig_result.execution_time_ns,
         },

@@ -136,16 +136,16 @@ pub const SqliteDriver = struct {
         const col_names = raw_rows.columns();
         const col_count = col_names.len;
 
-        var columns = try arena_allocator.alloc(types.ColumnDef, col_count);
+        var columns = try arena_allocator.alloc(types.DbColumnDef, col_count);
         for (col_names, 0..) |col_name, i| {
             columns[i] = .{
-                .name = try arena_allocator.dupe(u8, col_name),
+                .name = (try arena_allocator.dupeSentinel(u8, col_name, 0)).ptr,
                 .type_name = "",
-                .pk = 0,
             };
         }
 
-        var row_list: std.ArrayList([]const types.Value) = .empty;
+        var value_list: std.ArrayList(types.DbValue) = .empty;
+        var row_count: usize = 0;
         var has_more = false;
         const limit = row_count_max orelse std.math.maxInt(usize);
         const loop_bound = if (limit < std.math.maxInt(usize))
@@ -157,23 +157,35 @@ pub const SqliteDriver = struct {
         var iteration_count: usize = 0;
 
         while (iteration_count < loop_bound and raw_rows.next(dest_buf)) : (iteration_count += 1) {
-            if (row_list.items.len >= limit) {
+            if (row_count >= limit) {
                 has_more = true;
                 break;
             }
 
-            var row_values = try arena_allocator.alloc(types.Value, col_count);
-            for (dest_buf, 0..) |val, i| {
-                row_values[i] = switch (val) {
-                    .null => .null,
-                    .int => |v| .{ .integer = v },
-                    .float => |v| .{ .real = v },
-                    .bool => |b| .{ .integer = if (b) 1 else 0 },
-                    .string => |s| .{ .text = try arena_allocator.dupe(u8, s) },
-                    .bytes => |b| .{ .blob = try arena_allocator.dupe(u8, b) },
+            for (dest_buf) |val| {
+                const cell: types.DbValue = switch (val) {
+                    .null => .{ .type = .null, .value = .{ .int_val = 0 } },
+                    .int => |v| .{ .type = .integer, .value = .{ .int_val = v } },
+                    .float => |v| .{ .type = .real, .value = .{ .real_val = v } },
+                    .bool => |b| .{ .type = .integer, .value = .{ .int_val = if (b) 1 else 0 } },
+                    .string => |s| blk: {
+                        const duped = try arena_allocator.dupe(u8, s);
+                        break :blk .{
+                            .type = .text,
+                            .value = .{ .text_val = .{ .data = duped.ptr, .size = duped.len } },
+                        };
+                    },
+                    .bytes => |b| blk: {
+                        const duped = try arena_allocator.dupe(u8, b);
+                        break :blk .{
+                            .type = .blob,
+                            .value = .{ .blob_val = .{ .data = duped.ptr, .size = duped.len } },
+                        };
+                    },
                 };
+                try value_list.append(arena_allocator, cell);
             }
-            try row_list.append(arena_allocator, row_values);
+            row_count += 1;
         }
 
         if (raw_rows.err()) |err| {
@@ -187,12 +199,13 @@ pub const SqliteDriver = struct {
         else
             0;
 
-        assert(row_list.items.len <= limit);
+        assert(row_count <= limit);
 
         return types.QueryResult{
             .arena = arena,
             .columns = columns,
-            .rows = try row_list.toOwnedSlice(arena_allocator),
+            .row_count = row_count,
+            .values = try value_list.toOwnedSlice(arena_allocator),
             .has_more = has_more,
             .execution_time_ns = duration_ns,
         };
@@ -212,16 +225,17 @@ pub const SqliteDriver = struct {
         );
         defer tables_res.deinit();
 
-        var tables: std.ArrayList(types.TableDef) = .empty;
+        var tables: std.ArrayList(types.DbTableDef) = .empty;
 
-        for (tables_res.rows) |row| {
+        for (0..tables_res.row_count) |tri| {
+            const row = tables_res.getRow(tri);
             if (row.len < 2) continue;
-            const table_name = switch (row[0]) {
-                .text => |t| t,
+            const table_name = switch (row[0].type) {
+                .text => row[0].value.text_val.data[0..row[0].value.text_val.size],
                 else => continue,
             };
-            const table_sql = switch (row[1]) {
-                .text => |t| t,
+            const table_sql = switch (row[1].type) {
+                .text => row[1].value.text_val.data[0..row[1].value.text_val.size],
                 else => "",
             };
 
@@ -235,19 +249,20 @@ pub const SqliteDriver = struct {
             var col_res = try self.query(arena_allocator, pragma_col_sql, null);
             defer col_res.deinit();
 
-            var columns: std.ArrayList(types.ColumnDef) = .empty;
-            for (col_res.rows) |col_row| {
+            var columns: std.ArrayList(types.DbColumnInfo) = .empty;
+            for (0..col_res.row_count) |cri| {
+                const col_row = col_res.getRow(cri);
                 if (col_row.len < 3) continue;
-                const col_name = switch (col_row[1]) {
-                    .text => |t| try arena_allocator.dupe(u8, t),
+                const col_name = switch (col_row[1].type) {
+                    .text => (try arena_allocator.dupeSentinel(u8, col_row[1].value.text_val.data[0..col_row[1].value.text_val.size], 0)).ptr,
                     else => "",
                 };
-                const col_type = switch (col_row[2]) {
-                    .text => |t| try arena_allocator.dupe(u8, t),
+                const col_type = switch (col_row[2].type) {
+                    .text => (try arena_allocator.dupeSentinel(u8, col_row[2].value.text_val.data[0..col_row[2].value.text_val.size], 0)).ptr,
                     else => "",
                 };
-                const pk_val: u32 = if (col_row.len > 5) switch (col_row[5]) {
-                    .integer => |v| if (v > 0) @intCast(v) else 0,
+                const pk_val: u32 = if (col_row.len > 5) switch (col_row[5].type) {
+                    .integer => if (col_row[5].value.int_val > 0) @intCast(col_row[5].value.int_val) else 0,
                     else => 0,
                 } else 0;
                 try columns.append(arena_allocator, .{
@@ -267,16 +282,17 @@ pub const SqliteDriver = struct {
             var idx_res = try self.query(arena_allocator, pragma_idx_sql, null);
             defer idx_res.deinit();
 
-            var indexes: std.ArrayList(types.IndexDef) = .empty;
-            for (idx_res.rows) |idx_row| {
+            var indexes: std.ArrayList(types.DbIndexDef) = .empty;
+            for (0..idx_res.row_count) |iri| {
+                const idx_row = idx_res.getRow(iri);
                 // index_list columns: 0:seq, 1:name, 2:unique, 3:origin, 4:partial.
                 if (idx_row.len < 3) continue;
-                const idx_name = switch (idx_row[1]) {
-                    .text => |t| try arena_allocator.dupe(u8, t),
+                const idx_name = switch (idx_row[1].type) {
+                    .text => (try arena_allocator.dupeSentinel(u8, idx_row[1].value.text_val.data[0..idx_row[1].value.text_val.size], 0)).ptr,
                     else => continue,
                 };
-                const is_unique = switch (idx_row[2]) {
-                    .integer => |v| v == 1,
+                const is_unique = switch (idx_row[2].type) {
+                    .integer => idx_row[2].value.int_val == 1,
                     else => false,
                 };
 
@@ -290,13 +306,15 @@ pub const SqliteDriver = struct {
                 var idx_col_res = try self.query(arena_allocator, pragma_idx_info_sql, null);
                 defer idx_col_res.deinit();
 
-                var idx_columns: std.ArrayList([]const u8) = .empty;
-                for (idx_col_res.rows) |info_row| {
+                var idx_columns: std.ArrayList([*:0]const u8) = .empty;
+                for (0..idx_col_res.row_count) |iiri| {
+                    const info_row = idx_col_res.getRow(iiri);
                     // index_info columns: 0:seqno, 1:cid, 2:name.
                     if (info_row.len > 2) {
-                        switch (info_row[2]) {
-                            .text => |t| {
-                                const col_duped = try arena_allocator.dupe(u8, t);
+                        switch (info_row[2].type) {
+                            .text => {
+                                const s = info_row[2].value.text_val;
+                                const col_duped = (try arena_allocator.dupeSentinel(u8, s.data[0..s.size], 0)).ptr;
                                 try idx_columns.append(arena_allocator, col_duped);
                             },
                             else => {},
@@ -304,24 +322,40 @@ pub const SqliteDriver = struct {
                     }
                 }
 
+                const idx_cols_slice = try idx_columns.toOwnedSlice(arena_allocator);
                 try indexes.append(arena_allocator, .{
                     .name = idx_name,
-                    .unique = is_unique,
-                    .columns = try idx_columns.toOwnedSlice(arena_allocator),
+                    .is_unique = is_unique,
+                    .column_count = @intCast(idx_cols_slice.len),
+                    .columns = idx_cols_slice.ptr,
                 });
             }
 
+            const cols_slice = try columns.toOwnedSlice(arena_allocator);
+            const idxs_slice = try indexes.toOwnedSlice(arena_allocator);
+            const tbl_name_c = (try arena_allocator.dupeSentinel(u8, table_name, 0)).ptr;
+            const tbl_sql_c: ?[*:0]const u8 = if (table_sql.len > 0)
+                (try arena_allocator.dupeSentinel(u8, table_sql, 0)).ptr
+            else
+                null;
+
             try tables.append(arena_allocator, .{
-                .name = try arena_allocator.dupe(u8, table_name),
-                .sql = try arena_allocator.dupe(u8, table_sql),
-                .columns = try columns.toOwnedSlice(arena_allocator),
-                .indexes = try indexes.toOwnedSlice(arena_allocator),
+                .name = tbl_name_c,
+                .sql = tbl_sql_c,
+                .column_count = @intCast(cols_slice.len),
+                .columns = cols_slice.ptr,
+                .index_count = @intCast(idxs_slice.len),
+                .indexes = idxs_slice.ptr,
             });
         }
 
+        const tables_slice = try tables.toOwnedSlice(arena_allocator);
         return types.SchemaResult{
             .arena = arena,
-            .tables = try tables.toOwnedSlice(arena_allocator),
+            .schema = .{
+                .table_count = @intCast(tables_slice.len),
+                .tables = tables_slice.ptr,
+            },
         };
     }
 };

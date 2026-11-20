@@ -68,13 +68,44 @@ public enum CellValue: Hashable, Sendable, CustomStringConvertible {
 
 public struct QueryResultData: Sendable {
     public let columns: [ColumnInfo]
-    public let rows: [[CellValue]]
+    public let rowCount: Int
+    public let columnCount: Int
+    public let values: [CellValue]
     public let hasMore: Bool
     public let executionTimeMs: Double
+
+    public init(columns: [ColumnInfo], rowCount: Int, columnCount: Int, values: [CellValue], hasMore: Bool, executionTimeMs: Double) {
+        self.columns = columns
+        self.rowCount = rowCount
+        self.columnCount = columnCount
+        self.values = values
+        self.hasMore = hasMore
+        self.executionTimeMs = executionTimeMs
+    }
+
+    public subscript(row: Int, col: Int) -> CellValue {
+        values[row * columnCount + col]
+    }
+
+    public func row(at r: Int) -> ArraySlice<CellValue> {
+        let start = r * columnCount
+        return values[start..<(start + columnCount)]
+    }
+
+    public var rows: [[CellValue]] {
+        var list: [[CellValue]] = []
+        list.reserveCapacity(rowCount)
+        for r in 0..<rowCount {
+            list.append(Array(row(at: r)))
+        }
+        return list
+    }
 }
 
 public final class DBClient: @unchecked Sendable {
     private var handle: DbHandle?
+    private let lock = NSLock()
+    private var isClosing = false
 
     public init() {}
 
@@ -83,15 +114,17 @@ public final class DBClient: @unchecked Sendable {
     }
 
     public var isOpen: Bool {
-        handle != nullPtr
-    }
-
-    private var nullPtr: DbHandle? {
-        nil
+        lock.lock()
+        defer { lock.unlock() }
+        return handle != nil
     }
 
     public func open(path: String?) throws {
         close()
+
+        lock.lock()
+        defer { lock.unlock() }
+        isClosing = false
 
         var errPtr: UnsafeMutablePointer<CChar>? = nil
         let cPath = path.flatMap { strdup($0) }
@@ -109,49 +142,112 @@ public final class DBClient: @unchecked Sendable {
     }
 
     public func close() {
-        if let h = handle {
-            db_close(h)
-            handle = nil
+        lock.lock()
+        guard let h = handle else {
+            lock.unlock()
+            return
         }
+        isClosing = true
+        // Interrupt any ongoing query safely before closing
+        db_interrupt(h)
+        handle = nil
+        lock.unlock()
+
+        db_close(h)
     }
 
     public func interrupt() {
+        lock.lock()
+        defer { lock.unlock() }
         if let h = handle {
             db_interrupt(h)
         }
     }
 
-    public func getSchema() async throws -> [TableInfo] {
-        guard let h = handle else {
+    private func getValidHandle() throws -> DbHandle {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let h = handle, !isClosing else {
             throw NSError(domain: "DBClient", code: 2, userInfo: [NSLocalizedDescriptionKey: "Database not open"])
         }
+        return h
+    }
 
-        return try await Task.detached {
-            var errPtr: UnsafeMutablePointer<CChar>? = nil
-            guard let jsonPtr = db_get_schema_json(h, &errPtr) else {
-                let msg = errPtr.map { String(cString: $0) } ?? "Failed to inspect schema"
-                db_free_string(errPtr)
+    public func getSchema() async throws -> [TableInfo] {
+        _ = try getValidHandle()
+
+        return try await Task.detached { [weak self] in
+            guard let self = self else {
+                throw NSError(domain: "DBClient", code: 5, userInfo: [NSLocalizedDescriptionKey: "Client deallocated"])
+            }
+            let validH = try self.getValidHandle()
+
+            guard let schemaPtr = db_get_schema(validH, nil) else {
+                let msg = db_errmsg(validH).map { String(cString: $0) } ?? "Failed to inspect schema"
                 throw NSError(domain: "DBClient", code: 3, userInfo: [NSLocalizedDescriptionKey: msg])
             }
-            defer { db_free_string(jsonPtr) }
+            defer { db_free_schema(schemaPtr) }
 
-            let jsonString = String(cString: jsonPtr)
-            guard let data = jsonString.data(using: .utf8) else { return [] }
-            let decoder = JSONDecoder()
-            return try decoder.decode([TableInfo].self, from: data)
+            let schemaRes = schemaPtr.pointee
+            let tblCount = Int(schemaRes.table_count)
+            var tables: [TableInfo] = []
+            tables.reserveCapacity(tblCount)
+
+            for i in 0..<tblCount {
+                let cTbl = schemaRes.tables[i]
+                let tblName = cTbl.name != nil ? String(cString: cTbl.name) : ""
+                let tblSql = cTbl.sql != nil ? String(cString: cTbl.sql!) : nil
+
+                let colCount = Int(cTbl.column_count)
+                var columns: [ColumnInfo] = []
+                columns.reserveCapacity(colCount)
+                for ci in 0..<colCount {
+                    let cCol = cTbl.columns[ci]
+                    let colName = cCol.name != nil ? String(cString: cCol.name) : ""
+                    let colType = cCol.type_name != nil ? String(cString: cCol.type_name) : ""
+                    columns.append(ColumnInfo(name: colName, type: colType, pk: Int(cCol.pk)))
+                }
+
+                let idxCount = Int(cTbl.index_count)
+                var indexes: [IndexInfo] = []
+                indexes.reserveCapacity(idxCount)
+                for ii in 0..<idxCount {
+                    let cIdx = cTbl.indexes[ii]
+                    let idxName = cIdx.name != nil ? String(cString: cIdx.name) : ""
+                    let idxColCount = Int(cIdx.column_count)
+                    var idxColumns: [String] = []
+                    idxColumns.reserveCapacity(idxColCount)
+                    for cii in 0..<idxColCount {
+                        if let namePtr = cIdx.columns[cii] {
+                            idxColumns.append(String(cString: namePtr))
+                        }
+                    }
+                    indexes.append(IndexInfo(name: idxName, unique: cIdx.is_unique, columns: idxColumns))
+                }
+
+                tables.append(TableInfo(
+                    name: tblName,
+                    sql: tblSql,
+                    columns: columns,
+                    indexes: indexes
+                ))
+            }
+
+            return tables
         }.value
     }
 
     public func query(sql: String, limit: UInt32 = 500) async throws -> QueryResultData {
-        guard let h = handle else {
-            throw NSError(domain: "DBClient", code: 2, userInfo: [NSLocalizedDescriptionKey: "Database not open"])
-        }
+        _ = try getValidHandle()
 
-        return try await Task.detached {
-            var errPtr: UnsafeMutablePointer<CChar>? = nil
-            guard let resPtr = db_query(h, sql, limit, &errPtr) else {
-                let msg = errPtr.map { String(cString: $0) } ?? "Query failed"
-                db_free_string(errPtr)
+        return try await Task.detached { [weak self] in
+            guard let self = self else {
+                throw NSError(domain: "DBClient", code: 5, userInfo: [NSLocalizedDescriptionKey: "Client deallocated"])
+            }
+            let validH = try self.getValidHandle()
+
+            guard let resPtr = db_query(validH, sql, limit, nil) else {
+                let msg = db_errmsg(validH).map { String(cString: $0) } ?? "Query failed"
                 throw NSError(domain: "DBClient", code: 4, userInfo: [NSLocalizedDescriptionKey: msg])
             }
             defer { db_free_result(resPtr) }
@@ -169,40 +265,43 @@ public final class DBClient: @unchecked Sendable {
                 columns.append(ColumnInfo(name: name, type: typeName))
             }
 
-            var rows: [[CellValue]] = []
-            rows.reserveCapacity(rowCount)
+            let totalValues = colCount * rowCount
+            var values: [CellValue] = []
+            values.reserveCapacity(totalValues)
 
-            for r in 0..<rowCount {
-                var rowCells: [CellValue] = []
-                rowCells.reserveCapacity(colCount)
-                for c in 0..<colCount {
-                    let idx = r * colCount + c
-                    let cVal = res.values[idx]
-                    switch cVal.type {
-                    case DB_TYPE_NULL:
-                        rowCells.append(.null)
-                    case DB_TYPE_INTEGER:
-                        rowCells.append(.integer(cVal.value.int_val))
-                    case DB_TYPE_REAL:
-                        rowCells.append(.real(cVal.value.real_val))
-                    case DB_TYPE_TEXT:
-                        let text = cVal.value.text_val != nil ? String(cString: cVal.value.text_val!) : ""
-                        rowCells.append(.text(text))
-                    case DB_TYPE_BLOB:
-                        let size = cVal.value.blob_val.size
-                        rowCells.append(.blob(size))
-                    default:
-                        rowCells.append(.null)
+            for idx in 0..<totalValues {
+                let cVal = res.values[idx]
+                switch cVal.type {
+                case DB_TYPE_NULL:
+                    values.append(.null)
+                case DB_TYPE_INTEGER:
+                    values.append(.integer(cVal.value.int_val))
+                case DB_TYPE_REAL:
+                    values.append(.real(cVal.value.real_val))
+                case DB_TYPE_TEXT:
+                    let slice = cVal.value.text_val
+                    if let ptr = slice.data, slice.size > 0 {
+                        // Vectorized UTF-8 decoding with exact byte length, skipping strlen
+                        let text = String(decoding: UnsafeRawBufferPointer(start: ptr, count: slice.size), as: UTF8.self)
+                        values.append(.text(text))
+                    } else {
+                        values.append(.text(""))
                     }
+                case DB_TYPE_BLOB:
+                    let size = cVal.value.blob_val.size
+                    values.append(.blob(size))
+                default:
+                    values.append(.null)
                 }
-                rows.append(rowCells)
             }
 
             let execTimeMs = Double(res.execution_time_ns) / 1_000_000.0
 
             return QueryResultData(
                 columns: columns,
-                rows: rows,
+                rowCount: rowCount,
+                columnCount: colCount,
+                values: values,
                 hasMore: res.has_more,
                 executionTimeMs: execTimeMs
             )

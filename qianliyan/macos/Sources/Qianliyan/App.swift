@@ -63,98 +63,142 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        NotificationCenter.default.post(name: Notification.Name("OpenFileNotification"), object: filename)
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        if let first = filenames.first {
+            NotificationCenter.default.post(name: Notification.Name("OpenFileNotification"), object: first)
+        }
+    }
+}
+
+struct FocusedDBViewModelKey: FocusedValueKey {
+    typealias Value = DBViewModel
+}
+
+extension FocusedValues {
+    var focusedDBViewModel: DBViewModel? {
+        get { self[FocusedDBViewModelKey.self] }
+        set { self[FocusedDBViewModelKey.self] = newValue }
+    }
+}
+
+struct WindowContainerView: View {
+    @State private var viewModel = DBViewModel()
+
+    var body: some View {
+        MainWindow(viewModel: viewModel)
+            .frame(minWidth: 850, minHeight: 550)
+            .focusedSceneValue(\.focusedDBViewModel, viewModel)
+    }
+}
+
+struct QianliyanCommands: Commands {
+    @FocusedValue(\.focusedDBViewModel) var viewModel
+
+    var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Qianliyan") {
+                if let vm = viewModel {
+                    vm.showAbout = true
+                } else {
+                    NotificationCenter.default.post(name: Notification.Name("ShowAboutQianliyan"), object: nil)
+                }
+            }
+        }
+
+        CommandGroup(replacing: .newItem) {
+            Button("Open Database...") {
+                viewModel?.openFromPicker()
+            }
+            .keyboardShortcut("o", modifiers: .command)
+
+            Button("New Database...") {
+                viewModel?.createNewDatabase()
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Divider()
+
+            Button("New Query Tab") {
+                viewModel?.newTab()
+            }
+            .keyboardShortcut("t", modifiers: .command)
+            .disabled(viewModel?.viewMode != .workspace)
+
+            Button("Close Tab") {
+                if let vm = viewModel {
+                    vm.closeTab(id: vm.activeTabId)
+                }
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .disabled(viewModel?.viewMode != .workspace || (viewModel?.tabs.count ?? 0) <= 1)
+
+            Divider()
+
+            Button("Import Connections...") {
+                viewModel?.importConnections()
+            }
+
+            Button("Export Connections...") {
+                viewModel?.exportConnections()
+            }
+
+            Divider()
+
+            Button("Close Database") {
+                viewModel?.backToHome()
+            }
+            .keyboardShortcut("w", modifiers: [.command, .shift])
+            .disabled(viewModel?.viewMode != .workspace)
+        }
+
+        CommandMenu("Query") {
+            Button("Run Query") {
+                viewModel?.executeQuery()
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(viewModel?.viewMode != .workspace || (viewModel?.activeTab.isExecuting ?? false))
+
+            Button("Cancel Query") {
+                viewModel?.cancelQuery()
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(viewModel?.viewMode != .workspace || !(viewModel?.activeTab.isExecuting ?? false))
+
+            Divider()
+
+            Button("Refresh Schema") {
+                viewModel?.refreshSchema()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(viewModel?.viewMode != .workspace)
+
+            Button("Query History...") {
+                viewModel?.showHistory = true
+            }
+            .keyboardShortcut("h", modifiers: [.command, .shift])
+            .disabled(viewModel?.viewMode != .workspace)
+        }
+    }
 }
 
 @main
 struct QianliyanApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var viewModel = DBViewModel()
 
     var body: some Scene {
         WindowGroup {
-            MainWindow(viewModel: viewModel)
-                .frame(minWidth: 850, minHeight: 550)
+            WindowContainerView()
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
-            CommandGroup(replacing: .appInfo) {
-                Button("About Qianliyan") {
-                    viewModel.showAbout = true
-                }
-            }
-
-            CommandGroup(replacing: .newItem) {
-                Button("Open Database...") {
-                    viewModel.openFromPicker()
-                }
-                .keyboardShortcut("o", modifiers: .command)
-
-                Button("New Database...") {
-                    viewModel.createNewDatabase()
-                }
-                .keyboardShortcut("n", modifiers: .command)
-
-                Divider()
-
-                Button("New Query Tab") {
-                    viewModel.newTab()
-                }
-                .keyboardShortcut("t", modifiers: .command)
-                .disabled(viewModel.viewMode != .workspace)
-
-                Button("Close Tab") {
-                    viewModel.closeTab(id: viewModel.activeTabId)
-                }
-                .keyboardShortcut("w", modifiers: .command)
-                .disabled(viewModel.viewMode != .workspace || viewModel.tabs.count <= 1)
-
-                Divider()
-
-                Button("Import Connections...") {
-                    viewModel.importConnections()
-                }
-
-                Button("Export Connections...") {
-                    viewModel.exportConnections()
-                }
-
-                Divider()
-
-                Button("Close Database") {
-                    viewModel.backToHome()
-                }
-                .keyboardShortcut("w", modifiers: [.command, .shift])
-                .disabled(viewModel.viewMode != .workspace)
-            }
-
-            CommandMenu("Query") {
-                Button("Run Query") {
-                    viewModel.executeQuery()
-                }
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(viewModel.viewMode != .workspace || viewModel.activeTab.isExecuting)
-
-                Button("Cancel Query") {
-                    viewModel.cancelQuery()
-                }
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(viewModel.viewMode != .workspace || !viewModel.activeTab.isExecuting)
-
-                Divider()
-
-                Button("Refresh Schema") {
-                    viewModel.refreshSchema()
-                }
-                .keyboardShortcut("r", modifiers: .command)
-                .disabled(viewModel.viewMode != .workspace)
-
-                Button("Query History...") {
-                    viewModel.showHistory = true
-                }
-                .keyboardShortcut("h", modifiers: [.command, .shift])
-                .disabled(viewModel.viewMode != .workspace)
-            }
+            QianliyanCommands()
         }
     }
 }

@@ -24,15 +24,17 @@ typedef struct {
 } DbColumnDef;
 
 typedef struct {
+    const char* data;
+    size_t size;
+} DbSlice;
+
+typedef struct {
     DbColumnType type;
     union {
         int64_t int_val;
         double real_val;
-        const char* text_val;
-        struct {
-            const uint8_t* data;
-            size_t size;
-        } blob_val;
+        DbSlice text_val;
+        DbSlice blob_val;
     } value;
 } DbValue;
 
@@ -46,19 +48,57 @@ typedef struct {
     uint64_t execution_time_ns;
 } DbBatchResult;
 
+// Native C Schema Structures
+typedef struct {
+    const char* name;
+    const char* type_name;
+    uint32_t pk;
+} DbColumnInfo;
+
+typedef struct {
+    const char* name;
+    bool is_unique;
+    uint32_t column_count;
+    const char* const* columns;
+} DbIndexDef;
+
+typedef struct {
+    const char* name;
+    const char* sql;
+    uint32_t column_count;
+    const DbColumnInfo* columns;
+    uint32_t index_count;
+    const DbIndexDef* indexes;
+} DbTableDef;
+
+typedef struct {
+    uint32_t table_count;
+    const DbTableDef* tables;
+} DbSchemaResult;
+
 // Allocate heap buffer inside Zig runtime.
 uint8_t* db_alloc(size_t size);
 
 // Free heap buffer allocated by db_alloc.
 void db_free(uint8_t* ptr, size_t size);
 
-// Open database from filesystem path. Returns handle, or NULL on error with error_out set.
+// Open database from filesystem path. Returns handle, or NULL on error.
+// Optional error_out can be passed, or caller can read db_errmsg(handle).
 DbHandle db_open(const char* path, char** error_out);
 
 // Close database handle.
 void db_close(DbHandle handle);
 
-// Retrieve schema as JSON string. Caller must free with db_free_string.
+// Get last error message for the database handle without needing to free it.
+const char* db_errmsg(DbHandle handle);
+
+// Native C Schema Inspection. Caller must free with db_free_schema.
+DbSchemaResult* db_get_schema(DbHandle handle, char** error_out);
+
+// Free schema result allocated by db_get_schema.
+void db_free_schema(DbSchemaResult* schema);
+
+// Retrieve schema as JSON string (Kept for WebAssembly compatibility). Caller must free with db_free_string.
 char* db_get_schema_json(DbHandle handle, char** error_out);
 
 // Free heap string allocated by Zig.

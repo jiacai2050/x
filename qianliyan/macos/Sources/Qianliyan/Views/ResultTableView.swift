@@ -3,6 +3,14 @@ import AppKit
 
 struct ResultTableView: View {
     @Bindable var viewModel: DBViewModel
+    @State private var customColumnWidths: [Int: CGFloat] = [:]
+
+    private func getColumnWidth(index: Int, result: QueryResultData, zoom: CGFloat, extraPerCol: CGFloat) -> CGFloat {
+        if let custom = customColumnWidths[index] {
+            return custom
+        }
+        return baseColumnWidth(for: index, in: result) * zoom + extraPerCol
+    }
 
     var body: some View {
         let tab = viewModel.activeTab
@@ -36,7 +44,8 @@ struct ResultTableView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     let colCount = result.columns.count
-                    let rowCount = result.rows.count
+                    let sortedIndices = tab.sortedRowIndices
+                    let rowCount = sortedIndices.count
                     let indexColWidth = max(42, 48 * zoom)
 
                     GeometryReader { geo in
@@ -54,7 +63,7 @@ struct ResultTableView: View {
                             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                                 Section {
                                     ForEach(0..<rowCount, id: \.self) { r in
-                                        let rowValues = result.rows[r]
+                                        let sortedIdx = sortedIndices[r]
                                         HStack(spacing: 0) {
                                             // Row Index
                                             Text("\((tab.page - 1) * tab.pageSize + r + 1)")
@@ -65,32 +74,34 @@ struct ResultTableView: View {
 
                                             Divider().frame(height: 24 * zoom)
 
-                                            // Row Cells
+                                            // Row Cells (lightweight, double click to copy, no heavy per-cell contextMenu)
                                             ForEach(0..<colCount, id: \.self) { c in
-                                                let cell = c < rowValues.count ? rowValues[c] : .null
-                                                let cellW = baseColumnWidth(for: c, in: result) * zoom + extraPerCol
+                                                let cell = result[sortedIdx, c]
+                                                let cellW = getColumnWidth(index: c, result: result, zoom: zoom, extraPerCol: extraPerCol)
 
                                                 cellView(for: cell, zoom: zoom)
                                                     .frame(width: cellW, alignment: .leading)
                                                     .padding(.horizontal, 8 * zoom)
-                                                    .contextMenu {
-                                                        Button("Copy Value") {
-                                                            copyToClipboard(cell.description)
-                                                        }
-                                                        Divider()
-                                                        Button("Copy Row as JSON") {
-                                                            copyRowAsJSON(rowValues, columns: result.columns)
-                                                        }
-                                                        Button("Copy Row as CSV") {
-                                                            copyRowAsCSV(rowValues)
-                                                        }
+                                                    .contentShape(Rectangle())
+                                                    .onTapGesture(count: 2) {
+                                                        copyToClipboard(cell.description)
+                                                        tab.statusMessage = "Copied '\(cell.description.prefix(30))' to clipboard"
                                                     }
+                                                    .help("Double-click cell to copy value")
 
                                                 Divider().frame(height: 24 * zoom)
                                             }
                                         }
                                         .padding(.vertical, 4 * zoom)
                                         .background(r % 2 == 1 ? Color.secondary.opacity(0.04) : Color.clear)
+                                        .contextMenu {
+                                            Button("Copy Row as JSON") {
+                                                copyRowAsJSON(Array(result.row(at: sortedIdx)), columns: result.columns)
+                                            }
+                                            Button("Copy Row as CSV") {
+                                                copyRowAsCSV(Array(result.row(at: sortedIdx)))
+                                            }
+                                        }
 
                                         Divider()
                                     }
@@ -107,25 +118,60 @@ struct ResultTableView: View {
 
                                         ForEach(0..<colCount, id: \.self) { c in
                                             let col = result.columns[c]
-                                            let colW = baseColumnWidth(for: c, in: result) * zoom + extraPerCol
+                                            let colW = getColumnWidth(index: c, result: result, zoom: zoom, extraPerCol: extraPerCol)
 
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(col.name)
-                                                    .font(.system(size: 12 * zoom, weight: .bold))
-                                                    .lineLimit(1)
-                                                Text(col.type.isEmpty ? "ANY" : col.type)
-                                                    .font(.system(size: max(8, 9 * zoom), weight: .regular, design: .monospaced))
-                                                    .foregroundColor(.secondary)
+                                            HStack(spacing: 4) {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(col.name)
+                                                        .font(.system(size: 12 * zoom, weight: .bold))
+                                                        .lineLimit(1)
+                                                    Text(col.type.isEmpty ? "ANY" : col.type)
+                                                        .font(.system(size: max(8, 9 * zoom), weight: .regular, design: .monospaced))
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                Spacer()
+                                                if tab.sortColumnIndex == c {
+                                                    Image(systemName: tab.sortAscending ? "chevron.up" : "chevron.down")
+                                                        .font(.system(size: 10 * zoom, weight: .bold))
+                                                        .foregroundColor(.accentColor)
+                                                }
                                             }
                                             .frame(width: colW, alignment: .leading)
                                             .padding(.horizontal, 8 * zoom)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture {
+                                                tab.toggleSort(column: c)
+                                            }
                                             .contextMenu {
                                                 Button("Copy Column Name") {
                                                     copyToClipboard(col.name)
                                                 }
+                                                Button(tab.sortColumnIndex == c && tab.sortAscending ? "Sort Descending" : "Sort Ascending") {
+                                                    tab.toggleSort(column: c)
+                                                }
+                                                if tab.sortColumnIndex == c {
+                                                    Button("Clear Sort") {
+                                                        tab.sortColumnIndex = nil
+                                                    }
+                                                }
+                                                Divider()
+                                                Button("Reset Column Width") {
+                                                    customColumnWidths.removeValue(forKey: c)
+                                                }
                                             }
 
-                                            Divider().frame(height: 28 * zoom)
+                                            // Drag handle for column width resizing
+                                            Rectangle()
+                                                .fill(Color.secondary.opacity(0.2))
+                                                .frame(width: 4, height: 28 * zoom)
+                                                .contentShape(Rectangle())
+                                                .gesture(
+                                                    DragGesture()
+                                                        .onChanged { value in
+                                                            let currentW = getColumnWidth(index: c, result: result, zoom: zoom, extraPerCol: extraPerCol)
+                                                            customColumnWidths[c] = max(50, currentW + value.translation.width)
+                                                        }
+                                                )
                                         }
                                     }
                                     .padding(.vertical, 4 * zoom)

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const types = @import("types.zig");
-pub const Value = types.Value;
+pub const DbValue = types.DbValue;
 pub const ColumnDef = types.ColumnDef;
 pub const TableDef = types.TableDef;
 pub const SchemaResult = types.SchemaResult;
@@ -18,6 +18,9 @@ comptime {
     _ = ffi.db_free;
     _ = ffi.db_open;
     _ = ffi.db_close;
+    _ = ffi.db_errmsg;
+    _ = ffi.db_get_schema;
+    _ = ffi.db_free_schema;
     _ = ffi.db_get_schema_json;
     _ = ffi.db_free_string;
     _ = ffi.db_query;
@@ -65,18 +68,18 @@ test "sqlite driver in-memory end-to-end test" {
     var schema = try driver.getSchema(gpa);
     defer schema.deinit();
 
-    try testing.expectEqual(@as(usize, 1), schema.tables.len);
-    try testing.expectEqualStrings("users", schema.tables[0].name);
-    try testing.expect(schema.tables[0].sql.len > 0);
-    try testing.expectEqual(@as(usize, 5), schema.tables[0].columns.len);
-    try testing.expectEqualStrings("id", schema.tables[0].columns[0].name);
-    try testing.expectEqualStrings("INTEGER", schema.tables[0].columns[0].type_name);
-    try testing.expectEqual(@as(u32, 1), schema.tables[0].columns[0].pk);
-    try testing.expectEqual(@as(u32, 0), schema.tables[0].columns[1].pk);
-    try testing.expectEqual(@as(usize, 1), schema.tables[0].indexes.len);
-    try testing.expectEqualStrings("idx_users_name", schema.tables[0].indexes[0].name);
-    try testing.expectEqual(@as(usize, 1), schema.tables[0].indexes[0].columns.len);
-    try testing.expectEqualStrings("name", schema.tables[0].indexes[0].columns[0]);
+    try testing.expectEqual(@as(u32, 1), schema.schema.table_count);
+    try testing.expectEqualStrings("users", std.mem.span(schema.schema.tables[0].name));
+    try testing.expect(std.mem.span(schema.schema.tables[0].sql.?).len > 0);
+    try testing.expectEqual(@as(u32, 5), schema.schema.tables[0].column_count);
+    try testing.expectEqualStrings("id", std.mem.span(schema.schema.tables[0].columns[0].name));
+    try testing.expectEqualStrings("INTEGER", std.mem.span(schema.schema.tables[0].columns[0].type_name));
+    try testing.expectEqual(@as(u32, 1), schema.schema.tables[0].columns[0].pk);
+    try testing.expectEqual(@as(u32, 0), schema.schema.tables[0].columns[1].pk);
+    try testing.expectEqual(@as(u32, 1), schema.schema.tables[0].index_count);
+    try testing.expectEqualStrings("idx_users_name", std.mem.span(schema.schema.tables[0].indexes[0].name));
+    try testing.expectEqual(@as(u32, 1), schema.schema.tables[0].indexes[0].column_count);
+    try testing.expectEqualStrings("name", std.mem.span(schema.schema.tables[0].indexes[0].columns[0]));
 
     // 4. Dynamic query execution.
     var res = try driver.query(
@@ -87,23 +90,23 @@ test "sqlite driver in-memory end-to-end test" {
     defer res.deinit();
 
     try testing.expectEqual(@as(usize, 5), res.columns.len);
-    try testing.expectEqual(@as(usize, 2), res.rows.len);
+    try testing.expectEqual(@as(usize, 2), res.row_count);
     try testing.expect(!res.has_more);
 
     // Check row 0 (Alice).
-    const row0 = res.rows[0];
-    try testing.expectEqual(@as(i64, 1), row0[0].integer);
-    try testing.expectEqualStrings("Alice", row0[1].text);
-    try testing.expectEqual(@as(f64, 98.5), row0[2].real);
-    try testing.expectEqualSlices(u8, &[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF }, row0[3].blob);
-    try testing.expectEqualStrings("Software Engineer", row0[4].text);
+    const row0 = res.getRow(0);
+    try testing.expectEqual(@as(i64, 1), row0[0].value.int_val);
+    try testing.expectEqualStrings("Alice", row0[1].value.text_val.data[0..row0[1].value.text_val.size]);
+    try testing.expectEqual(@as(f64, 98.5), row0[2].value.real_val);
+    try testing.expectEqualSlices(u8, &[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF }, row0[3].value.blob_val.data[0..row0[3].value.blob_val.size]);
+    try testing.expectEqualStrings("Software Engineer", row0[4].value.text_val.data[0..row0[4].value.text_val.size]);
 
     // Check row 1 (Bob).
-    const row1 = res.rows[1];
-    try testing.expectEqual(@as(i64, 2), row1[0].integer);
-    try testing.expectEqualStrings("Bob", row1[1].text);
-    try testing.expectEqual(types.Value.null, row1[3]);
-    try testing.expectEqual(types.Value.null, row1[4]);
+    const row1 = res.getRow(1);
+    try testing.expectEqual(@as(i64, 2), row1[0].value.int_val);
+    try testing.expectEqualStrings("Bob", row1[1].value.text_val.data[0..row1[1].value.text_val.size]);
+    try testing.expectEqual(types.DbColumnType.null, row1[3].type);
+    try testing.expectEqual(types.DbColumnType.null, row1[4].type);
 }
 
 // Test: C-ABI FFI exported functions test.
@@ -143,6 +146,17 @@ test "C-ABI ffi functions test" {
     try testing.expect(std.mem.indexOf(u8, schema_slice, "title") != null);
     try testing.expect(std.mem.indexOf(u8, schema_slice, "\"pk\":1") != null);
 
+    // Native C-ABI schema inspection test.
+    const native_schema = ffi.db_get_schema(db, &err_out);
+    try testing.expect(native_schema != null);
+    defer ffi.db_free_schema(native_schema);
+    const s = native_schema.?;
+    try testing.expectEqual(@as(u32, 1), s.table_count);
+    try testing.expectEqualStrings("items", std.mem.span(s.tables[0].name));
+    try testing.expectEqual(@as(u32, 2), s.tables[0].column_count);
+    try testing.expectEqualStrings("id", std.mem.span(s.tables[0].columns[0].name));
+    try testing.expectEqual(@as(u32, 1), s.tables[0].columns[0].pk);
+
     // Batch query test.
     const q_res = ffi.db_query(db, "SELECT * FROM items ORDER BY id ASC;", 100, &err_out);
     try testing.expect(q_res != null);
@@ -158,7 +172,8 @@ test "C-ABI ffi functions test" {
     try testing.expectEqual(ffi.CDbColumnType.integer, r.values[0].type);
     try testing.expectEqual(@as(i64, 1), r.values[0].value.int_val);
     try testing.expectEqual(ffi.CDbColumnType.text, r.values[1].type);
-    try testing.expectEqualStrings("First Item", std.mem.span(r.values[1].value.text_val));
+    const text_slice = r.values[1].value.text_val.data[0..r.values[1].value.text_val.size];
+    try testing.expectEqualStrings("First Item", text_slice);
 
     // Test db_interrupt does not crash and safely handles connection interruption.
     ffi.db_interrupt(db);
@@ -172,5 +187,9 @@ test "C-ABI ffi functions test" {
         const span = std.mem.span(e_str);
         try testing.expect(std.mem.indexOf(u8, span, "syntax error") != null);
     }
+    // Verify db_errmsg retrieves the exact same message without requiring deallocation.
+    const errmsg = ffi.db_errmsg(db);
+    try testing.expect(errmsg != null);
+    try testing.expect(std.mem.indexOf(u8, std.mem.span(errmsg.?), "syntax error") != null);
 }
 
