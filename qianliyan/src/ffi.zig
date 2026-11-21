@@ -25,7 +25,7 @@ pub const CDbBatchResult = extern struct {
 
 comptime {
     assert(@sizeOf(CDbColumnType) == @sizeOf(c_int));
-    assert(@sizeOf(CDbColumnDef) == 2 * @sizeOf(?*anyopaque));
+    assert(@sizeOf(CDbColumnDef) == 2 * @sizeOf(CDbSlice));
     assert(@sizeOf(CDbSlice) == @sizeOf(?*anyopaque) + @sizeOf(usize));
     assert(@sizeOf(CDbBatchResult) > 0);
     assert(@sizeOf(CDbColumnInfo) > 0);
@@ -242,23 +242,19 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
     for (schema.schema.tables[0..schema.schema.table_count], 0..) |tbl, i| {
         if (i > 0) list.appendSlice(ctx.gpa, ",") catch return null;
         list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-        writeJsonString(&list, ctx.gpa, std.mem.span(tbl.name)) catch return null;
+        writeJsonString(&list, ctx.gpa, tbl.getName()) catch return null;
 
         list.appendSlice(ctx.gpa, ",\"sql\":") catch return null;
-        if (tbl.sql) |s| {
-            writeJsonString(&list, ctx.gpa, std.mem.span(s)) catch return null;
-        } else {
-            writeJsonString(&list, ctx.gpa, "") catch return null;
-        }
+        writeJsonString(&list, ctx.gpa, tbl.getSql() orelse "") catch return null;
 
         // Table Columns
         list.appendSlice(ctx.gpa, ",\"columns\":[") catch return null;
         for (tbl.columns[0..tbl.column_count], 0..) |col, ci| {
             if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
             list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-            writeJsonString(&list, ctx.gpa, std.mem.span(col.name)) catch return null;
+            writeJsonString(&list, ctx.gpa, col.getName()) catch return null;
             list.appendSlice(ctx.gpa, ",\"type\":") catch return null;
-            writeJsonString(&list, ctx.gpa, std.mem.span(col.type_name)) catch return null;
+            writeJsonString(&list, ctx.gpa, col.getTypeName()) catch return null;
             const pk_str = std.fmt.allocPrint(
                 ctx.gpa,
                 ",\"pk\":{d}}}",
@@ -274,7 +270,7 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
         for (tbl.indexes[0..tbl.index_count], 0..) |idx, ii| {
             if (ii > 0) list.appendSlice(ctx.gpa, ",") catch return null;
             list.appendSlice(ctx.gpa, "{\"name\":") catch return null;
-            writeJsonString(&list, ctx.gpa, std.mem.span(idx.name)) catch return null;
+            writeJsonString(&list, ctx.gpa, idx.getName()) catch return null;
             const unique_str = if (idx.is_unique) "true" else "false";
             const idx_mid = std.fmt.allocPrint(
                 ctx.gpa,
@@ -286,7 +282,7 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
 
             for (idx.columns[0..idx.column_count], 0..) |col_name, ci| {
                 if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
-                writeJsonString(&list, ctx.gpa, std.mem.span(col_name)) catch return null;
+                writeJsonString(&list, ctx.gpa, col_name.data[0..col_name.size]) catch return null;
             }
             list.appendSlice(ctx.gpa, "]}") catch return null;
         }
@@ -296,6 +292,32 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
 
     const null_terminated = ctx.gpa.dupeSentinel(u8, list.items, 0) catch return null;
     return null_terminated.ptr;
+}
+
+fn wrapQueryResult(zig_result: types.QueryResult) ?*CDbBatchResult {
+    var arena = zig_result.arena;
+    errdefer arena.deinit();
+    const arena_allocator = arena.allocator();
+
+    const internal = arena_allocator.create(InternalResult) catch return null;
+
+    const col_count = zig_result.columns.len;
+    const row_count = zig_result.row_count;
+    assert(zig_result.values.len == col_count * row_count);
+
+    internal.* = .{
+        .arena = arena,
+        .c_result = .{
+            .column_count = @intCast(col_count),
+            .columns = zig_result.columns.ptr,
+            .row_count = @intCast(row_count),
+            .values = zig_result.values.ptr,
+            .has_more = zig_result.has_more,
+            .execution_time_ns = zig_result.execution_time_ns,
+        },
+    };
+
+    return &internal.c_result;
 }
 
 pub export fn db_query(
@@ -328,6 +350,7 @@ pub export fn db_query(
             le
         else switch (err) {
             error.Interrupted, error.QueryInterrupted => "Query was cancelled by user",
+            error.SQLiteEmptyStatement => "Empty SQL statement",
             error.SQLitePrepareFailed, error.PrepareFailed => "SQL syntax error or invalid table",
             else => "Query execution failed",
         };
@@ -336,30 +359,46 @@ pub export fn db_query(
         return null;
     };
 
-    // Take ownership of the arena already populated by zig_result.
-    // This eliminates the redundant second arena allocation and deep copying of BLOBs.
-    var arena = zig_result.arena;
-    errdefer arena.deinit();
-    const arena_allocator = arena.allocator();
+    return wrapQueryResult(zig_result);
+}
 
-    const internal = arena_allocator.create(InternalResult) catch return null;
+/// Fetch next batch of rows from the currently active cursor on this handle.
+/// Current Limitation:
+/// Each DbHandle maintains at most one active cursor. If another query was executed on this handle,
+/// or if the previous query already consumed all rows, this returns NULL with no error.
+pub export fn db_fetch_more(
+    handle: ?*DbContext,
+    limit: u32,
+    error_out: ?*?[*:0]u8,
+) ?*CDbBatchResult {
+    const ctx = handle orelse {
+        setError(std.heap.c_allocator, error_out, "Null db handle");
+        return null;
+    };
+    if (error_out) |out| {
+        out.* = null;
+    }
 
-    const col_count = zig_result.columns.len;
-    const row_count = zig_result.row_count;
-    const total_values = zig_result.values.len;
-    assert(total_values == col_count * row_count);
+    const row_limit: usize = if (limit > 0) @intCast(limit) else 100;
 
-    internal.* = .{
-        .arena = arena,
-        .c_result = .{
-            .column_count = @intCast(col_count),
-            .columns = zig_result.columns.ptr,
-            .row_count = @intCast(row_count),
-            .values = zig_result.values.ptr,
-            .has_more = zig_result.has_more,
-            .execution_time_ns = zig_result.execution_time_ns,
-        },
+    const maybe_res = ctx.driver.fetchMore(ctx.gpa, row_limit) catch |err| {
+        const msg = if (ctx.driver.lastError()) |le|
+            le
+        else switch (err) {
+            error.Interrupted, error.QueryInterrupted => "Query was cancelled by user",
+            else => "Fetch more failed",
+        };
+        ctx.setLastError(msg);
+        setError(ctx.gpa, error_out, msg);
+        return null;
     };
 
-    return &internal.c_result;
+    const zig_result = maybe_res orelse return null;
+    return wrapQueryResult(zig_result);
+}
+
+pub export fn db_close_cursor(handle: ?*DbContext) void {
+    if (handle) |ctx| {
+        ctx.driver.closeActiveCursor();
+    }
 }

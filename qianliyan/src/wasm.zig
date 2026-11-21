@@ -13,6 +13,8 @@ comptime {
     _ = root.ffi.db_free_string;
     _ = root.ffi.db_query;
     _ = root.ffi.db_interrupt;
+    _ = root.ffi.db_fetch_more;
+    _ = root.ffi.db_close_cursor;
     _ = root.ffi.db_free_result;
 }
 

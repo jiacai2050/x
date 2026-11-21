@@ -92,13 +92,29 @@ public struct QueryResultData: Sendable {
         return values[start..<(start + columnCount)]
     }
 
-    public var rows: [[CellValue]] {
-        var list: [[CellValue]] = []
-        list.reserveCapacity(rowCount)
-        for r in 0..<rowCount {
-            list.append(Array(row(at: r)))
-        }
-        return list
+    public func appending(more: QueryResultData) -> QueryResultData {
+        var newValues = self.values
+        newValues.reserveCapacity(self.values.count + more.values.count)
+        newValues.append(contentsOf: more.values)
+        return QueryResultData(
+            columns: self.columns,
+            rowCount: self.rowCount + more.rowCount,
+            columnCount: self.columnCount,
+            values: newValues,
+            hasMore: more.hasMore,
+            executionTimeMs: self.executionTimeMs + more.executionTimeMs
+        )
+    }
+
+    public func withHasMore(_ hasMore: Bool) -> QueryResultData {
+        QueryResultData(
+            columns: self.columns,
+            rowCount: self.rowCount,
+            columnCount: self.columnCount,
+            values: self.values,
+            hasMore: hasMore,
+            executionTimeMs: self.executionTimeMs
+        )
     }
 }
 
@@ -173,6 +189,12 @@ public final class DBClient: @unchecked Sendable {
         return h
     }
 
+    @inline(__always)
+    private static func decodeSlice(_ slice: DbSlice) -> String {
+        guard let ptr = slice.data, slice.size > 0 else { return "" }
+        return String(decoding: UnsafeRawBufferPointer(start: ptr, count: slice.size), as: UTF8.self)
+    }
+
     public func getSchema() async throws -> [TableInfo] {
         _ = try getValidHandle()
 
@@ -195,16 +217,16 @@ public final class DBClient: @unchecked Sendable {
 
             for i in 0..<tblCount {
                 let cTbl = schemaRes.tables[i]
-                let tblName = cTbl.name != nil ? String(cString: cTbl.name) : ""
-                let tblSql = cTbl.sql != nil ? String(cString: cTbl.sql!) : nil
+                let tblName = DBClient.decodeSlice(cTbl.name)
+                let tblSql: String? = cTbl.sql.data != nil && cTbl.sql.size > 0 ? DBClient.decodeSlice(cTbl.sql) : nil
 
                 let colCount = Int(cTbl.column_count)
                 var columns: [ColumnInfo] = []
                 columns.reserveCapacity(colCount)
                 for ci in 0..<colCount {
                     let cCol = cTbl.columns[ci]
-                    let colName = cCol.name != nil ? String(cString: cCol.name) : ""
-                    let colType = cCol.type_name != nil ? String(cString: cCol.type_name) : ""
+                    let colName = DBClient.decodeSlice(cCol.name)
+                    let colType = DBClient.decodeSlice(cCol.type_name)
                     columns.append(ColumnInfo(name: colName, type: colType, pk: Int(cCol.pk)))
                 }
 
@@ -213,14 +235,13 @@ public final class DBClient: @unchecked Sendable {
                 indexes.reserveCapacity(idxCount)
                 for ii in 0..<idxCount {
                     let cIdx = cTbl.indexes[ii]
-                    let idxName = cIdx.name != nil ? String(cString: cIdx.name) : ""
+                    let idxName = DBClient.decodeSlice(cIdx.name)
                     let idxColCount = Int(cIdx.column_count)
                     var idxColumns: [String] = []
                     idxColumns.reserveCapacity(idxColCount)
                     for cii in 0..<idxColCount {
-                        if let namePtr = cIdx.columns[cii] {
-                            idxColumns.append(String(cString: namePtr))
-                        }
+                        let cColName = DBClient.decodeSlice(cIdx.columns[cii])
+                        idxColumns.append(cColName)
                     }
                     indexes.append(IndexInfo(name: idxName, unique: cIdx.is_unique, columns: idxColumns))
                 }
@@ -235,6 +256,62 @@ public final class DBClient: @unchecked Sendable {
 
             return tables
         }.value
+    }
+
+    private static func parseResult(_ resPtr: UnsafeMutablePointer<DbBatchResult>) -> QueryResultData {
+        let res = resPtr.pointee
+        let colCount = Int(res.column_count)
+        let rowCount = Int(res.row_count)
+
+        var columns: [ColumnInfo] = []
+        columns.reserveCapacity(colCount)
+        for i in 0..<colCount {
+            let col = res.columns[i]
+            let name = DBClient.decodeSlice(col.name)
+            let typeName = DBClient.decodeSlice(col.type_name)
+            columns.append(ColumnInfo(name: name, type: typeName))
+        }
+
+        let totalValues = colCount * rowCount
+        var values: [CellValue] = []
+        values.reserveCapacity(totalValues)
+
+        for idx in 0..<totalValues {
+            let cVal = res.values[idx]
+            switch cVal.type {
+            case DB_TYPE_NULL:
+                values.append(.null)
+            case DB_TYPE_INTEGER:
+                values.append(.integer(cVal.value.int_val))
+            case DB_TYPE_REAL:
+                values.append(.real(cVal.value.real_val))
+            case DB_TYPE_TEXT:
+                let slice = cVal.value.text_val
+                if let ptr = slice.data, slice.size > 0 {
+                    // Vectorized UTF-8 decoding with exact byte length, skipping strlen
+                    let text = String(decoding: UnsafeRawBufferPointer(start: ptr, count: slice.size), as: UTF8.self)
+                    values.append(.text(text))
+                } else {
+                    values.append(.text(""))
+                }
+            case DB_TYPE_BLOB:
+                let size = cVal.value.blob_val.size
+                values.append(.blob(size))
+            default:
+                values.append(.null)
+            }
+        }
+
+        let execTimeMs = Double(res.execution_time_ns) / 1_000_000.0
+
+        return QueryResultData(
+            columns: columns,
+            rowCount: rowCount,
+            columnCount: colCount,
+            values: values,
+            hasMore: res.has_more,
+            executionTimeMs: execTimeMs
+        )
     }
 
     public func query(sql: String, limit: UInt32 = 500) async throws -> QueryResultData {
@@ -252,59 +329,39 @@ public final class DBClient: @unchecked Sendable {
             }
             defer { db_free_result(resPtr) }
 
-            let res = resPtr.pointee
-            let colCount = Int(res.column_count)
-            let rowCount = Int(res.row_count)
-
-            var columns: [ColumnInfo] = []
-            columns.reserveCapacity(colCount)
-            for i in 0..<colCount {
-                let col = res.columns[i]
-                let name = col.name != nil ? String(cString: col.name!) : ""
-                let typeName = col.type_name != nil ? String(cString: col.type_name!) : ""
-                columns.append(ColumnInfo(name: name, type: typeName))
-            }
-
-            let totalValues = colCount * rowCount
-            var values: [CellValue] = []
-            values.reserveCapacity(totalValues)
-
-            for idx in 0..<totalValues {
-                let cVal = res.values[idx]
-                switch cVal.type {
-                case DB_TYPE_NULL:
-                    values.append(.null)
-                case DB_TYPE_INTEGER:
-                    values.append(.integer(cVal.value.int_val))
-                case DB_TYPE_REAL:
-                    values.append(.real(cVal.value.real_val))
-                case DB_TYPE_TEXT:
-                    let slice = cVal.value.text_val
-                    if let ptr = slice.data, slice.size > 0 {
-                        // Vectorized UTF-8 decoding with exact byte length, skipping strlen
-                        let text = String(decoding: UnsafeRawBufferPointer(start: ptr, count: slice.size), as: UTF8.self)
-                        values.append(.text(text))
-                    } else {
-                        values.append(.text(""))
-                    }
-                case DB_TYPE_BLOB:
-                    let size = cVal.value.blob_val.size
-                    values.append(.blob(size))
-                default:
-                    values.append(.null)
-                }
-            }
-
-            let execTimeMs = Double(res.execution_time_ns) / 1_000_000.0
-
-            return QueryResultData(
-                columns: columns,
-                rowCount: rowCount,
-                columnCount: colCount,
-                values: values,
-                hasMore: res.has_more,
-                executionTimeMs: execTimeMs
-            )
+            return DBClient.parseResult(resPtr)
         }.value
+    }
+
+    public func fetchMore(limit: UInt32 = 100) async throws -> QueryResultData? {
+        _ = try getValidHandle()
+
+        return try await Task.detached { [weak self] in
+            guard let self = self else {
+                throw NSError(domain: "DBClient", code: 5, userInfo: [NSLocalizedDescriptionKey: "Client deallocated"])
+            }
+            let validH = try self.getValidHandle()
+
+            var errPtr: UnsafeMutablePointer<CChar>? = nil
+            guard let resPtr = db_fetch_more(validH, limit, &errPtr) else {
+                if let errPtr = errPtr {
+                    let msg = String(cString: errPtr)
+                    db_free_string(errPtr)
+                    throw NSError(domain: "DBClient", code: 6, userInfo: [NSLocalizedDescriptionKey: msg])
+                }
+                return nil
+            }
+            defer { db_free_result(resPtr) }
+
+            return DBClient.parseResult(resPtr)
+        }.value
+    }
+
+    public func closeCursor() {
+        lock.lock()
+        defer { lock.unlock() }
+        if let h = handle {
+            db_close_cursor(h)
+        }
     }
 }

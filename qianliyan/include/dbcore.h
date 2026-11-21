@@ -19,14 +19,14 @@ typedef enum {
 } DbColumnType;
 
 typedef struct {
-    const char* name;
-    const char* type_name;
-} DbColumnDef;
-
-typedef struct {
     const char* data;
     size_t size;
 } DbSlice;
+
+typedef struct {
+    DbSlice name;
+    DbSlice type_name;
+} DbColumnDef;
 
 typedef struct {
     DbColumnType type;
@@ -50,21 +50,21 @@ typedef struct {
 
 // Native C Schema Structures
 typedef struct {
-    const char* name;
-    const char* type_name;
+    DbSlice name;
+    DbSlice type_name;
     uint32_t pk;
 } DbColumnInfo;
 
 typedef struct {
-    const char* name;
+    DbSlice name;
     bool is_unique;
     uint32_t column_count;
-    const char* const* columns;
+    const DbSlice* columns;
 } DbIndexDef;
 
 typedef struct {
-    const char* name;
-    const char* sql;
+    DbSlice name;
+    DbSlice sql;
     uint32_t column_count;
     const DbColumnInfo* columns;
     uint32_t index_count;
@@ -106,6 +106,16 @@ void db_free_string(char* str);
 
 // Synchronously execute query and return batch result.
 DbBatchResult* db_query(DbHandle handle, const char* sql, uint32_t limit, char** error_out);
+
+// Fetch next batch of rows from the currently active cursor on this handle.
+// Note on current limitation:
+// Each DbHandle currently maintains a single active cursor. If another query, DDL, or schema
+// inspection is run on this handle in between, the previous cursor is invalidated and closed.
+// Returns next batch result, or NULL if no active cursor exists / on error. Caller frees with db_free_result.
+DbBatchResult* db_fetch_more(DbHandle handle, uint32_t limit, char** error_out);
+
+// Close any active cursor on the database handle and release database locks.
+void db_close_cursor(DbHandle handle);
 
 // Interrupt a long running query on the handle. Safe to call from another thread.
 void db_interrupt(DbHandle handle);

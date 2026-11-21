@@ -42,18 +42,19 @@ public final class QueryTab: Identifiable {
     public var selectedSQL: String? = nil
     public var result: QueryResultData? = nil
     public var isExecuting: Bool = false
+    public var isFetchingMore: Bool = false
     public var errorMessage: String? = nil
     public var statusMessage: String? = nil
-    public var page: Int = 1
-    public var pageSize: Int = 50
+    public var pageSize: Int = 100
     public var tableName: String? = nil
     public var sortColumnIndex: Int? = nil
     public var sortAscending: Bool = true
 
-    public init(title: String, sql: String, tableName: String? = nil) {
+    public init(title: String, sql: String, tableName: String? = nil, pageSize: Int = 100) {
         self.title = title
         self.sql = sql
         self.tableName = tableName
+        self.pageSize = pageSize
     }
 
     public var sortedRowIndices: [Int] {
@@ -70,17 +71,6 @@ public final class QueryTab: Identifiable {
             let isLess = compareCellValue(valA, valB)
             return sortAscending ? isLess : !isLess
         }
-    }
-
-    public var displayRows: [[CellValue]] {
-        guard let res = result else { return [] }
-        let indices = sortedRowIndices
-        var list: [[CellValue]] = []
-        list.reserveCapacity(indices.count)
-        for idx in indices {
-            list.append(Array(res.row(at: idx)))
-        }
-        return list
     }
 
     private func compareCellValue(_ a: CellValue, _ b: CellValue) -> Bool {
@@ -159,9 +149,19 @@ public final class DBViewModel {
 
     private let recentKey = "qianliyan_recent_databases_v1"
     private let historyKey = "qianliyan_query_history_v1"
+    private let batchSizeKey = "qianliyan_default_batch_size_v1"
+
+    public var defaultBatchSize: Int {
+        didSet {
+            UserDefaults.standard.set(defaultBatchSize, forKey: batchSizeKey)
+        }
+    }
 
     public init() {
-        let defaultTab = QueryTab(title: "Query 1", sql: "")
+        let savedBatchSize = UserDefaults.standard.integer(forKey: batchSizeKey)
+        let initialBatchSize = [100, 200, 500, 1000].contains(savedBatchSize) ? savedBatchSize : 100
+        self.defaultBatchSize = initialBatchSize
+        let defaultTab = QueryTab(title: "Query 1", sql: "", pageSize: initialBatchSize)
         self.tabs = [defaultTab]
         self.activeTabId = defaultTab.id
         loadRecentDatabases()
@@ -373,9 +373,15 @@ public final class DBViewModel {
     public func newTab(title: String? = nil, sql: String = "", tableName: String? = nil) {
         let tabNumber = tabs.count + 1
         let newTitle = title ?? "Query \(tabNumber)"
-        let tab = QueryTab(title: newTitle, sql: sql, tableName: tableName)
+        let tab = QueryTab(title: newTitle, sql: sql, tableName: tableName, pageSize: defaultBatchSize)
         tabs.append(tab)
         activeTabId = tab.id
+    }
+
+    public func updateBatchSize(_ size: Int) {
+        guard size > 0 else { return }
+        self.defaultBatchSize = size
+        self.activeTab.pageSize = size
     }
 
     public func closeTab(id: UUID) {
@@ -415,24 +421,22 @@ public final class DBViewModel {
         let trimmed = targetSql.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        var execSql = trimmed
         if let tbl = tab.tableName {
             let defaultSql = "SELECT * FROM \"\(tbl)\";"
-            if trimmed == defaultSql {
-                let offset = (tab.page - 1) * tab.pageSize
-                execSql = "SELECT * FROM \"\(tbl)\" LIMIT \(tab.pageSize) OFFSET \(offset);"
-            } else {
+            if trimmed != defaultSql {
                 tab.tableName = nil
             }
         }
 
         tab.isExecuting = true
+        tab.isFetchingMore = false
         tab.errorMessage = nil
         tab.statusMessage = "Executing query..."
 
         Task {
             do {
-                let res = try await client.query(sql: execSql, limit: UInt32(tab.pageSize))
+                let res = try await client.query(sql: trimmed, limit: UInt32(tab.pageSize))
+                guard tab.isExecuting else { return }
                 tab.result = res
                 tab.isExecuting = false
 
@@ -447,8 +451,10 @@ public final class DBViewModel {
                 self.saveHistory()
 
                 let countStr = "\(res.rowCount) row(s)"
-                tab.statusMessage = "\(countStr) returned in \(String(format: "%.2f", res.executionTimeMs)) ms"
+                let moreStr = res.hasMore ? " (more available)" : ""
+                tab.statusMessage = "\(countStr)\(moreStr) returned in \(String(format: "%.2f", res.executionTimeMs)) ms"
             } catch {
+                guard tab.isExecuting else { return }
                 tab.isExecuting = false
                 tab.result = nil
                 tab.errorMessage = error.localizedDescription
@@ -457,21 +463,54 @@ public final class DBViewModel {
         }
     }
 
-    public func nextPage() {
-        guard let res = activeTab.result, res.hasMore else { return }
-        activeTab.page += 1
-        executeQuery()
-    }
+    public func fetchMore() {
+        let tab = activeTab
+        guard let currentRes = tab.result, currentRes.hasMore, !tab.isExecuting, !tab.isFetchingMore else { return }
 
-    public func previousPage() {
-        guard activeTab.page > 1 else { return }
-        activeTab.page -= 1
-        executeQuery()
+        tab.isFetchingMore = true
+        tab.statusMessage = "Fetching more rows..."
+
+        Task {
+            do {
+                if let moreRes = try await client.fetchMore(limit: UInt32(tab.pageSize)) {
+                    guard tab.isFetchingMore else { return }
+                    tab.result = currentRes.appending(more: moreRes)
+                    tab.isFetchingMore = false
+                    let total = tab.result?.rowCount ?? 0
+                    let moreStr = (tab.result?.hasMore == true) ? " (more available)" : ""
+                    tab.statusMessage = "\(total) row(s)\(moreStr) loaded"
+                } else {
+                    // Cursor was closed or superseded (e.g. user ran another query in another tab).
+                    // Current Limitation: Each database connection maintains at most one active physical cursor.
+                    // Running a new query on another tab preemptively closes any in-flight cursor from previous tabs.
+                    guard tab.isFetchingMore else { return }
+                    tab.isFetchingMore = false
+                    tab.statusMessage = "Cursor expired. Re-run query to fetch more."
+                    if let cur = tab.result {
+                        tab.result = cur.withHasMore(false)
+                    }
+                }
+            } catch {
+                guard tab.isFetchingMore else { return }
+                tab.isFetchingMore = false
+                tab.statusMessage = "Fetch error: \(error.localizedDescription)"
+                if let cur = tab.result {
+                    tab.result = cur.withHasMore(false)
+                }
+            }
+        }
     }
 
     public func cancelQuery() {
         client.interrupt()
-        activeTab.statusMessage = "Cancelling..."
+        client.closeCursor()
+        let tab = activeTab
+        tab.isExecuting = false
+        tab.isFetchingMore = false
+        tab.statusMessage = "Cancelled"
+        if let cur = tab.result {
+            tab.result = cur.withHasMore(false)
+        }
     }
 
     public func exportCSV(for tab: QueryTab, to url: URL) throws {

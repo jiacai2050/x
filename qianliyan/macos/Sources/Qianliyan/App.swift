@@ -183,6 +183,22 @@ struct QianliyanCommands: Commands {
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
             .disabled(viewModel?.viewMode != .workspace)
+
+            Divider()
+
+            Menu("Batch Size") {
+                ForEach([100, 200, 500, 1000], id: \.self) { size in
+                    Button(action: { viewModel?.updateBatchSize(size) }) {
+                        HStack {
+                            Text("\(size) Rows")
+                            if viewModel?.activeTab.pageSize == size {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+            .disabled(viewModel?.viewMode != .workspace)
         }
     }
 }

@@ -659,6 +659,14 @@
         return new TextDecoder().decode(u8.subarray(ptr, end));
       }
 
+      // Helper: Read UTF-8 slice (data ptr + size) from WebAssembly memory
+      function readSlice(instance, ptr, len) {
+        if (!ptr || !len) return '';
+        return new TextDecoder().decode(
+          new Uint8Array(instance.exports.memory.buffer, ptr, len),
+        );
+      }
+
       // Helper: Read CDbBatchResult struct returned by Zig Core db_query
       function readBatchResult(instance, resPtr) {
         const view = new DataView(instance.exports.memory.buffer);
@@ -674,8 +682,10 @@
 
         const columns = [];
         for (let c = 0; c < colCount; c++) {
-          const colNamePtr = view.getUint32(colsPtr + c * 8 + 0, true);
-          columns.push(readCString(instance, colNamePtr));
+          const colOffset = colsPtr + c * 16;
+          const colNamePtr = view.getUint32(colOffset + 0, true);
+          const colNameLen = view.getUint32(colOffset + 4, true);
+          columns.push(readSlice(instance, colNamePtr, colNameLen));
         }
 
         const values = [];

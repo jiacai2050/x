@@ -66,7 +66,7 @@ struct ResultTableView: View {
                                         let sortedIdx = sortedIndices[r]
                                         HStack(spacing: 0) {
                                             // Row Index
-                                            Text("\((tab.page - 1) * tab.pageSize + r + 1)")
+                                            Text("\(r + 1)")
                                                 .font(.system(size: 11 * zoom, design: .monospaced))
                                                 .foregroundColor(.secondary)
                                                 .frame(width: indexColWidth, alignment: .trailing)
@@ -206,38 +206,66 @@ struct ResultTableView: View {
             HStack(spacing: 12) {
                 // Status message
                 if let status = tab.statusMessage {
-                    Text(status)
-                        .font(.caption.monospaced())
-                        .foregroundColor(.secondary)
+                    let isExpired = status.contains("Cursor expired")
+                    let isError = status.contains("error") || status.contains("Failed") || status.contains("Error")
+                    HStack(spacing: 6) {
+                        if isExpired || isError {
+                            Image(systemName: isExpired ? "exclamationmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                        Text(status)
+                            .font(.caption.monospaced())
+                            .foregroundColor((isExpired || isError) ? .red : .secondary)
+
+                        if isExpired {
+                            Button("Re-run") {
+                                viewModel.executeQuery()
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption.bold())
+                        }
+                    }
                 }
 
                 Spacer()
 
-                // Pagination Controls
+                // Result Stream & Fetch More Controls
                 if let res = tab.result, !res.columns.isEmpty {
-                    HStack(spacing: 6) {
-                        Button(action: { viewModel.previousPage() }) {
-                            Image(systemName: "chevron.left")
-                        }
-                        .disabled(tab.page <= 1)
-                        .controlSize(.small)
-
-                        Text("Page \(tab.page)")
+                    HStack(spacing: 8) {
+                        Text("\(res.rowCount) row(s)")
                             .font(.caption.monospacedDigit())
+                            .foregroundColor(.secondary)
 
-                        Button(action: { viewModel.nextPage() }) {
-                            Image(systemName: "chevron.right")
+                        if res.hasMore {
+                            Button(action: { viewModel.fetchMore() }) {
+                                HStack(spacing: 4) {
+                                    if tab.isFetchingMore {
+                                        ProgressView()
+                                            .controlSize(.mini)
+                                    } else {
+                                        Image(systemName: "arrow.down.circle")
+                                    }
+                                    Text("Fetch Next \(tab.pageSize)")
+                                }
+                            }
+                            .disabled(tab.isFetchingMore || tab.isExecuting)
+                            .controlSize(.small)
                         }
-                        .disabled(!res.hasMore)
-                        .controlSize(.small)
 
                         Menu {
-                            Button("50 per page") { tab.pageSize = 50; viewModel.executeQuery() }
-                            Button("100 per page") { tab.pageSize = 100; viewModel.executeQuery() }
-                            Button("200 per page") { tab.pageSize = 200; viewModel.executeQuery() }
-                            Button("500 per page") { tab.pageSize = 500; viewModel.executeQuery() }
+                            ForEach([100, 200, 500, 1000], id: \.self) { size in
+                                Button(action: { viewModel.updateBatchSize(size) }) {
+                                    HStack {
+                                        Text("\(size) per batch")
+                                        if tab.pageSize == size {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
                         } label: {
-                            Text("\(tab.pageSize)/page")
+                            Text("\(tab.pageSize)/batch")
                                 .font(.caption2)
                         }
                         .menuStyle(.borderlessButton)

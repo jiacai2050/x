@@ -52,33 +52,62 @@ comptime {
 
 /// C-compatible column definition for query results (matching DbColumnDef in include/dbcore.h)
 pub const DbColumnDef = extern struct {
-    name: [*:0]const u8,
-    type_name: [*:0]const u8,
+    name: DbSlice,
+    type_name: DbSlice,
+
+    pub fn getName(self: DbColumnDef) []const u8 {
+        return self.name.data[0..self.name.size];
+    }
+
+    pub fn getTypeName(self: DbColumnDef) []const u8 {
+        return self.type_name.data[0..self.type_name.size];
+    }
 };
 
 /// C-compatible column definition for table schema (matching DbColumnInfo in include/dbcore.h)
 pub const DbColumnInfo = extern struct {
-    name: [*:0]const u8,
-    type_name: [*:0]const u8,
+    name: DbSlice,
+    type_name: DbSlice,
     pk: u32 = 0,
+
+    pub fn getName(self: DbColumnInfo) []const u8 {
+        return self.name.data[0..self.name.size];
+    }
+
+    pub fn getTypeName(self: DbColumnInfo) []const u8 {
+        return self.type_name.data[0..self.type_name.size];
+    }
 };
 
 /// C-compatible index definition (matching DbIndexDef in include/dbcore.h)
 pub const DbIndexDef = extern struct {
-    name: [*:0]const u8,
+    name: DbSlice,
     is_unique: bool,
     column_count: u32,
-    columns: [*]const [*:0]const u8,
+    columns: [*]const DbSlice,
+
+    pub fn getName(self: DbIndexDef) []const u8 {
+        return self.name.data[0..self.name.size];
+    }
 };
 
 /// C-compatible table definition (matching DbTableDef in include/dbcore.h)
 pub const DbTableDef = extern struct {
-    name: [*:0]const u8,
-    sql: ?[*:0]const u8,
+    name: DbSlice,
+    sql: DbSlice,
     column_count: u32,
     columns: [*]const DbColumnInfo,
     index_count: u32,
     indexes: [*]const DbIndexDef,
+
+    pub fn getName(self: DbTableDef) []const u8 {
+        return self.name.data[0..self.name.size];
+    }
+
+    pub fn getSql(self: DbTableDef) ?[]const u8 {
+        if (self.sql.size == 0) return null;
+        return self.sql.data[0..self.sql.size];
+    }
 };
 
 /// C-compatible schema result (matching DbSchemaResult in include/dbcore.h)
@@ -88,7 +117,7 @@ pub const DbSchemaResult = extern struct {
 };
 
 comptime {
-    assert(@sizeOf(DbColumnDef) == 2 * @sizeOf(?*anyopaque));
+    assert(@sizeOf(DbColumnDef) == 2 * @sizeOf(DbSlice));
     assert(@sizeOf(DbColumnInfo) > 0);
     assert(@sizeOf(DbIndexDef) > 0);
     assert(@sizeOf(DbTableDef) > 0);

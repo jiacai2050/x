@@ -23,6 +23,7 @@ struct MacSQLEditor: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.allowsUndo = true
         textView.string = text
+        textView.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
         textView.drawsBackground = true
         textView.backgroundColor = NSColor.textBackgroundColor
 
@@ -38,6 +39,7 @@ struct MacSQLEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacSQLEditor
+        private let creationTime: TimeInterval = CACurrentMediaTime()
 
         init(_ parent: MacSQLEditor) {
             self.parent = parent
@@ -48,15 +50,27 @@ struct MacSQLEditor: NSViewRepresentable {
             parent.text = textView.string
         }
 
+        func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRange oldRange: NSRange, toCharacterRange newRange: NSRange) -> NSRange {
+            // Suppress accidental selection (e.g. double-click bleed-through when entering DB from HomeView) during initial appearance
+            if CACurrentMediaTime() - creationTime < 0.5 && newRange.length > 0 {
+                return NSRange(location: newRange.location + newRange.length, length: 0)
+            }
+            return newRange
+        }
+
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             let selectedRange = textView.selectedRange()
             if selectedRange.length > 0, let range = Range(selectedRange, in: textView.string) {
                 let selected = String(textView.string[range])
-                parent.onSelectionChanged?(selected)
-            } else {
-                parent.onSelectionChanged?("")
+                let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Filter out empty selection or a lonely semicolon so "Run Selection" is not triggered unintentionally
+                if !trimmed.isEmpty && trimmed != ";" {
+                    parent.onSelectionChanged?(selected)
+                    return
+                }
             }
+            parent.onSelectionChanged?("")
         }
 
         // Handle Tab key to insert 4 spaces instead of shifting focus
