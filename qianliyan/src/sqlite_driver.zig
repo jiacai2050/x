@@ -97,7 +97,7 @@ pub const SqliteDriver = struct {
         self.closeActiveCursor();
         const pc = try self.db.conn(.none);
         defer pc.release();
-        const exec_res = pc.exec(sql_str, &.{}, .none) catch |err| {
+        const exec_res = pc.exec(sql_str, .{}, .none) catch |err| {
             self.recordError(pc.lastError());
             return err;
         };
@@ -123,8 +123,7 @@ pub const SqliteDriver = struct {
     pub const Cursor = struct {
         driver: *SqliteDriver,
         pc: *sql.PooledConn,
-        stmt: sql.driver.Stmt,
-        rows: sql.driver.Rows,
+        rows: sql.Rows,
         columns: []types.DbColumnDef,
         buffered_row: ?[]types.DbValue = null,
         closed: bool = false,
@@ -192,7 +191,6 @@ pub const SqliteDriver = struct {
             self.closed = true;
             self.freeBufferedRow();
             self.rows.close();
-            self.stmt.close();
             self.pc.release();
             self.driver.gpa.free(self.columns);
             self.driver.gpa.destroy(self);
@@ -234,7 +232,7 @@ pub const SqliteDriver = struct {
             const dest_buf = try arena_allocator.alloc(sql.Value, col_count);
 
             // 2. Read up to `limit` rows.
-            while (row_count < limit and (try self.rows.next(io, dest_buf, .none))) {
+            while (row_count < limit and (try self.rows.next(dest_buf, .none))) {
                 for (dest_buf) |val| {
                     const cell = try sqlValueToDbValue(arena_allocator, val);
                     try value_list.append(arena_allocator, cell);
@@ -245,7 +243,7 @@ pub const SqliteDriver = struct {
             // 3. If row_count reaches limit, peek one row ahead to determine has_more.
             if (row_count >= limit) {
                 if (limit < std.math.maxInt(usize)) {
-                    if (try self.rows.next(io, dest_buf, .none)) {
+                    if (try self.rows.next(dest_buf, .none)) {
                         has_more = true;
                         const buf = try self.driver.gpa.alloc(types.DbValue, col_count);
                         var buf_idx: usize = 0;
@@ -304,29 +302,20 @@ pub const SqliteDriver = struct {
         const pc = try self.db.conn(.none);
         errdefer if (!cursor_created) pc.release();
 
-        const io = self.threaded.io();
-        var stmt = pc.raw.prepare(io, sql_str, .none) catch |err| {
+        var rows = pc.query(sql_str, .{}, .none) catch |err| {
             self.recordError(pc.lastError());
             return err;
         };
-        errdefer if (!cursor_created) stmt.close();
+        errdefer if (!cursor_created) rows.close();
 
-        var raw_rows = stmt.query(io, &.{}, .none) catch |err| {
-            self.recordError(pc.lastError());
-            return err;
-        };
-        errdefer if (!cursor_created) raw_rows.close();
-
-        const col_count = raw_rows.columnCount();
+        const col_count = rows.columnCount();
 
         var cursor_cols = try self.gpa.alloc(types.DbColumnDef, col_count);
         errdefer if (!cursor_created) self.gpa.free(cursor_cols);
         for (0..col_count) |i| {
-            const col_name = raw_rows.columnName(i);
-            const col_type = if (raw_rows.vtable.columnTypeDatabaseTypeName) |f|
-                f(raw_rows.ptr, i) orelse ""
-            else
-                "";
+            const col_name = rows.columnName(i);
+            const ct = rows.columnType(i) catch null;
+            const col_type = if (ct) |c| c.databaseTypeName() orelse "" else "";
             cursor_cols[i] = .{
                 .name = .{ .data = col_name.ptr, .size = col_name.len },
                 .type_name = .{ .data = col_type.ptr, .size = col_type.len },
@@ -338,8 +327,7 @@ pub const SqliteDriver = struct {
         cursor.* = .{
             .driver = self,
             .pc = pc,
-            .stmt = stmt,
-            .rows = raw_rows,
+            .rows = rows,
             .columns = cursor_cols,
             .closed = false,
         };
@@ -384,48 +372,59 @@ pub const SqliteDriver = struct {
         errdefer arena.deinit();
         const arena_allocator = arena.allocator();
 
-        var tables_res = try self.query(
-            arena_allocator,
+        // Borrow connection once for the entire schema inspection sequence.
+        // This avoids 80+ borrow/release roundtrips and protects any active user streaming cursor.
+        const pc = try self.db.conn(.none);
+        defer pc.release();
+
+        const TableMasterRow = struct {
+            name: []const u8,
+            sql: ?[]const u8,
+        };
+
+        var tables_rows = pc.query(
             "SELECT name, sql FROM sqlite_master WHERE type='table' " ++
                 "AND name NOT LIKE 'sqlite_%' ORDER BY name;",
-            null,
-        );
-        defer tables_res.deinit();
+            .{},
+            .none,
+        ) catch |err| {
+            self.recordError(pc.lastError());
+            return err;
+        };
+        defer tables_rows.close();
 
         var tables: std.ArrayList(types.DbTableDef) = .empty;
 
-        for (0..tables_res.row_count) |table_row_index| {
-            const row = tables_res.getRow(table_row_index);
-            if (row.len < 2) continue;
-            const table_name = row[0].getText() orelse continue;
-            const table_sql = row[1].getText() orelse "";
-
+        while (try tables_rows.nextStruct(TableMasterRow, .none)) |tbl| {
             // 1. Fetch column definitions using PRAGMA table_info.
             const pragma_column_sql = try std.fmt.allocPrint(
                 arena_allocator,
                 "PRAGMA table_info(\"{s}\");",
-                .{table_name},
+                .{tbl.name},
             );
-            var column_res = try self.query(arena_allocator, pragma_column_sql, null);
-            defer column_res.deinit();
+            var col_rows = pc.query(pragma_column_sql, .{}, .none) catch |err| {
+                self.recordError(pc.lastError());
+                return err;
+            };
+            defer col_rows.close();
+
+            const ColumnInfoRow = struct {
+                cid: i64,
+                name: []const u8,
+                type: []const u8,
+                notnull: i64,
+                dflt_value: ?[]const u8,
+                pk: u32,
+            };
 
             var columns: std.ArrayList(types.DbColumnInfo) = .empty;
-            for (0..column_res.row_count) |column_row_index| {
-                const col_row = column_res.getRow(column_row_index);
-                if (col_row.len < 3) continue;
-                const col_name = try arena_allocator.dupe(u8, col_row[1].getText() orelse "");
-                const col_type = try arena_allocator.dupe(u8, col_row[2].getText() orelse "");
-                const pk_val: u32 = if (col_row.len > 5) switch (col_row[5].type) {
-                    .integer => if (col_row[5].value.int_val > 0)
-                        @intCast(col_row[5].value.int_val)
-                    else
-                        0,
-                    else => 0,
-                } else 0;
+            while (try col_rows.nextStruct(ColumnInfoRow, .none)) |col| {
+                const col_name = try arena_allocator.dupe(u8, col.name);
+                const col_type = try arena_allocator.dupe(u8, col.type);
                 try columns.append(arena_allocator, .{
                     .name = .{ .data = col_name.ptr, .size = col_name.len },
                     .type_name = .{ .data = col_type.ptr, .size = col_type.len },
-                    .pk = pk_val,
+                    .pk = col.pk,
                 });
             }
 
@@ -433,24 +432,25 @@ pub const SqliteDriver = struct {
             const pragma_index_sql = try std.fmt.allocPrint(
                 arena_allocator,
                 "PRAGMA index_list(\"{s}\");",
-                .{table_name},
+                .{tbl.name},
             );
-            var index_res = try self.query(arena_allocator, pragma_index_sql, null);
-            defer index_res.deinit();
+            var idx_rows = pc.query(pragma_index_sql, .{}, .none) catch |err| {
+                self.recordError(pc.lastError());
+                return err;
+            };
+            defer idx_rows.close();
+
+            const IndexListRow = struct {
+                seq: i64,
+                name: []const u8,
+                unique: bool,
+                origin: []const u8,
+                partial: i64,
+            };
 
             var indexes: std.ArrayList(types.DbIndexDef) = .empty;
-            for (0..index_res.row_count) |index_row_index| {
-                const index_row = index_res.getRow(index_row_index);
-                // index_list columns: 0:seq, 1:name, 2:unique, 3:origin, 4:partial.
-                if (index_row.len < 3) continue;
-                const index_name = try arena_allocator.dupe(
-                    u8,
-                    index_row[1].getText() orelse continue,
-                );
-                const is_unique = switch (index_row[2].type) {
-                    .integer => index_row[2].value.int_val == 1,
-                    else => false,
-                };
+            while (try idx_rows.nextStruct(IndexListRow, .none)) |idx| {
+                const index_name = try arena_allocator.dupe(u8, idx.name);
 
                 // Fetch indexed columns via PRAGMA index_info("index_name").
                 const pragma_index_info_sql = try std.fmt.allocPrint(
@@ -458,28 +458,33 @@ pub const SqliteDriver = struct {
                     "PRAGMA index_info(\"{s}\");",
                     .{index_name},
                 );
-                var index_col_res = try self.query(arena_allocator, pragma_index_info_sql, null);
-                defer index_col_res.deinit();
+                var idx_col_rows = pc.query(pragma_index_info_sql, .{}, .none) catch |err| {
+                    self.recordError(pc.lastError());
+                    return err;
+                };
+                defer idx_col_rows.close();
+
+                const IndexInfoRow = struct {
+                    seqno: i64,
+                    cid: i64,
+                    name: ?[]const u8,
+                };
 
                 var index_columns: std.ArrayList(types.DbSlice) = .empty;
-                for (0..index_col_res.row_count) |index_col_row_index| {
-                    const info_row = index_col_res.getRow(index_col_row_index);
-                    // index_info columns: 0:seqno, 1:cid, 2:name.
-                    if (info_row.len > 2) {
-                        if (info_row[2].getText()) |col_str| {
-                            const col_duped = try arena_allocator.dupe(u8, col_str);
-                            try index_columns.append(arena_allocator, .{
-                                .data = col_duped.ptr,
-                                .size = col_duped.len,
-                            });
-                        }
+                while (try idx_col_rows.nextStruct(IndexInfoRow, .none)) |info| {
+                    if (info.name) |col_str| {
+                        const col_duped = try arena_allocator.dupe(u8, col_str);
+                        try index_columns.append(arena_allocator, .{
+                            .data = col_duped.ptr,
+                            .size = col_duped.len,
+                        });
                     }
                 }
 
                 const index_cols_slice = try index_columns.toOwnedSlice(arena_allocator);
                 try indexes.append(arena_allocator, .{
                     .name = .{ .data = index_name.ptr, .size = index_name.len },
-                    .is_unique = is_unique,
+                    .is_unique = idx.unique,
                     .column_count = @intCast(index_cols_slice.len),
                     .columns = index_cols_slice.ptr,
                 });
@@ -487,8 +492,8 @@ pub const SqliteDriver = struct {
 
             const columns_slice = try columns.toOwnedSlice(arena_allocator);
             const indexes_slice = try indexes.toOwnedSlice(arena_allocator);
-            const table_name_duped = try arena_allocator.dupe(u8, table_name);
-            const table_sql_duped = try arena_allocator.dupe(u8, table_sql);
+            const table_name_duped = try arena_allocator.dupe(u8, tbl.name);
+            const table_sql_duped = try arena_allocator.dupe(u8, tbl.sql orelse "");
 
             try tables.append(arena_allocator, .{
                 .name = .{ .data = table_name_duped.ptr, .size = table_name_duped.len },
