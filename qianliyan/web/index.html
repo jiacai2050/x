@@ -3,11 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Qianliyan (千里眼) — SQLite Web Viewer (Powered by Zig Core)</title>
+    <title>Qianliyan (千里眼) — SQLite Viewer</title>
     <meta
       name="description"
-      content="A lightweight, blazing-fast client-side SQLite viewer powered by Qianliyan's Zig core engine compiled to WebAssembly. 100% private, zero uploads."
+      content="Fast, in-browser SQLite viewer. 100% private, zero uploads."
     />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#4f46e5" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%236366f1'/><stop offset='100%' stop-color='%2306b6d4'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='%230f172a'/><circle cx='50' cy='50' r='32' fill='url(%23g)' opacity='0.85'/><ellipse cx='50' cy='50' rx='28' ry='16' fill='none' stroke='%23ffffff' stroke-width='4'/><circle cx='50' cy='50' r='10' fill='%23ffffff'/><circle cx='50' cy='50' r='5' fill='%230f172a'/></svg>"
@@ -82,7 +84,7 @@
         </div>
         <div>
           <h1
-            class="text-sm font-semibold tracking-tight flex items-center gap-1.5"
+            class="text-sm font-semibold tracking-tight flex items-center gap-2"
           >
             <span>Qianliyan</span>
             <span
@@ -90,10 +92,17 @@
               >千里眼</span
             >
             <span
-              class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1"
+              class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
             >
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Zig Core Wasm
+              Zig Core
+            </span>
+            <span
+              id="offline-badge"
+              class="hidden text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1"
+              title="Application cached for offline usage"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Offline
             </span>
           </h1>
         </div>
@@ -133,7 +142,7 @@
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          <span>Open SQLite</span>
+          <span>Open</span>
           <input
             type="file"
             id="file-input"
@@ -147,7 +156,7 @@
           type="button"
           class="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
         >
-          <span>Sample DB</span>
+          <span>Sample</span>
         </button>
 
         <!-- Back to Project Home -->
@@ -224,7 +233,7 @@
           class="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"
         ></div>
         <p class="text-sm font-medium text-slate-600 dark:text-slate-300">
-          Loading Qianliyan Zig Core WebAssembly Module...
+          Loading WebAssembly module...
         </p>
       </div>
 
@@ -253,22 +262,18 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-lg font-semibold tracking-tight">
-              Drop your SQLite database here
+            <h2 class="text-base font-semibold tracking-tight">
+              Drop SQLite database here
             </h2>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Parsed directly by
-              <span class="font-semibold text-indigo-600 dark:text-indigo-400"
-                >Qianliyan Zig Core</span
-              >
-              in WebAssembly
+              or choose a file to open
             </p>
           </div>
           <div class="flex items-center space-x-3 pt-2">
             <label
               class="cursor-pointer px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 transition"
             >
-              Choose Local File
+              Choose File
               <input
                 type="file"
                 id="file-input-empty"
@@ -281,7 +286,7 @@
               type="button"
               class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition"
             >
-              Try Sample DB
+              Open Sample
             </button>
           </div>
           <p
@@ -296,8 +301,7 @@
             >
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            100% Client-Side Zig Engine. No server uploads, zero data leaves
-            your browser.
+            100% local. Zero data leaves your browser.
           </p>
         </div>
       </div>
@@ -332,7 +336,7 @@
 
           <!-- Tables list -->
           <div class="flex-1 overflow-y-auto p-2 space-y-0.5" id="table-list">
-            <!-- Dynamically populated from Zig db_get_schema_json -->
+            <!-- Dynamically populated from db_get_schema_json -->
           </div>
 
           <!-- Sidebar footer -->
@@ -362,11 +366,10 @@
               <div class="flex items-center space-x-2">
                 <span
                   class="text-xs font-semibold text-slate-700 dark:text-slate-300"
-                  >SQL Query (Zig Core)</span
+                  >Query</span
                 >
                 <span class="text-[11px] text-slate-400"
-                  >(Press
-                  <kbd
+                  >(<kbd
                     class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[10px]"
                     >⌘+Enter</kbd
                   >
@@ -405,7 +408,7 @@
                   <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                     <polygon points="5 3 19 12 5 21 5 3" />
                   </svg>
-                  <span>Execute</span>
+                  <span>Run</span>
                 </button>
               </div>
             </div>
@@ -452,7 +455,7 @@
                 type="button"
                 class="h-10 border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1.5"
               >
-                <span>Table Schema & DDL</span>
+                <span>Schema & DDL</span>
               </button>
             </div>
 
@@ -547,7 +550,7 @@
                 id="table-empty-msg"
                 class="p-12 text-center text-xs text-slate-400"
               >
-                Execute a SQL query via Qianliyan Zig Core to see results
+                Run a query to view results
               </div>
             </div>
 
@@ -591,7 +594,7 @@
                   <h3
                     class="text-sm font-bold text-slate-800 dark:text-slate-200"
                   >
-                    DDL Statement (from Zig Core)
+                    DDL Statement
                   </h3>
                   <button
                     id="btn-copy-ddl"
@@ -612,7 +615,7 @@
       </div>
     </div>
 
-    <!-- Client-Side Engine Application Logic (Directly Powered by Qianliyan Zig Core Wasm) -->
+    <!-- Client-Side Application Logic -->
     <script type="module">
       import {
         WASI,
@@ -671,14 +674,6 @@
         }
       });
 
-      // Helper: Allocate null-terminated C string in WebAssembly memory
-      function allocCString(instance, str) {
-        const bytes = utf8Encoder.encode(str + '\0');
-        const ptr = instance.exports.db_alloc(bytes.length);
-        new Uint8Array(instance.exports.memory.buffer).set(bytes, ptr);
-        return ptr;
-      }
-
       // Helper: Read null-terminated UTF-8 string from WebAssembly memory
       function readCString(instance, ptr) {
         if (!ptr) return '';
@@ -696,7 +691,7 @@
         );
       }
 
-      // Helper: Read CDbBatchResult struct returned by Zig Core db_query
+      // Helper: Read CDbBatchResult struct returned by db_query
       function readBatchResult(instance, resPtr) {
         const view = new DataView(instance.exports.memory.buffer);
         const colCount = view.getUint32(resPtr + 0, true);
@@ -723,8 +718,13 @@
             const type = view.getInt32(valOffset + 0, true);
             let val = null;
             if (type === 1) {
-              // integer
-              val = Number(view.getBigInt64(valOffset + 8, true));
+              // integer (safe from snowflake ID truncation beyond 53-bit precision)
+              const bigIntVal = view.getBigInt64(valOffset + 8, true);
+              val =
+                bigIntVal >= BigInt(Number.MIN_SAFE_INTEGER) &&
+                bigIntVal <= BigInt(Number.MAX_SAFE_INTEGER)
+                  ? Number(bigIntVal)
+                  : bigIntVal.toString();
             } else if (type === 2) {
               // real
               val = view.getFloat64(valOffset + 8, true);
@@ -748,6 +748,15 @@
 
       // Fetch and pre-compile qianliyan.wasm once
       async function initWasm() {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = `
+          <div class="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm font-medium text-slate-600 dark:text-slate-300">
+            Loading WebAssembly module...
+          </p>
+        `;
+
         try {
           const response = await fetch('qianliyan.wasm');
           if (!response.ok) {
@@ -757,19 +766,29 @@
           }
           const wasmModuleBytes = await response.arrayBuffer();
           wasmModule = await WebAssembly.compile(wasmModuleBytes);
-          document.getElementById('loading-overlay').classList.add('hidden');
+          overlay.classList.add('hidden');
         } catch (err) {
           console.error(err);
-          document.getElementById('loading-overlay').innerHTML = `
-          <div class="text-rose-500 font-semibold text-sm">Failed to load Qianliyan Zig Core WebAssembly module.</div>
-          <div class="text-xs text-slate-500 mt-1">${err.message}</div>
+          overlay.innerHTML = `
+          <div class="text-rose-500 font-semibold text-sm">Failed to load WebAssembly module.</div>
+          <div class="text-xs text-slate-500 mt-1">${escapeHtml(err.message)}</div>
+          <button
+            id="btn-retry-wasm"
+            type="button"
+            class="mt-3 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+          >
+            Retry Loading
+          </button>
         `;
+          document
+            .getElementById('btn-retry-wasm')
+            ?.addEventListener('click', initWasm);
         }
       }
       initWasm();
 
-      // Instantiate a new WASI instance with our precompiled Zig Core module
-      async function instantiateZigCore(
+      // Instantiate a new WASI instance with our precompiled module
+      async function instantiateEngine(
         userFileBytes = null,
         fileName = 'database.sqlite',
       ) {
@@ -794,7 +813,13 @@
 
       // Load an uploaded file
       async function loadFile(file) {
-        if (!file || !wasmModule) return;
+        if (!file) return;
+        if (!wasmModule) {
+          alert(
+            'Qianliyan WebAssembly module is still compiling or failed to load. Please wait a moment or reload.',
+          );
+          return;
+        }
         try {
           if (currentDbHandle && wasmInstance) {
             wasmInstance.exports.db_close(currentDbHandle);
@@ -803,7 +828,7 @@
 
           const buffer = await file.arrayBuffer();
           const userBytes = new Uint8Array(buffer);
-          wasmInstance = await instantiateZigCore(userBytes, 'database.sqlite');
+          wasmInstance = await instantiateEngine(userBytes, 'database.sqlite');
 
           const pathBytes = utf8Encoder.encode('database.sqlite\0');
           const pathPtr = wasmInstance.exports.db_alloc(pathBytes.length);
@@ -834,16 +859,24 @@
           currentDbSize = file.size;
           onDatabaseReady();
         } catch (err) {
-          alert('Failed to open SQLite database with Zig Core: ' + err.message);
+          alert('Failed to open database: ' + err.message);
         }
       }
 
-      document
-        .getElementById('file-input')
-        .addEventListener('change', (e) => loadFile(e.target.files[0]));
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          loadFile(e.target.files[0]);
+        }
+        e.target.value = '';
+      });
       document
         .getElementById('file-input-empty')
-        .addEventListener('change', (e) => loadFile(e.target.files[0]));
+        .addEventListener('change', (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            loadFile(e.target.files[0]);
+          }
+          e.target.value = '';
+        });
 
       // Drag & Drop
       const dropzone = document.getElementById('dropzone');
@@ -863,19 +896,24 @@
         }
       });
 
-      // Sample Database Generation (Executed directly via Zig Core db_query)
+      // Sample Database Generation
       async function loadSampleDatabase() {
-        if (!wasmModule) return;
+        if (!wasmModule) {
+          alert(
+            'Qianliyan WebAssembly module is still compiling or failed to load. Please wait a moment or reload.',
+          );
+          return;
+        }
         try {
           if (currentDbHandle && wasmInstance) {
             wasmInstance.exports.db_close(currentDbHandle);
             currentDbHandle = null;
           }
 
-          // Open in-memory database in Zig Core
-          wasmInstance = await instantiateZigCore(null);
+          // Open in-memory database
+          wasmInstance = await instantiateEngine(null);
           currentDbHandle = wasmInstance.exports.db_open(0, 0);
-          currentDbName = 'sample_ecommerce.sqlite (Zig in-memory)';
+          currentDbName = 'sample.sqlite';
           currentDbSize = 64 * 1024;
 
           const statements = [
@@ -952,7 +990,7 @@
             'SELECT u.username, o.id AS order_id, o.total_price, o.status, o.order_date FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.id ASC;',
           );
         } catch (err) {
-          alert('Failed to build sample database in Zig Core: ' + err.message);
+          alert('Failed to build sample database: ' + err.message);
         }
       }
 
@@ -1010,7 +1048,7 @@
         document.getElementById('file-input-empty').value = '';
       });
 
-      // Refresh Tables list from Zig Core db_get_schema_json
+      // Refresh Tables list from db_get_schema_json
       function refreshTables() {
         if (!currentDbHandle || !wasmInstance) return;
 
@@ -1037,7 +1075,7 @@
           try {
             schemaTables = JSON.parse(jsonStr);
           } catch (e) {
-            console.error('Failed to parse schema JSON from Zig Core', e);
+            console.error('Failed to parse schema JSON', e);
             schemaTables = [];
           }
         } else {
@@ -1075,6 +1113,17 @@
           </button>
         `;
 
+          const inspectBtn = item.querySelector('button');
+          if (inspectBtn) {
+            inspectBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              currentTable = tableName;
+              renderTableList(schemaTables.map((t) => t.name));
+              updateSchemaView(tableName);
+              switchTab('schema');
+            });
+          }
+
           item.addEventListener('click', () => selectTable(tableName));
           listEl.appendChild(item);
         });
@@ -1099,11 +1148,18 @@
         updateSchemaView(tableName);
       }
 
-      // Run Query via Zig Core db_query
+      // Run Query via db_query
       async function runQuery(sql) {
         if (!currentDbHandle || !wasmInstance || isExecuting) return;
         const editor = document.getElementById('sql-editor');
-        if (sql === undefined || sql === null) sql = editor.value;
+        if (sql === undefined || sql === null) {
+          const start = editor.selectionStart;
+          const end = editor.selectionEnd;
+          const selected =
+            start !== end ? editor.value.substring(start, end).trim() : '';
+          // Prioritize highlighted SQL selection; fallback to full editor text
+          sql = selected || editor.value;
+        }
         const trimmed = sql.trim();
         // Ignore empty statements or lonely semicolons (matching macOS behavior)
         if (!trimmed || trimmed === ';') return;
@@ -1191,8 +1247,11 @@
             const moreSuffix = currentResult.hasMore
               ? ' (more rows available)'
               : '';
-            statusText.textContent = `Zig Core returned ${currentResult.values.length} rows${moreSuffix}.`;
+            statusText.textContent = `${currentResult.values.length} rows${moreSuffix}.`;
             statusTime.textContent = `${currentResult.durationMs.toFixed(2)} ms`;
+            currentPage = 1;
+            renderResults();
+            switchTab('data');
           } else {
             currentResult = {
               columns: [],
@@ -1209,11 +1268,10 @@
             statusText.textContent =
               'Statement executed successfully. (0 rows affected)';
             statusTime.textContent = '0 ms';
+            currentPage = 1;
+            renderResults();
+            refreshTables();
           }
-
-          currentPage = 1;
-          renderResults();
-          switchTab('data');
         } catch (err) {
           statusEl.classList.add(
             'bg-rose-50',
@@ -1237,7 +1295,7 @@
         }
       }
 
-      // Fetch next batch of rows via Zig Core db_fetch_more
+      // Fetch next batch of rows via db_fetch_more
       async function fetchMoreRows() {
         if (
           !currentDbHandle ||
@@ -1299,7 +1357,7 @@
             const moreSuffix = currentResult.hasMore
               ? ' (more rows available)'
               : '';
-            statusText.textContent = `Zig Core fetched +${nextBatch.values.length} rows (${currentResult.values.length} total)${moreSuffix}.`;
+            statusText.textContent = `+${nextBatch.values.length} rows (${currentResult.values.length} total)${moreSuffix}.`;
             statusTime.textContent = `${currentResult.durationMs.toFixed(2)} ms`;
             renderResults();
           }
@@ -1326,7 +1384,7 @@
         }
       }
 
-      // Interrupt running query in Zig Core
+      // Interrupt running query via db_interrupt
       function cancelQuery() {
         if (currentDbHandle && wasmInstance) {
           wasmInstance.exports.db_interrupt(currentDbHandle);
@@ -1396,22 +1454,26 @@
 
         // Body
         let bodyHtml = '';
-        rows.forEach((row, i) => {
-          const rowNum = startIdx + i + 1;
-          bodyHtml += `<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"><td class="px-3 py-1.5 text-slate-400 select-none">${rowNum}</td>`;
-          row.forEach((val) => {
-            bodyHtml += '<td class="px-3 py-1.5 whitespace-nowrap">';
-            if (val === null) {
-              bodyHtml += '<span class="italic text-slate-400">NULL</span>';
-            } else if (typeof val === 'string' && val.startsWith('<BLOB ')) {
-              bodyHtml += `<span class="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px]">${escapeHtml(val)}</span>`;
-            } else {
-              bodyHtml += escapeHtml(String(val));
-            }
-            bodyHtml += '</td>';
+        if (total === 0) {
+          bodyHtml = `<tr><td colspan="${currentResult.columns.length + 1}" class="px-3 py-8 text-center text-slate-400 dark:text-slate-500 italic">No rows found</td></tr>`;
+        } else {
+          rows.forEach((row, i) => {
+            const rowNum = startIdx + i + 1;
+            bodyHtml += `<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"><td class="px-3 py-1.5 text-slate-400 select-none">${rowNum}</td>`;
+            row.forEach((val) => {
+              bodyHtml += '<td class="px-3 py-1.5 whitespace-nowrap">';
+              if (val === null) {
+                bodyHtml += '<span class="italic text-slate-400">NULL</span>';
+              } else if (typeof val === 'string' && val.startsWith('<BLOB ')) {
+                bodyHtml += `<span class="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px]">${escapeHtml(val)}</span>`;
+              } else {
+                bodyHtml += escapeHtml(String(val));
+              }
+              bodyHtml += '</td>';
+            });
+            bodyHtml += '</tr>';
           });
-          bodyHtml += '</tr>';
-        });
+        }
         tbody.innerHTML = bodyHtml;
 
         // Pagination controls & Load More
@@ -1556,7 +1618,12 @@
               .join(',');
             csv += line + '\n';
           });
-          downloadBlob(csv, `${currentDbName}_export.csv`, 'text/csv');
+          // Include \uFEFF (UTF-8 BOM) so Microsoft Excel opens non-ASCII characters without garbled text
+          downloadBlob(
+            '\uFEFF' + csv,
+            `${currentDbName}_export.csv`,
+            'text/csv;charset=utf-8;',
+          );
         });
 
       document
@@ -1564,10 +1631,19 @@
         .addEventListener('click', () => {
           if (!currentResult.columns || currentResult.columns.length === 0)
             return;
+
+          // Generate unique property keys to prevent duplicate column names from overwriting values
+          const keyCounts = {};
+          const uniqueKeys = currentResult.columns.map((col) => {
+            const count = (keyCounts[col] || 0) + 1;
+            keyCounts[col] = count;
+            return count > 1 ? `${col}_${count}` : col;
+          });
+
           const list = currentResult.values.map((row) => {
             const obj = {};
-            currentResult.columns.forEach((col, i) => {
-              obj[col] = row[i];
+            uniqueKeys.forEach((key, i) => {
+              obj[key] = row[i];
             });
             return obj;
           });
@@ -1598,6 +1674,48 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
+      }
+
+      // Offline status & PWA Service Worker Registration
+      function updateOfflineStatus() {
+        const badge = document.getElementById('offline-badge');
+        if (!badge) return;
+        if (!navigator.onLine) {
+          badge.classList.remove('hidden');
+          badge.className =
+            'text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1';
+          badge.innerHTML =
+            '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Offline Mode';
+        } else if (
+          navigator.serviceWorker &&
+          navigator.serviceWorker.controller
+        ) {
+          badge.classList.remove('hidden');
+          badge.className =
+            'text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1';
+          badge.innerHTML =
+            '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Offline Ready';
+        }
+      }
+
+      window.addEventListener('online', updateOfflineStatus);
+      window.addEventListener('offline', updateOfflineStatus);
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('sw.js')
+            .then(() => {
+              updateOfflineStatus();
+            })
+            .catch((err) => {
+              console.warn('Qianliyan ServiceWorker registration failed:', err);
+            });
+        });
+        navigator.serviceWorker.addEventListener(
+          'controllerchange',
+          updateOfflineStatus,
+        );
       }
     </script>
   </body>

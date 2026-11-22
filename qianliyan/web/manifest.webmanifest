@@ -1,0 +1,16 @@
+{
+  "name": "Qianliyan — SQLite Web Viewer",
+  "short_name": "Qianliyan",
+  "description": "A lightweight client-side SQLite viewer powered by Qianliyan Zig Core.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%236366f1'/><stop offset='100%' stop-color='%2306b6d4'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='%230f172a'/><circle cx='50' cy='50' r='32' fill='url(%23g)' opacity='0.85'/><ellipse cx='50' cy='50' rx='28' ry='16' fill='none' stroke='%23ffffff' stroke-width='4'/><circle cx='50' cy='50' r='10' fill='%23ffffff'/><circle cx='50' cy='50' r='5' fill='%230f172a'/></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
