@@ -27,6 +27,8 @@ Web Browser (HTML/JS) ─[Wasm]─┘
 
 - **Zig Core**: Manages connection pooling, query execution, type parsing, and query interruption with zero memory leaks.
 - **Dual Presentation**: Native macOS SwiftUI desktop application + WebAssembly in-browser viewer, powered by the exact same Zig core codebase.
+- **macOS Architecture**: See [docs/macos-architecture.md](docs/macos-architecture.md) for detailed data flow diagrams, thread decoupling, and C-ABI bridge specs.
+- **WebAssembly Architecture**: See [docs/wasm-architecture.md](docs/wasm-architecture.md) for in-browser WASI virtual file system mounting, linear memory decoding, and zero-leak execution.
 
 ---
 

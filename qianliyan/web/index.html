@@ -382,6 +382,22 @@
                   Clear
                 </button>
                 <button
+                  id="btn-cancel-sql"
+                  type="button"
+                  class="hidden inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition"
+                >
+                  <svg
+                    class="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                  <span>Cancel</span>
+                </button>
+                <button
                   id="btn-run-sql"
                   type="button"
                   class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition"
@@ -478,6 +494,13 @@
                   >
                     <path d="m9 18 6-6-6-6" />
                   </svg>
+                </button>
+                <button
+                  id="btn-fetch-more"
+                  type="button"
+                  class="hidden ml-1 px-2 py-0.5 text-[11px] font-medium rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition"
+                >
+                  Load More (+500)
                 </button>
               </div>
 
@@ -598,8 +621,13 @@
         PreopenDirectory,
       } from 'https://esm.sh/@bjorn3/browser_wasi_shim@0.3.0/es2022/browser_wasi_shim.bundle.mjs';
 
+      // Singleton encoders/decoders to eliminate GC pressure on hot decoding/encoding paths
+      const utf8Decoder = new TextDecoder();
+      const utf8Encoder = new TextEncoder();
+      const DEFAULT_BATCH_LIMIT = 500;
+
       // State variables
-      let wasmModuleBytes = null;
+      let wasmModule = null;
       let wasmInstance = null;
       let currentDbHandle = null;
       let currentDbName = '';
@@ -614,6 +642,7 @@
       };
       let currentPage = 1;
       const pageSize = 50;
+      let isExecuting = false;
 
       // Theme setup
       const isDark =
@@ -644,7 +673,7 @@
 
       // Helper: Allocate null-terminated C string in WebAssembly memory
       function allocCString(instance, str) {
-        const bytes = new TextEncoder().encode(str + '\0');
+        const bytes = utf8Encoder.encode(str + '\0');
         const ptr = instance.exports.db_alloc(bytes.length);
         new Uint8Array(instance.exports.memory.buffer).set(bytes, ptr);
         return ptr;
@@ -656,13 +685,13 @@
         const u8 = new Uint8Array(instance.exports.memory.buffer);
         let end = ptr;
         while (end < u8.length && u8[end] !== 0) end++;
-        return new TextDecoder().decode(u8.subarray(ptr, end));
+        return utf8Decoder.decode(u8.subarray(ptr, end));
       }
 
       // Helper: Read UTF-8 slice (data ptr + size) from WebAssembly memory
       function readSlice(instance, ptr, len) {
         if (!ptr || !len) return '';
-        return new TextDecoder().decode(
+        return utf8Decoder.decode(
           new Uint8Array(instance.exports.memory.buffer, ptr, len),
         );
       }
@@ -675,10 +704,8 @@
         const rowCount = view.getUint32(resPtr + 8, true);
         const valuesPtr = view.getUint32(resPtr + 12, true);
         const hasMore = view.getUint8(resPtr + 16) !== 0;
-        const timeNsLow = view.getUint32(resPtr + 24, true);
-        const timeNsHigh = view.getUint32(resPtr + 28, true);
         const durationMs =
-          Number(BigInt(timeNsLow) + (BigInt(timeNsHigh) << 32n)) / 1_000_000;
+          Number(view.getBigUint64(resPtr + 24, true)) / 1_000_000;
 
         const columns = [];
         for (let c = 0; c < colCount; c++) {
@@ -697,9 +724,7 @@
             let val = null;
             if (type === 1) {
               // integer
-              const low = view.getUint32(valOffset + 8, true);
-              const high = view.getInt32(valOffset + 12, true);
-              val = Number(BigInt(low) + (BigInt(high) << 32n));
+              val = Number(view.getBigInt64(valOffset + 8, true));
             } else if (type === 2) {
               // real
               val = view.getFloat64(valOffset + 8, true);
@@ -707,9 +732,7 @@
               // text (CDbSlice: data ptr + size)
               const strPtr = view.getUint32(valOffset + 8, true);
               const strLen = view.getUint32(valOffset + 12, true);
-              val = strPtr && strLen > 0
-                ? new TextDecoder().decode(new Uint8Array(instance.exports.memory.buffer, strPtr, strLen))
-                : '';
+              val = readSlice(instance, strPtr, strLen);
             } else if (type === 4) {
               // blob
               const dataSize = view.getUint32(valOffset + 12, true);
@@ -723,7 +746,7 @@
         return { columns, values, hasMore, durationMs };
       }
 
-      // Fetch and compile qianliyan.wasm once
+      // Fetch and pre-compile qianliyan.wasm once
       async function initWasm() {
         try {
           const response = await fetch('qianliyan.wasm');
@@ -732,7 +755,8 @@
               `HTTP ${response.status}: Failed to fetch qianliyan.wasm`,
             );
           }
-          wasmModuleBytes = await response.arrayBuffer();
+          const wasmModuleBytes = await response.arrayBuffer();
+          wasmModule = await WebAssembly.compile(wasmModuleBytes);
           document.getElementById('loading-overlay').classList.add('hidden');
         } catch (err) {
           console.error(err);
@@ -744,7 +768,7 @@
       }
       initWasm();
 
-      // Instantiate a new WASI instance with our Zig Core
+      // Instantiate a new WASI instance with our precompiled Zig Core module
       async function instantiateZigCore(
         userFileBytes = null,
         fileName = 'database.sqlite',
@@ -760,7 +784,8 @@
         ];
 
         const wasi = new WASI([], [], fds);
-        const { instance } = await WebAssembly.instantiate(wasmModuleBytes, {
+        // Using precompiled wasmModule avoids recompilation overhead on database switches
+        const instance = await WebAssembly.instantiate(wasmModule, {
           wasi_snapshot_preview1: wasi.wasiImport,
         });
         wasi.start(instance);
@@ -769,7 +794,7 @@
 
       // Load an uploaded file
       async function loadFile(file) {
-        if (!file || !wasmModuleBytes) return;
+        if (!file || !wasmModule) return;
         try {
           if (currentDbHandle && wasmInstance) {
             wasmInstance.exports.db_close(currentDbHandle);
@@ -780,7 +805,7 @@
           const userBytes = new Uint8Array(buffer);
           wasmInstance = await instantiateZigCore(userBytes, 'database.sqlite');
 
-          const pathBytes = new TextEncoder().encode('database.sqlite\0');
+          const pathBytes = utf8Encoder.encode('database.sqlite\0');
           const pathPtr = wasmInstance.exports.db_alloc(pathBytes.length);
           new Uint8Array(wasmInstance.exports.memory.buffer).set(
             pathBytes,
@@ -840,7 +865,7 @@
 
       // Sample Database Generation (Executed directly via Zig Core db_query)
       async function loadSampleDatabase() {
-        if (!wasmModuleBytes) return;
+        if (!wasmModule) return;
         try {
           if (currentDbHandle && wasmInstance) {
             wasmInstance.exports.db_close(currentDbHandle);
@@ -906,7 +931,7 @@
           ];
 
           for (const sql of statements) {
-            const sqlBytes = new TextEncoder().encode(sql + '\0');
+            const sqlBytes = utf8Encoder.encode(sql + '\0');
             const sqlPtr = wasmInstance.exports.db_alloc(sqlBytes.length);
             new Uint8Array(wasmInstance.exports.memory.buffer).set(
               sqlBytes,
@@ -940,6 +965,15 @@
 
       // Database Ready
       function onDatabaseReady() {
+        currentTable = null;
+        currentResult = {
+          columns: [],
+          values: [],
+          hasMore: false,
+          durationMs: 0,
+        };
+        renderResults();
+
         document.getElementById('empty-state').classList.add('hidden');
         document.getElementById('workspace').classList.remove('hidden');
 
@@ -959,6 +993,16 @@
           wasmInstance.exports.db_close(currentDbHandle);
           currentDbHandle = null;
         }
+        currentTable = null;
+        schemaTables = [];
+        currentResult = {
+          columns: [],
+          values: [],
+          hasMore: false,
+          durationMs: 0,
+        };
+        renderResults();
+
         document.getElementById('workspace').classList.add('hidden');
         document.getElementById('empty-state').classList.remove('hidden');
         document.getElementById('db-badge').classList.add('hidden');
@@ -1056,11 +1100,20 @@
       }
 
       // Run Query via Zig Core db_query
-      function runQuery(sql) {
-        if (!currentDbHandle || !wasmInstance) return;
+      async function runQuery(sql) {
+        if (!currentDbHandle || !wasmInstance || isExecuting) return;
         const editor = document.getElementById('sql-editor');
-        if (!sql) sql = editor.value.trim();
-        if (!sql) return;
+        if (sql === undefined || sql === null) sql = editor.value;
+        const trimmed = sql.trim();
+        // Ignore empty statements or lonely semicolons (matching macOS behavior)
+        if (!trimmed || trimmed === ';') return;
+        sql = trimmed;
+
+        isExecuting = true;
+        const btnRun = document.getElementById('btn-run-sql');
+        const btnCancel = document.getElementById('btn-cancel-sql');
+        btnRun.classList.add('hidden');
+        btnCancel.classList.remove('hidden');
 
         const statusEl = document.getElementById('query-status');
         const statusText = document.getElementById('query-status-text');
@@ -1077,9 +1130,14 @@
           'text-emerald-700',
           'dark:text-emerald-300',
         );
+        statusText.textContent = 'Executing query...';
+        statusTime.textContent = '';
+
+        // Allow UI to update before synchronous execution
+        await new Promise((resolve) => setTimeout(resolve, 10));
 
         try {
-          const sqlBytes = new TextEncoder().encode(sql + '\0');
+          const sqlBytes = utf8Encoder.encode(sql + '\0');
           const sqlPtr = wasmInstance.exports.db_alloc(sqlBytes.length);
           new Uint8Array(wasmInstance.exports.memory.buffer).set(
             sqlBytes,
@@ -1090,7 +1148,7 @@
           const resPtr = wasmInstance.exports.db_query(
             currentDbHandle,
             sqlPtr,
-            0,
+            DEFAULT_BATCH_LIMIT,
             errPtr,
           );
           wasmInstance.exports.db_free(sqlPtr, sqlBytes.length);
@@ -1130,7 +1188,10 @@
               'text-emerald-700',
               'dark:text-emerald-300',
             );
-            statusText.textContent = `Zig Core returned ${currentResult.values.length} rows.`;
+            const moreSuffix = currentResult.hasMore
+              ? ' (more rows available)'
+              : '';
+            statusText.textContent = `Zig Core returned ${currentResult.values.length} rows${moreSuffix}.`;
             statusTime.textContent = `${currentResult.durationMs.toFixed(2)} ms`;
           } else {
             currentResult = {
@@ -1169,12 +1230,118 @@
             durationMs: 0,
           };
           renderResults();
+        } finally {
+          isExecuting = false;
+          btnCancel.classList.add('hidden');
+          btnRun.classList.remove('hidden');
+        }
+      }
+
+      // Fetch next batch of rows via Zig Core db_fetch_more
+      async function fetchMoreRows() {
+        if (
+          !currentDbHandle ||
+          !wasmInstance ||
+          !currentResult.hasMore ||
+          isExecuting
+        )
+          return;
+
+        isExecuting = true;
+        const btnFetchMore = document.getElementById('btn-fetch-more');
+        if (btnFetchMore) {
+          btnFetchMore.disabled = true;
+          btnFetchMore.textContent = 'Loading...';
+        }
+
+        const statusEl = document.getElementById('query-status');
+        const statusText = document.getElementById('query-status-text');
+        const statusTime = document.getElementById('query-status-time');
+
+        try {
+          const errPtr = wasmInstance.exports.db_alloc(4);
+          const resPtr = wasmInstance.exports.db_fetch_more(
+            currentDbHandle,
+            DEFAULT_BATCH_LIMIT,
+            errPtr,
+          );
+
+          const view = new DataView(wasmInstance.exports.memory.buffer);
+          const errStrPtr = view.getUint32(errPtr, true);
+          wasmInstance.exports.db_free(errPtr, 4);
+
+          if (errStrPtr) {
+            const err = readCString(wasmInstance, errStrPtr);
+            wasmInstance.exports.db_free_string(errStrPtr);
+            throw new Error(err);
+          }
+
+          if (resPtr) {
+            const nextBatch = readBatchResult(wasmInstance, resPtr);
+            wasmInstance.exports.db_free_result(resPtr);
+
+            currentResult.values.push(...nextBatch.values);
+            currentResult.hasMore = nextBatch.hasMore;
+            currentResult.durationMs += nextBatch.durationMs;
+
+            statusEl.classList.remove(
+              'bg-rose-50',
+              'dark:bg-rose-950/50',
+              'text-rose-700',
+              'dark:text-rose-300',
+            );
+            statusEl.classList.add(
+              'bg-emerald-50',
+              'dark:bg-emerald-950/50',
+              'text-emerald-700',
+              'dark:text-emerald-300',
+            );
+            const moreSuffix = currentResult.hasMore
+              ? ' (more rows available)'
+              : '';
+            statusText.textContent = `Zig Core fetched +${nextBatch.values.length} rows (${currentResult.values.length} total)${moreSuffix}.`;
+            statusTime.textContent = `${currentResult.durationMs.toFixed(2)} ms`;
+            renderResults();
+          }
+        } catch (err) {
+          statusEl.classList.remove(
+            'bg-emerald-50',
+            'dark:bg-emerald-950/50',
+            'text-emerald-700',
+            'dark:text-emerald-300',
+          );
+          statusEl.classList.add(
+            'bg-rose-50',
+            'dark:bg-rose-950/50',
+            'text-rose-700',
+            'dark:text-rose-300',
+          );
+          statusText.textContent = `Fetch more failed: ${err.message}`;
+        } finally {
+          isExecuting = false;
+          if (btnFetchMore) {
+            btnFetchMore.disabled = false;
+            btnFetchMore.textContent = `Load More (+${DEFAULT_BATCH_LIMIT})`;
+          }
+        }
+      }
+
+      // Interrupt running query in Zig Core
+      function cancelQuery() {
+        if (currentDbHandle && wasmInstance) {
+          wasmInstance.exports.db_interrupt(currentDbHandle);
         }
       }
 
       document
         .getElementById('btn-run-sql')
         .addEventListener('click', () => runQuery());
+      document
+        .getElementById('btn-cancel-sql')
+        .addEventListener('click', cancelQuery);
+      document
+        .getElementById('btn-fetch-more')
+        .addEventListener('click', fetchMoreRows);
       document.getElementById('btn-clear-sql').addEventListener('click', () => {
         document.getElementById('sql-editor').value = '';
         document.getElementById('sql-editor').focus();
@@ -1195,14 +1362,18 @@
         const emptyMsg = document.getElementById('table-empty-msg');
         const badge = document.getElementById('result-count-badge');
         const pagination = document.getElementById('pagination-controls');
+        const btnFetchMore = document.getElementById('btn-fetch-more');
 
-        badge.textContent = currentResult.values.length;
+        badge.textContent = currentResult.hasMore
+          ? `${currentResult.values.length}+`
+          : currentResult.values.length;
 
         if (!currentResult.columns || currentResult.columns.length === 0) {
           thead.innerHTML = '';
           tbody.innerHTML = '';
           emptyMsg.classList.remove('hidden');
           pagination.classList.add('hidden');
+          if (btnFetchMore) btnFetchMore.classList.add('hidden');
           return;
         }
 
@@ -1243,16 +1414,25 @@
         });
         tbody.innerHTML = bodyHtml;
 
-        // Pagination controls
-        if (total > pageSize) {
+        // Pagination controls & Load More
+        if (total > pageSize || currentResult.hasMore) {
           pagination.classList.remove('hidden');
           pagination.classList.add('flex');
+          const moreHint = currentResult.hasMore ? '+' : '';
           document.getElementById('page-info').textContent =
-            `${startIdx + 1} - ${endIdx} of ${total}`;
+            `${startIdx + 1} - ${endIdx} of ${total}${moreHint}`;
           document.getElementById('btn-prev-page').disabled = currentPage <= 1;
           document.getElementById('btn-next-page').disabled = endIdx >= total;
         } else {
           pagination.classList.add('hidden');
+        }
+
+        if (btnFetchMore) {
+          if (currentResult.hasMore) {
+            btnFetchMore.classList.remove('hidden');
+          } else {
+            btnFetchMore.classList.add('hidden');
+          }
         }
       }
 
