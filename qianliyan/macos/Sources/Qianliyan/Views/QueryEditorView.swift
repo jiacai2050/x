@@ -39,7 +39,6 @@ struct MacSQLEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacSQLEditor
-        private let creationTime: TimeInterval = CACurrentMediaTime()
 
         init(_ parent: MacSQLEditor) {
             self.parent = parent
@@ -48,14 +47,6 @@ struct MacSQLEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
-        }
-
-        func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRange oldRange: NSRange, toCharacterRange newRange: NSRange) -> NSRange {
-            // Suppress accidental selection (e.g. double-click bleed-through when entering DB from HomeView) during initial appearance
-            if CACurrentMediaTime() - creationTime < 0.5 && newRange.length > 0 {
-                return NSRange(location: newRange.location + newRange.length, length: 0)
-            }
-            return newRange
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {

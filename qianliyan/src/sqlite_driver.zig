@@ -4,18 +4,6 @@ const stdgo = @import("stdgo");
 const sql = stdgo.database.sql;
 const types = @import("types.zig");
 
-fn getMonotonicNs() u64 {
-    var ts: std.c.timespec = undefined;
-    const rc = std.c.clock_gettime(std.c.CLOCK.MONOTONIC, &ts);
-    assert(rc == 0);
-    const total_ns = @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
-    if (total_ns > 0) {
-        return @intCast(total_ns);
-    } else {
-        return 0;
-    }
-}
-
 pub const SqliteDriver = struct {
     gpa: std.mem.Allocator,
     threaded: *std.Io.Threaded,
@@ -81,7 +69,8 @@ pub const SqliteDriver = struct {
 
     pub fn interrupt(self: *SqliteDriver) void {
         if (self.active_cursor) |c| {
-            _ = c.pc.interrupt();
+            const cursor_interrupted = c.pc.interrupt();
+            assert(cursor_interrupted or !cursor_interrupted);
         }
         const interrupted_count = self.db.interruptAll();
         // Number of interrupted connections can be 0 when no query is currently active.
@@ -120,8 +109,8 @@ pub const SqliteDriver = struct {
     ///
     /// Architecture & Current Limitations:
     /// 1. Single Active Cursor per Database Instance:
-    ///    To prevent SQLite read lock contention and connection starvation (as max_open_conns is 1),
-    ///    only ONE cursor may be active at any given time.
+    ///    To prevent SQLite read lock contention and connection starvation
+    ///    (as max_open_conns is 1), only ONE cursor may be active at any given time.
     /// 2. Invalidation upon Subsequent Operations:
     ///    Executing any new query, DDL (`exec`), or schema inspection preemptively calls
     ///    `closeActiveCursor()`, closing the cursor and releasing SQLite resources immediately.
@@ -140,14 +129,58 @@ pub const SqliteDriver = struct {
         buffered_row: ?[]types.DbValue = null,
         closed: bool = false,
 
+        fn freeDbValue(allocator: std.mem.Allocator, val: types.DbValue) void {
+            switch (val.type) {
+                .text => allocator.free(val.value.text_val.slice()),
+                .blob => allocator.free(val.value.blob_val.slice()),
+                else => {},
+            }
+        }
+
+        fn cloneDbValue(allocator: std.mem.Allocator, val: types.DbValue) !types.DbValue {
+            return switch (val.type) {
+                .null, .integer, .real => val,
+                .text => .{
+                    .type = .text,
+                    .value = .{ .text_val = try val.value.text_val.dupe(allocator) },
+                },
+                .blob => .{
+                    .type = .blob,
+                    .value = .{ .blob_val = try val.value.blob_val.dupe(allocator) },
+                },
+            };
+        }
+
+        fn sqlValueToDbValue(allocator: std.mem.Allocator, val: sql.Value) !types.DbValue {
+            return switch (val) {
+                .null => .{ .type = .null, .value = .{ .int_val = 0 } },
+                .int => |v| .{ .type = .integer, .value = .{ .int_val = v } },
+                .float => |v| .{ .type = .real, .value = .{ .real_val = v } },
+                .bool => |b| .{
+                    .type = .integer,
+                    .value = .{ .int_val = if (b) 1 else 0 },
+                },
+                .string => |s| blk: {
+                    const duped = try allocator.dupe(u8, s);
+                    break :blk .{
+                        .type = .text,
+                        .value = .{ .text_val = .{ .data = duped.ptr, .size = duped.len } },
+                    };
+                },
+                .bytes => |b| blk: {
+                    const duped = try allocator.dupe(u8, b);
+                    break :blk .{
+                        .type = .blob,
+                        .value = .{ .blob_val = .{ .data = duped.ptr, .size = duped.len } },
+                    };
+                },
+            };
+        }
+
         fn freeBufferedRow(self: *Cursor) void {
             if (self.buffered_row) |row| {
                 for (row) |val| {
-                    switch (val.type) {
-                        .text => self.driver.gpa.free(val.value.text_val.data[0..val.value.text_val.size]),
-                        .blob => self.driver.gpa.free(val.value.blob_val.data[0..val.value.blob_val.size]),
-                        else => {},
-                    }
+                    freeDbValue(self.driver.gpa, val);
                 }
                 self.driver.gpa.free(row);
                 self.buffered_row = null;
@@ -166,20 +199,21 @@ pub const SqliteDriver = struct {
         }
 
         pub fn fetch(self: *Cursor, gpa: std.mem.Allocator, limit: usize) !types.QueryResult {
+            assert(!self.closed);
+
+            const io = self.driver.threaded.io();
+            const start_time = std.Io.Clock.awake.now(io);
+
             var arena = std.heap.ArenaAllocator.init(gpa);
             errdefer arena.deinit();
             const arena_allocator = arena.allocator();
 
-            const start_time_ns = getMonotonicNs();
-
             const col_count = self.columns.len;
             var columns = try arena_allocator.alloc(types.DbColumnDef, col_count);
             for (self.columns, 0..) |col, i| {
-                const name_duped = try arena_allocator.dupe(u8, col.name.data[0..col.name.size]);
-                const type_duped = try arena_allocator.dupe(u8, col.type_name.data[0..col.type_name.size]);
                 columns[i] = .{
-                    .name = .{ .data = name_duped.ptr, .size = name_duped.len },
-                    .type_name = .{ .data = type_duped.ptr, .size = type_duped.len },
+                    .name = try col.name.dupe(arena_allocator),
+                    .type_name = try col.type_name.dupe(arena_allocator),
                 };
             }
 
@@ -190,104 +224,43 @@ pub const SqliteDriver = struct {
             // 1. If we have a buffered row from a previous peek, emit it first.
             if (self.buffered_row) |buffered| {
                 for (buffered) |val| {
-                    const cell: types.DbValue = switch (val.type) {
-                        .null => .{ .type = .null, .value = .{ .int_val = 0 } },
-                        .integer => .{ .type = .integer, .value = .{ .int_val = val.value.int_val } },
-                        .real => .{ .type = .real, .value = .{ .real_val = val.value.real_val } },
-                        .text => blk: {
-                            const slice = val.value.text_val.data[0..val.value.text_val.size];
-                            const duped = try arena_allocator.dupe(u8, slice);
-                            break :blk .{
-                                .type = .text,
-                                .value = .{ .text_val = .{ .data = duped.ptr, .size = duped.len } },
-                            };
-                        },
-                        .blob => blk: {
-                            const slice = val.value.blob_val.data[0..val.value.blob_val.size];
-                            const duped = try arena_allocator.dupe(u8, slice);
-                            break :blk .{
-                                .type = .blob,
-                                .value = .{ .blob_val = .{ .data = duped.ptr, .size = duped.len } },
-                            };
-                        },
-                    };
+                    const cell = try cloneDbValue(arena_allocator, val);
                     try value_list.append(arena_allocator, cell);
                 }
                 row_count += 1;
                 self.freeBufferedRow();
             }
 
-            const io = self.driver.threaded.io();
             const dest_buf = try arena_allocator.alloc(sql.Value, col_count);
 
             // 2. Read up to `limit` rows.
             while (row_count < limit and (try self.rows.next(io, dest_buf, .none))) {
                 for (dest_buf) |val| {
-                    const cell: types.DbValue = switch (val) {
-                        .null => .{ .type = .null, .value = .{ .int_val = 0 } },
-                        .int => |v| .{ .type = .integer, .value = .{ .int_val = v } },
-                        .float => |v| .{ .type = .real, .value = .{ .real_val = v } },
-                        .bool => |b| .{ .type = .integer, .value = .{ .int_val = if (b) 1 else 0 } },
-                        .string => |s| blk: {
-                            const duped = try arena_allocator.dupe(u8, s);
-                            break :blk .{
-                                .type = .text,
-                                .value = .{ .text_val = .{ .data = duped.ptr, .size = duped.len } },
-                            };
-                        },
-                        .bytes => |b| blk: {
-                            const duped = try arena_allocator.dupe(u8, b);
-                            break :blk .{
-                                .type = .blob,
-                                .value = .{ .blob_val = .{ .data = duped.ptr, .size = duped.len } },
-                            };
-                        },
-                    };
+                    const cell = try sqlValueToDbValue(arena_allocator, val);
                     try value_list.append(arena_allocator, cell);
                 }
                 row_count += 1;
             }
 
             // 3. If row_count reaches limit, peek one row ahead to determine has_more.
-            if (row_count >= limit and limit < std.math.maxInt(usize)) {
-                if (try self.rows.next(io, dest_buf, .none)) {
-                    has_more = true;
-                    const buf = try self.driver.gpa.alloc(types.DbValue, col_count);
-                    var buf_idx: usize = 0;
-                    errdefer {
-                        for (buf[0..buf_idx]) |val| {
-                            switch (val.type) {
-                                .text => self.driver.gpa.free(val.value.text_val.data[0..val.value.text_val.size]),
-                                .blob => self.driver.gpa.free(val.value.blob_val.data[0..val.value.blob_val.size]),
-                                else => {},
+            if (row_count >= limit) {
+                if (limit < std.math.maxInt(usize)) {
+                    if (try self.rows.next(io, dest_buf, .none)) {
+                        has_more = true;
+                        const buf = try self.driver.gpa.alloc(types.DbValue, col_count);
+                        var buf_idx: usize = 0;
+                        errdefer {
+                            for (buf[0..buf_idx]) |val| {
+                                freeDbValue(self.driver.gpa, val);
                             }
+                            self.driver.gpa.free(buf);
                         }
-                        self.driver.gpa.free(buf);
+                        for (dest_buf, 0..) |val, i| {
+                            buf[i] = try sqlValueToDbValue(self.driver.gpa, val);
+                            buf_idx += 1;
+                        }
+                        self.buffered_row = buf;
                     }
-                    for (dest_buf) |val| {
-                        buf[buf_idx] = switch (val) {
-                            .null => .{ .type = .null, .value = .{ .int_val = 0 } },
-                            .int => |v| .{ .type = .integer, .value = .{ .int_val = v } },
-                            .float => |v| .{ .type = .real, .value = .{ .real_val = v } },
-                            .bool => |b| .{ .type = .integer, .value = .{ .int_val = if (b) 1 else 0 } },
-                            .string => |s| blk: {
-                                const duped = try self.driver.gpa.dupe(u8, s);
-                                break :blk .{
-                                    .type = .text,
-                                    .value = .{ .text_val = .{ .data = duped.ptr, .size = duped.len } },
-                                };
-                            },
-                            .bytes => |b| blk: {
-                                const duped = try self.driver.gpa.dupe(u8, b);
-                                break :blk .{
-                                    .type = .blob,
-                                    .value = .{ .blob_val = .{ .data = duped.ptr, .size = duped.len } },
-                                };
-                            },
-                        };
-                        buf_idx += 1;
-                    }
-                    self.buffered_row = buf;
                 }
             }
 
@@ -296,9 +269,9 @@ pub const SqliteDriver = struct {
                 return err;
             }
 
-            const end_time_ns = getMonotonicNs();
-            const duration_ns: u64 = if (end_time_ns > start_time_ns)
-                end_time_ns - start_time_ns
+            const duration = start_time.untilNow(io, .awake);
+            const duration_ns: u64 = if (duration.nanoseconds > 0)
+                @intCast(duration.nanoseconds)
             else
                 0;
 
@@ -421,41 +394,32 @@ pub const SqliteDriver = struct {
 
         var tables: std.ArrayList(types.DbTableDef) = .empty;
 
-        for (0..tables_res.row_count) |tri| {
-            const row = tables_res.getRow(tri);
+        for (0..tables_res.row_count) |table_row_index| {
+            const row = tables_res.getRow(table_row_index);
             if (row.len < 2) continue;
-            const table_name = switch (row[0].type) {
-                .text => row[0].value.text_val.data[0..row[0].value.text_val.size],
-                else => continue,
-            };
-            const table_sql = switch (row[1].type) {
-                .text => row[1].value.text_val.data[0..row[1].value.text_val.size],
-                else => "",
-            };
+            const table_name = row[0].getText() orelse continue;
+            const table_sql = row[1].getText() orelse "";
 
             // 1. Fetch column definitions using PRAGMA table_info.
-            const pragma_col_sql = try std.fmt.allocPrint(
+            const pragma_column_sql = try std.fmt.allocPrint(
                 arena_allocator,
                 "PRAGMA table_info(\"{s}\");",
                 .{table_name},
             );
-            var col_res = try self.query(arena_allocator, pragma_col_sql, null);
-            defer col_res.deinit();
+            var column_res = try self.query(arena_allocator, pragma_column_sql, null);
+            defer column_res.deinit();
 
             var columns: std.ArrayList(types.DbColumnInfo) = .empty;
-            for (0..col_res.row_count) |cri| {
-                const col_row = col_res.getRow(cri);
+            for (0..column_res.row_count) |column_row_index| {
+                const col_row = column_res.getRow(column_row_index);
                 if (col_row.len < 3) continue;
-                const col_name = switch (col_row[1].type) {
-                    .text => try arena_allocator.dupe(u8, col_row[1].value.text_val.data[0..col_row[1].value.text_val.size]),
-                    else => "",
-                };
-                const col_type = switch (col_row[2].type) {
-                    .text => try arena_allocator.dupe(u8, col_row[2].value.text_val.data[0..col_row[2].value.text_val.size]),
-                    else => "",
-                };
+                const col_name = try arena_allocator.dupe(u8, col_row[1].getText() orelse "");
+                const col_type = try arena_allocator.dupe(u8, col_row[2].getText() orelse "");
                 const pk_val: u32 = if (col_row.len > 5) switch (col_row[5].type) {
-                    .integer => if (col_row[5].value.int_val > 0) @intCast(col_row[5].value.int_val) else 0,
+                    .integer => if (col_row[5].value.int_val > 0)
+                        @intCast(col_row[5].value.int_val)
+                    else
+                        0,
                     else => 0,
                 } else 0;
                 try columns.append(arena_allocator, .{
@@ -466,74 +430,73 @@ pub const SqliteDriver = struct {
             }
 
             // 2. Fetch index definitions using PRAGMA index_list.
-            const pragma_idx_sql = try std.fmt.allocPrint(
+            const pragma_index_sql = try std.fmt.allocPrint(
                 arena_allocator,
                 "PRAGMA index_list(\"{s}\");",
                 .{table_name},
             );
-            var idx_res = try self.query(arena_allocator, pragma_idx_sql, null);
-            defer idx_res.deinit();
+            var index_res = try self.query(arena_allocator, pragma_index_sql, null);
+            defer index_res.deinit();
 
             var indexes: std.ArrayList(types.DbIndexDef) = .empty;
-            for (0..idx_res.row_count) |iri| {
-                const idx_row = idx_res.getRow(iri);
+            for (0..index_res.row_count) |index_row_index| {
+                const index_row = index_res.getRow(index_row_index);
                 // index_list columns: 0:seq, 1:name, 2:unique, 3:origin, 4:partial.
-                if (idx_row.len < 3) continue;
-                const idx_name = switch (idx_row[1].type) {
-                    .text => try arena_allocator.dupe(u8, idx_row[1].value.text_val.data[0..idx_row[1].value.text_val.size]),
-                    else => continue,
-                };
-                const is_unique = switch (idx_row[2].type) {
-                    .integer => idx_row[2].value.int_val == 1,
+                if (index_row.len < 3) continue;
+                const index_name = try arena_allocator.dupe(
+                    u8,
+                    index_row[1].getText() orelse continue,
+                );
+                const is_unique = switch (index_row[2].type) {
+                    .integer => index_row[2].value.int_val == 1,
                     else => false,
                 };
 
                 // Fetch indexed columns via PRAGMA index_info("index_name").
-                const pragma_idx_info_sql = try std.fmt.allocPrint(
+                const pragma_index_info_sql = try std.fmt.allocPrint(
                     arena_allocator,
                     "PRAGMA index_info(\"{s}\");",
-                    .{idx_name},
+                    .{index_name},
                 );
-                var idx_col_res = try self.query(arena_allocator, pragma_idx_info_sql, null);
-                defer idx_col_res.deinit();
+                var index_col_res = try self.query(arena_allocator, pragma_index_info_sql, null);
+                defer index_col_res.deinit();
 
-                var idx_columns: std.ArrayList(types.DbSlice) = .empty;
-                for (0..idx_col_res.row_count) |iiri| {
-                    const info_row = idx_col_res.getRow(iiri);
+                var index_columns: std.ArrayList(types.DbSlice) = .empty;
+                for (0..index_col_res.row_count) |index_col_row_index| {
+                    const info_row = index_col_res.getRow(index_col_row_index);
                     // index_info columns: 0:seqno, 1:cid, 2:name.
                     if (info_row.len > 2) {
-                        switch (info_row[2].type) {
-                            .text => {
-                                const s = info_row[2].value.text_val;
-                                const col_duped = try arena_allocator.dupe(u8, s.data[0..s.size]);
-                                try idx_columns.append(arena_allocator, .{ .data = col_duped.ptr, .size = col_duped.len });
-                            },
-                            else => {},
+                        if (info_row[2].getText()) |col_str| {
+                            const col_duped = try arena_allocator.dupe(u8, col_str);
+                            try index_columns.append(arena_allocator, .{
+                                .data = col_duped.ptr,
+                                .size = col_duped.len,
+                            });
                         }
                     }
                 }
 
-                const idx_cols_slice = try idx_columns.toOwnedSlice(arena_allocator);
+                const index_cols_slice = try index_columns.toOwnedSlice(arena_allocator);
                 try indexes.append(arena_allocator, .{
-                    .name = .{ .data = idx_name.ptr, .size = idx_name.len },
+                    .name = .{ .data = index_name.ptr, .size = index_name.len },
                     .is_unique = is_unique,
-                    .column_count = @intCast(idx_cols_slice.len),
-                    .columns = idx_cols_slice.ptr,
+                    .column_count = @intCast(index_cols_slice.len),
+                    .columns = index_cols_slice.ptr,
                 });
             }
 
-            const cols_slice = try columns.toOwnedSlice(arena_allocator);
-            const idxs_slice = try indexes.toOwnedSlice(arena_allocator);
-            const tbl_name_duped = try arena_allocator.dupe(u8, table_name);
-            const tbl_sql_duped = try arena_allocator.dupe(u8, table_sql);
+            const columns_slice = try columns.toOwnedSlice(arena_allocator);
+            const indexes_slice = try indexes.toOwnedSlice(arena_allocator);
+            const table_name_duped = try arena_allocator.dupe(u8, table_name);
+            const table_sql_duped = try arena_allocator.dupe(u8, table_sql);
 
             try tables.append(arena_allocator, .{
-                .name = .{ .data = tbl_name_duped.ptr, .size = tbl_name_duped.len },
-                .sql = .{ .data = tbl_sql_duped.ptr, .size = tbl_sql_duped.len },
-                .column_count = @intCast(cols_slice.len),
-                .columns = cols_slice.ptr,
-                .index_count = @intCast(idxs_slice.len),
-                .indexes = idxs_slice.ptr,
+                .name = .{ .data = table_name_duped.ptr, .size = table_name_duped.len },
+                .sql = .{ .data = table_sql_duped.ptr, .size = table_sql_duped.len },
+                .column_count = @intCast(columns_slice.len),
+                .columns = columns_slice.ptr,
+                .index_count = @intCast(indexes_slice.len),
+                .indexes = indexes_slice.ptr,
             });
         }
 

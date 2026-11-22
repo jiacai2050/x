@@ -81,7 +81,8 @@ test "sqlite driver in-memory end-to-end test" {
     try testing.expectEqual(@as(u32, 1), schema.schema.tables[0].index_count);
     try testing.expectEqualStrings("idx_users_name", schema.schema.tables[0].indexes[0].getName());
     try testing.expectEqual(@as(u32, 1), schema.schema.tables[0].indexes[0].column_count);
-    try testing.expectEqualStrings("name", schema.schema.tables[0].indexes[0].columns[0].data[0..schema.schema.tables[0].indexes[0].columns[0].size]);
+    const idx_col0 = schema.schema.tables[0].indexes[0].columns[0];
+    try testing.expectEqualStrings("name", idx_col0.slice());
 
     // 4. Dynamic query execution.
     var res = try driver.query(
@@ -108,15 +109,19 @@ test "sqlite driver in-memory end-to-end test" {
     // Check row 0 (Alice).
     const row0 = res.getRow(0);
     try testing.expectEqual(@as(i64, 1), row0[0].value.int_val);
-    try testing.expectEqualStrings("Alice", row0[1].value.text_val.data[0..row0[1].value.text_val.size]);
+    try testing.expectEqualStrings("Alice", row0[1].getText().?);
     try testing.expectEqual(@as(f64, 98.5), row0[2].value.real_val);
-    try testing.expectEqualSlices(u8, &[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF }, row0[3].value.blob_val.data[0..row0[3].value.blob_val.size]);
-    try testing.expectEqualStrings("Software Engineer", row0[4].value.text_val.data[0..row0[4].value.text_val.size]);
+    try testing.expectEqualSlices(
+        u8,
+        &[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF },
+        row0[3].getBlob().?,
+    );
+    try testing.expectEqualStrings("Software Engineer", row0[4].getText().?);
 
     // Check row 1 (Bob).
     const row1 = res.getRow(1);
     try testing.expectEqual(@as(i64, 2), row1[0].value.int_val);
-    try testing.expectEqualStrings("Bob", row1[1].value.text_val.data[0..row1[1].value.text_val.size]);
+    try testing.expectEqualStrings("Bob", row1[1].getText().?);
     try testing.expectEqual(types.DbColumnType.null, row1[3].type);
     try testing.expectEqual(types.DbColumnType.null, row1[4].type);
 }
@@ -250,7 +255,8 @@ test "C-ABI ffi functions test" {
     try testing.expect(errmsg != null);
     try testing.expect(std.mem.indexOf(u8, std.mem.span(errmsg.?), "syntax error") != null);
 
-    // Test empty statement / comment only / semicolon does not panic and cleanly returns Empty SQL statement error.
+    // Test empty statement / comment only / semicolon does not panic and returns
+    // Empty SQL statement error cleanly.
     const empty_res = ffi.db_query(db, ";", 0, &err_out);
     try testing.expect(empty_res == null);
     try testing.expect(err_out != null);
@@ -269,4 +275,3 @@ test "C-ABI ffi functions test" {
         err_out = null;
     }
 }
-

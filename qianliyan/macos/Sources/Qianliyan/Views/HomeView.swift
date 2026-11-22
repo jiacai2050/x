@@ -5,6 +5,7 @@ struct HomeView: View {
     @Bindable var viewModel: DBViewModel
     @State private var renamingItem: RecentDB? = nil
     @State private var newRecentName: String = ""
+    @State private var selectedRecentId: UUID? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -97,7 +98,7 @@ struct HomeView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List {
+                    List(selection: $selectedRecentId) {
                         ForEach(viewModel.recentDatabases) { item in
                             HStack(spacing: 14) {
                                 // DB Icon
@@ -135,13 +136,17 @@ struct HomeView: View {
                                         .foregroundColor(.secondary.opacity(0.7))
                                 }
 
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundColor(.secondary.opacity(0.5))
+                                Button(action: { viewModel.openRecent(item) }) {
+                                    Text("Open")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 4)
                             .contentShape(Rectangle())
-                            .onTapGesture {
+                            .tag(item.id)
+                            .onTapGesture(count: 2) {
                                 viewModel.openRecent(item)
                             }
                             .contextMenu {
@@ -167,6 +172,14 @@ struct HomeView: View {
                     }
                     .listStyle(.inset(alternatesRowBackgrounds: true))
                     .padding(.horizontal, 20)
+                    .onKeyPress(.return) {
+                        if let id = selectedRecentId,
+                           let item = viewModel.recentDatabases.first(where: { $0.id == id }) {
+                            viewModel.openRecent(item)
+                            return .handled
+                        }
+                        return .ignored
+                    }
                 }
             }
 

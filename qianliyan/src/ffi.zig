@@ -27,9 +27,17 @@ comptime {
     assert(@sizeOf(CDbColumnType) == @sizeOf(c_int));
     assert(@sizeOf(CDbColumnDef) == 2 * @sizeOf(CDbSlice));
     assert(@sizeOf(CDbSlice) == @sizeOf(?*anyopaque) + @sizeOf(usize));
-    assert(@sizeOf(CDbBatchResult) > 0);
-    assert(@sizeOf(CDbColumnInfo) > 0);
-    assert(@sizeOf(CDbSchemaResult) > 0);
+    assert(@offsetOf(CDbBatchResult, "columns") >= @sizeOf(u32));
+    assert(@offsetOf(CDbBatchResult, "values") >=
+        @offsetOf(CDbBatchResult, "columns") + @sizeOf([*]const CDbColumnDef) + @sizeOf(u32));
+    assert(@offsetOf(CDbBatchResult, "execution_time_ns") >=
+        @offsetOf(CDbBatchResult, "values") + @sizeOf([*]const CDbValue) + @sizeOf(bool));
+    assert(@sizeOf(CDbBatchResult) ==
+        @offsetOf(CDbBatchResult, "execution_time_ns") + @sizeOf(u64));
+    assert(@offsetOf(CDbColumnInfo, "pk") == 2 * @sizeOf(CDbSlice));
+    assert(@offsetOf(CDbSchemaResult, "tables") >= @sizeOf(u32));
+    assert(@sizeOf(CDbSchemaResult) ==
+        @offsetOf(CDbSchemaResult, "tables") + @sizeOf([*]const CDbTableDef));
 }
 
 const InternalResult = struct {
@@ -54,11 +62,36 @@ pub const DbContext = struct {
         }
         self.last_error_buf = self.gpa.dupeSentinel(u8, msg, 0) catch null;
     }
+
+    pub fn setLastErrorFormatted(
+        self: *DbContext,
+        comptime fmt: []const u8,
+        args: anytype,
+    ) []const u8 {
+        if (self.last_error_buf) |b| {
+            self.gpa.free(b);
+            self.last_error_buf = null;
+        }
+        self.last_error_buf = std.fmt.allocPrintSentinel(self.gpa, fmt, args, 0) catch null;
+        return if (self.last_error_buf) |b| b else "Error formatting message";
+    }
 };
 
 fn setError(gpa: std.mem.Allocator, error_out: ?*?[*:0]u8, err_msg: []const u8) void {
     if (error_out) |out| {
         const copy = gpa.dupeSentinel(u8, err_msg, 0) catch return;
+        out.* = copy.ptr;
+    }
+}
+
+fn setErrorFormatted(
+    gpa: std.mem.Allocator,
+    error_out: ?*?[*:0]u8,
+    comptime fmt: []const u8,
+    args: anytype,
+) void {
+    if (error_out) |out| {
+        const copy = std.fmt.allocPrintSentinel(gpa, fmt, args, 0) catch return;
         out.* = copy.ptr;
     }
 }
@@ -95,13 +128,7 @@ pub export fn db_open(path: ?[*:0]const u8, error_out: ?*?[*:0]u8) ?*DbContext {
         .read_only = false,
         .create = true,
     }) catch |err| {
-        const msg = std.fmt.allocPrint(
-            gpa,
-            "Failed to open database: {s}",
-            .{@errorName(err)},
-        ) catch "Failed to open database";
-        defer gpa.free(msg);
-        setError(gpa, error_out, msg);
+        setErrorFormatted(gpa, error_out, "Failed to open database: {s}", .{@errorName(err)});
         return null;
     };
 
@@ -179,13 +206,10 @@ pub export fn db_get_schema(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?*CDbSch
     }
 
     const schema_res = ctx.driver.getSchema(ctx.gpa) catch |err| {
-        const msg = std.fmt.allocPrint(
-            ctx.gpa,
+        const msg = ctx.setLastErrorFormatted(
             "Failed to inspect schema: {s}",
             .{@errorName(err)},
-        ) catch "Failed to inspect schema";
-        defer ctx.gpa.free(msg);
-        ctx.setLastError(msg);
+        );
         setError(ctx.gpa, error_out, msg);
         return null;
     };
@@ -222,13 +246,10 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
     }
 
     var schema = ctx.driver.getSchema(ctx.gpa) catch |err| {
-        const msg = std.fmt.allocPrint(
-            ctx.gpa,
+        const msg = ctx.setLastErrorFormatted(
             "Failed to inspect schema: {s}",
             .{@errorName(err)},
-        ) catch "Failed to inspect schema";
-        defer ctx.gpa.free(msg);
-        ctx.setLastError(msg);
+        );
         setError(ctx.gpa, error_out, msg);
         return null;
     };
@@ -282,7 +303,7 @@ pub export fn db_get_schema_json(handle: ?*DbContext, error_out: ?*?[*:0]u8) ?[*
 
             for (idx.columns[0..idx.column_count], 0..) |col_name, ci| {
                 if (ci > 0) list.appendSlice(ctx.gpa, ",") catch return null;
-                writeJsonString(&list, ctx.gpa, col_name.data[0..col_name.size]) catch return null;
+                writeJsonString(&list, ctx.gpa, col_name.slice()) catch return null;
             }
             list.appendSlice(ctx.gpa, "]}") catch return null;
         }

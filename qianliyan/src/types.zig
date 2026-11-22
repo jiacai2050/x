@@ -14,6 +14,15 @@ pub const DbColumnType = enum(c_int) {
 pub const DbSlice = extern struct {
     data: [*]const u8,
     size: usize,
+
+    pub fn slice(self: DbSlice) []const u8 {
+        return self.data[0..self.size];
+    }
+
+    pub fn dupe(self: DbSlice, allocator: std.mem.Allocator) !DbSlice {
+        const copy = try allocator.dupe(u8, self.slice());
+        return .{ .data = copy.ptr, .size = copy.len };
+    }
 };
 
 pub const DbValueUnion = extern union {
@@ -28,6 +37,20 @@ pub const DbValue = extern struct {
     type: DbColumnType,
     value: DbValueUnion,
 
+    pub fn getText(self: DbValue) ?[]const u8 {
+        if (self.type == .text) {
+            return self.value.text_val.slice();
+        }
+        return null;
+    }
+
+    pub fn getBlob(self: DbValue) ?[]const u8 {
+        if (self.type == .blob) {
+            return self.value.blob_val.slice();
+        }
+        return null;
+    }
+
     pub fn format(
         self: DbValue,
         comptime fmt: []const u8,
@@ -40,14 +63,17 @@ pub const DbValue = extern struct {
             .null => try writer.writeAll("NULL"),
             .integer => try writer.print("{d}", .{self.value.int_val}),
             .real => try writer.print("{d}", .{self.value.real_val}),
-            .text => try writer.writeAll(self.value.text_val.data[0..self.value.text_val.size]),
+            .text => try writer.writeAll(self.value.text_val.slice()),
             .blob => try writer.print("<Blob {d}B>", .{self.value.blob_val.size}),
         }
     }
 };
 
 comptime {
-    assert(@sizeOf(DbValue) > 0);
+    assert(@sizeOf(DbSlice) == 2 * @sizeOf(usize));
+    assert(@sizeOf(DbValueUnion) == @max(@sizeOf(i64), @sizeOf(DbSlice)));
+    assert(@offsetOf(DbValue, "value") >= @sizeOf(DbColumnType));
+    assert(@sizeOf(DbValue) == @offsetOf(DbValue, "value") + @sizeOf(DbValueUnion));
 }
 
 /// C-compatible column definition for query results (matching DbColumnDef in include/dbcore.h)
@@ -56,11 +82,11 @@ pub const DbColumnDef = extern struct {
     type_name: DbSlice,
 
     pub fn getName(self: DbColumnDef) []const u8 {
-        return self.name.data[0..self.name.size];
+        return self.name.slice();
     }
 
     pub fn getTypeName(self: DbColumnDef) []const u8 {
-        return self.type_name.data[0..self.type_name.size];
+        return self.type_name.slice();
     }
 };
 
@@ -71,11 +97,11 @@ pub const DbColumnInfo = extern struct {
     pk: u32 = 0,
 
     pub fn getName(self: DbColumnInfo) []const u8 {
-        return self.name.data[0..self.name.size];
+        return self.name.slice();
     }
 
     pub fn getTypeName(self: DbColumnInfo) []const u8 {
-        return self.type_name.data[0..self.type_name.size];
+        return self.type_name.slice();
     }
 };
 
@@ -87,7 +113,7 @@ pub const DbIndexDef = extern struct {
     columns: [*]const DbSlice,
 
     pub fn getName(self: DbIndexDef) []const u8 {
-        return self.name.data[0..self.name.size];
+        return self.name.slice();
     }
 };
 
@@ -101,12 +127,12 @@ pub const DbTableDef = extern struct {
     indexes: [*]const DbIndexDef,
 
     pub fn getName(self: DbTableDef) []const u8 {
-        return self.name.data[0..self.name.size];
+        return self.name.slice();
     }
 
     pub fn getSql(self: DbTableDef) ?[]const u8 {
         if (self.sql.size == 0) return null;
-        return self.sql.data[0..self.sql.size];
+        return self.sql.slice();
     }
 };
 
@@ -118,10 +144,15 @@ pub const DbSchemaResult = extern struct {
 
 comptime {
     assert(@sizeOf(DbColumnDef) == 2 * @sizeOf(DbSlice));
-    assert(@sizeOf(DbColumnInfo) > 0);
-    assert(@sizeOf(DbIndexDef) > 0);
-    assert(@sizeOf(DbTableDef) > 0);
-    assert(@sizeOf(DbSchemaResult) > 0);
+    assert(@offsetOf(DbColumnInfo, "pk") == 2 * @sizeOf(DbSlice));
+    assert(@sizeOf(DbIndexDef) >=
+        @sizeOf(DbSlice) + @sizeOf(bool) + @sizeOf(u32) + @sizeOf([*]const DbSlice));
+    assert(@offsetOf(DbTableDef, "columns") >= 2 * @sizeOf(DbSlice) + @sizeOf(u32));
+    assert(@offsetOf(DbTableDef, "indexes") >=
+        @offsetOf(DbTableDef, "columns") + @sizeOf([*]const DbColumnInfo) + @sizeOf(u32));
+    assert(@offsetOf(DbSchemaResult, "tables") >= @sizeOf(u32));
+    assert(@sizeOf(DbSchemaResult) ==
+        @offsetOf(DbSchemaResult, "tables") + @sizeOf([*]const DbTableDef));
 }
 
 // Backward-compatible type aliases
@@ -154,12 +185,15 @@ pub const QueryResult = struct {
     }
 
     pub fn getRow(self: QueryResult, row: usize) []const DbValue {
+        assert(row < self.row_count);
         const col_count = self.columns.len;
         const start = row * col_count;
         return self.values[start .. start + col_count];
     }
 
     pub fn getCell(self: QueryResult, row: usize, col: usize) DbValue {
+        assert(row < self.row_count);
+        assert(col < self.columns.len);
         return self.values[row * self.columns.len + col];
     }
 };
