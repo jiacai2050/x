@@ -15,7 +15,24 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(async (cache) => {
+        await Promise.all(
+          PRECACHE_ASSETS.map(async (url) => {
+            try {
+              const isExternalScript = url.includes('tailwindcss.com');
+              const req = isExternalScript
+                ? new Request(url, { mode: 'no-cors' })
+                : new Request(url);
+              const res = await fetch(req);
+              if (res.status === 200 || res.type === 'opaque') {
+                await cache.put(url, res);
+              }
+            } catch (err) {
+              console.warn('Pre-cache warning for asset:', url, err);
+            }
+          }),
+        );
+      })
       .then(() => self.skipWaiting()),
   );
 });
@@ -40,8 +57,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only handle standard HTTP/HTTPS GET requests
   if (event.request.method !== 'GET') return;
-
-  const url = new URL(event.request.url);
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

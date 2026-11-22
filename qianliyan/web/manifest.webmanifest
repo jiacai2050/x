@@ -1,7 +1,7 @@
 {
   "name": "Qianliyan — SQLite Web Viewer",
   "short_name": "Qianliyan",
-  "description": "A lightweight client-side SQLite viewer powered by Qianliyan Zig Core.",
+  "description": "Fast, in-browser SQLite viewer. 100% private, zero uploads.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",

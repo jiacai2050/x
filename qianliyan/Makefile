@@ -22,6 +22,8 @@ wasm:
 	cp -f zig-out/web/qianliyan.wasm web/qianliyan.wasm
 	mkdir -p ../docs/qianliyan/web
 	cp -f web/index.html ../docs/qianliyan/web/index.html
+	cp -f web/sw.js ../docs/qianliyan/web/sw.js
+	cp -f web/manifest.webmanifest ../docs/qianliyan/web/manifest.webmanifest
 	cp -f zig-out/web/qianliyan.wasm ../docs/qianliyan/web/qianliyan.wasm
 
 web: wasm

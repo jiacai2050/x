@@ -15,6 +15,7 @@ The native macOS desktop frontend for Qianliyan, built with **SwiftUI** and **Ap
 ## Building and Running
 
 ### 1. Build the Zig Core Library
+
 The macOS app statically links against `libqianliyan.a`. Build it from the repository root:
 
 ```bash
@@ -48,4 +49,5 @@ Select the `Qianliyan` scheme and press `⌘ + R` to build and run.
 ## Architecture & Design Docs
 
 For detailed data flow diagrams, thread decoupling, and C-ABI bridge specifications, see:
+
 - [macOS Architecture & Data Flow](../docs/macos-architecture.md)

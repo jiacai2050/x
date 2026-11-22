@@ -16,3 +16,7 @@ zig-out
 
 # JS
 node_modules/
+
+# Qianliyan web distribution copies
+docs/qianliyan/web/
+
