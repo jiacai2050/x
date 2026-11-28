@@ -27,7 +27,10 @@ pub const SqliteDriver = struct {
 
         const sqlite_drv = try gpa.create(sql.sqlite.SQLiteDriver);
         errdefer gpa.destroy(sqlite_drv);
-        sqlite_drv.* = sql.sqlite.SQLiteDriver.init(gpa);
+        sqlite_drv.* = sql.sqlite.SQLiteDriver.init(gpa, .{
+            .read_only = options.read_only,
+            .create = options.create,
+        });
 
         const dsn = if (options.path) |p| std.mem.span(p) else ":memory:";
         const db = try sql.DB.open(gpa, threaded.io(), sqlite_drv.driver(), dsn);
@@ -69,7 +72,7 @@ pub const SqliteDriver = struct {
 
     pub fn interrupt(self: *SqliteDriver) void {
         if (self.active_cursor) |c| {
-            const cursor_interrupted = c.pc.interrupt();
+            const cursor_interrupted = c.conn.interrupt();
             assert(cursor_interrupted or !cursor_interrupted);
         }
         const interrupted_count = self.db.interruptAll();
@@ -95,10 +98,10 @@ pub const SqliteDriver = struct {
         assert(sql_str.len > 0);
         self.recordError(null);
         self.closeActiveCursor();
-        const pc = try self.db.conn(.none);
-        defer pc.release();
-        const exec_res = pc.exec(sql_str, .{}, .none) catch |err| {
-            self.recordError(pc.lastError());
+        var conn = try self.db.conn(.none);
+        defer conn.close();
+        const exec_res = conn.exec(sql_str, .{}, .none) catch |err| {
+            self.recordError(conn.lastError());
             return err;
         };
         // Result is discarded after successful execution as caller only expects void.
@@ -122,7 +125,7 @@ pub const SqliteDriver = struct {
     ///    or enforce LRU/TTL expiration policies per cursor.
     pub const Cursor = struct {
         driver: *SqliteDriver,
-        pc: *sql.PooledConn,
+        conn: sql.Conn,
         rows: sql.Rows,
         columns: []types.DbColumnDef,
         buffered_row: ?[]types.DbValue = null,
@@ -191,7 +194,7 @@ pub const SqliteDriver = struct {
             self.closed = true;
             self.freeBufferedRow();
             self.rows.close();
-            self.pc.release();
+            self.conn.close();
             self.driver.gpa.free(self.columns);
             self.driver.gpa.destroy(self);
         }
@@ -263,7 +266,7 @@ pub const SqliteDriver = struct {
             }
 
             if (self.rows.err()) |err| {
-                self.driver.recordError(self.pc.lastError());
+                self.driver.recordError(self.conn.lastError());
                 return err;
             }
 
@@ -299,11 +302,11 @@ pub const SqliteDriver = struct {
 
         var cursor_created = false;
 
-        const pc = try self.db.conn(.none);
-        errdefer if (!cursor_created) pc.release();
+        var conn = try self.db.conn(.none);
+        errdefer if (!cursor_created) conn.close();
 
-        var rows = pc.query(sql_str, .{}, .none) catch |err| {
-            self.recordError(pc.lastError());
+        var rows = conn.query(sql_str, .{}, .none) catch |err| {
+            self.recordError(conn.lastError());
             return err;
         };
         errdefer if (!cursor_created) rows.close();
@@ -326,7 +329,7 @@ pub const SqliteDriver = struct {
         errdefer if (!cursor_created) self.gpa.destroy(cursor);
         cursor.* = .{
             .driver = self,
-            .pc = pc,
+            .conn = conn,
             .rows = rows,
             .columns = cursor_cols,
             .closed = false,
@@ -368,27 +371,30 @@ pub const SqliteDriver = struct {
 
     /// Retrieve schema (all tables, DDL sql, columns, and indexes).
     pub fn getSchema(self: *SqliteDriver, gpa: std.mem.Allocator) !types.SchemaResult {
+        self.recordError(null);
+        self.closeActiveCursor();
+
         var arena = std.heap.ArenaAllocator.init(gpa);
         errdefer arena.deinit();
         const arena_allocator = arena.allocator();
 
         // Borrow connection once for the entire schema inspection sequence.
-        // This avoids 80+ borrow/release roundtrips and protects any active user streaming cursor.
-        const pc = try self.db.conn(.none);
-        defer pc.release();
+        // This avoids 80+ borrow/release roundtrips and ensures a consistent snapshot.
+        var conn = try self.db.conn(.none);
+        defer conn.close();
 
         const TableMasterRow = struct {
             name: []const u8,
             sql: ?[]const u8,
         };
 
-        var tables_rows = pc.query(
+        var tables_rows = conn.query(
             "SELECT name, sql FROM sqlite_master WHERE type='table' " ++
                 "AND name NOT LIKE 'sqlite_%' ORDER BY name;",
             .{},
             .none,
         ) catch |err| {
-            self.recordError(pc.lastError());
+            self.recordError(conn.lastError());
             return err;
         };
         defer tables_rows.close();
@@ -402,8 +408,8 @@ pub const SqliteDriver = struct {
                 "PRAGMA table_info(\"{s}\");",
                 .{tbl.name},
             );
-            var col_rows = pc.query(pragma_column_sql, .{}, .none) catch |err| {
-                self.recordError(pc.lastError());
+            var col_rows = conn.query(pragma_column_sql, .{}, .none) catch |err| {
+                self.recordError(conn.lastError());
                 return err;
             };
             defer col_rows.close();
@@ -434,8 +440,8 @@ pub const SqliteDriver = struct {
                 "PRAGMA index_list(\"{s}\");",
                 .{tbl.name},
             );
-            var idx_rows = pc.query(pragma_index_sql, .{}, .none) catch |err| {
-                self.recordError(pc.lastError());
+            var idx_rows = conn.query(pragma_index_sql, .{}, .none) catch |err| {
+                self.recordError(conn.lastError());
                 return err;
             };
             defer idx_rows.close();
@@ -458,8 +464,8 @@ pub const SqliteDriver = struct {
                     "PRAGMA index_info(\"{s}\");",
                     .{index_name},
                 );
-                var idx_col_rows = pc.query(pragma_index_info_sql, .{}, .none) catch |err| {
-                    self.recordError(pc.lastError());
+                var idx_col_rows = conn.query(pragma_index_info_sql, .{}, .none) catch |err| {
+                    self.recordError(conn.lastError());
                     return err;
                 };
                 defer idx_col_rows.close();
